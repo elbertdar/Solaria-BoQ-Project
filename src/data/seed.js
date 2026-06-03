@@ -16,7 +16,7 @@ const daysAgoISO = (n) => {
 };
 
 export const seed = {
-  meta: { version: 3 },
+  meta: { version: 4 },
 
   currentUser: { id: 'u-pic-1', name: 'Rina Hapsari', role: 'Purchasing PIC' },
 
@@ -59,6 +59,16 @@ export const seed = {
   projects: [
     { id: 'p-1', name: 'Solaria — Mall Kelapa Gading', code: 'SOL-KG-26', client: 'Solaria F&B', location: 'Jakarta Utara', startDate: daysAgoISO(32) },
     { id: 'p-2', name: 'Solaria — Tunjungan Plaza', code: 'SOL-TP-26', client: 'Solaria F&B', location: 'Surabaya', startDate: daysAgoISO(10) },
+    { id: 'p-3', name: 'Solaria — Pondok Indah Mall', code: 'SOL-PIM-26', client: 'Solaria F&B', location: 'Jakarta Selatan', startDate: daysAgoISO(52) },
+    { id: 'p-4', name: 'Solaria — Grand Indonesia', code: 'SOL-GI-26', client: 'Solaria F&B', location: 'Jakarta Pusat', startDate: daysAgoISO(48) },
+    { id: 'p-5', name: 'Solaria — Paris Van Java', code: 'SOL-PVJ-26', client: 'Solaria F&B', location: 'Bandung', startDate: daysAgoISO(7) },
+    { id: 'p-6', name: 'Solaria — Tunjungan Plaza 6', code: 'SOL-TP6-26', client: 'Solaria F&B', location: 'Surabaya', startDate: daysAgoISO(5) },
+    { id: 'p-7', name: 'Solaria — Summarecon Bekasi', code: 'SOL-SMB-26', client: 'Solaria F&B', location: 'Bekasi', startDate: daysAgoISO(44) },
+    { id: 'p-8', name: 'Solaria — Mall Panakkukang', code: 'SOL-MP-26', client: 'Solaria F&B', location: 'Makassar', startDate: daysAgoISO(60) },
+    { id: 'p-9', name: 'Solaria — Sun Plaza', code: 'SOL-SP-26', client: 'Solaria F&B', location: 'Medan', startDate: daysAgoISO(50) },
+    { id: 'p-10', name: 'Solaria — Beachwalk', code: 'SOL-BW-26', client: 'Solaria F&B', location: 'Bali', startDate: daysAgoISO(12) },
+    { id: 'p-11', name: 'Solaria — Pakuwon Mall', code: 'SOL-PWM-26', client: 'Solaria F&B', location: 'Surabaya', startDate: daysAgoISO(46) },
+    { id: 'p-12', name: 'Solaria — Living World', code: 'SOL-LW-26', client: 'Solaria F&B', location: 'Tangerang', startDate: daysAgoISO(9) },
   ],
 
   suppliers: [
@@ -83,6 +93,26 @@ export const seed = {
     { id: 'b-8', projectId: 'p-1', materialId: 'mat-besi', description: 'Penguatan meja beton & ramp, D10', quantity: 120, unit: 'batang', expectedUnitCost: 95000, neededDayOffset: 21, mandorId: 'm-1', audit: [] },
     { id: 'b-9', projectId: 'p-1', materialId: 'mat-semen', description: 'Adukan & screeding lantai', quantity: 150, unit: 'sak', expectedUnitCost: 62000, neededDayOffset: 20, mandorId: 'm-1', audit: [] },
     { id: 'b-10', projectId: 'p-1', materialId: 'mat-pipa', description: 'Saluran air bersih & kotor pantry', quantity: 45, unit: 'batang', expectedUnitCost: 130000, neededDayOffset: 45, mandorId: 'm-3', audit: [] },
+    { id: 'b-11', projectId: 'p-3', materialId: 'mat-keramik', description: 'Lantai area makan utama', quantity: 220, unit: 'm2', expectedUnitCost: 145000, neededDayOffset: 40, mandorId: 'm-1', audit: [] },
+    { id: 'b-12', projectId: 'p-3', materialId: 'mat-cat', description: 'Finishing dinding & plafon', quantity: 22, unit: 'pail', expectedUnitCost: 850000, neededDayOffset: 58, mandorId: 'm-2', audit: [] },
+    { id: 'b-13', projectId: 'p-4', materialId: 'mat-gypsum', description: 'Partisi & bulkhead', quantity: 160, unit: 'lembar', expectedUnitCost: 65000, neededDayOffset: 35, mandorId: 'm-1', audit: [] },
+    { id: 'b-14', projectId: 'p-4', materialId: 'mat-semen', description: 'Screeding lantai dapur', quantity: 80, unit: 'sak', expectedUnitCost: 62000, neededDayOffset: 44, mandorId: 'm-2', audit: [] },
+    { id: 'b-15', projectId: 'p-5', materialId: 'mat-gypsum', description: 'Partisi area dining', quantity: 140, unit: 'lembar', expectedUnitCost: 64000, neededDayOffset: 45, mandorId: 'm-1', audit: [] },
+    { id: 'b-16', projectId: 'p-5', materialId: 'mat-pipa', description: 'Instalasi pipa pantry', quantity: 30, unit: 'batang', expectedUnitCost: 128000, neededDayOffset: 50, mandorId: 'm-3', audit: [] },
+    { id: 'b-17', projectId: 'p-6', materialId: 'mat-hollow', description: 'Rangka plafon', quantity: 90, unit: 'batang', expectedUnitCost: 78000, neededDayOffset: 42, mandorId: 'm-1', audit: [] },
+    { id: 'b-18', projectId: 'p-6', materialId: 'mat-besi', description: 'Penguatan struktur ramp', quantity: 50, unit: 'batang', expectedUnitCost: 95000, neededDayOffset: 48, mandorId: 'm-2', audit: [] },
+    { id: 'b-19', projectId: 'p-7', materialId: 'mat-semen', description: 'Adukan & screeding', quantity: 60, unit: 'sak', expectedUnitCost: 62000, neededDayOffset: 20, mandorId: 'm-1', audit: [] },
+    { id: 'b-20', projectId: 'p-7', materialId: 'mat-besi', description: 'Besi tulangan meja beton', quantity: 40, unit: 'batang', expectedUnitCost: 95000, neededDayOffset: 25, mandorId: 'm-2', audit: [] },
+    { id: 'b-21', projectId: 'p-8', materialId: 'mat-gypsum', description: 'Partisi & plafon', quantity: 90, unit: 'lembar', expectedUnitCost: 65000, neededDayOffset: 30, mandorId: 'm-1', audit: [] },
+    { id: 'b-22', projectId: 'p-8', materialId: 'mat-keramik', description: 'Lantai dining & toilet', quantity: 55, unit: 'm2', expectedUnitCost: 150000, neededDayOffset: 35, mandorId: 'm-3', audit: [] },
+    { id: 'b-23', projectId: 'p-9', materialId: 'mat-saklar', description: 'Titik saklar & stop kontak', quantity: 35, unit: 'set', expectedUnitCost: 95000, neededDayOffset: 40, mandorId: 'm-2', audit: [] },
+    { id: 'b-24', projectId: 'p-9', materialId: 'mat-kabel', description: 'Instalasi listrik area dapur', quantity: 20, unit: 'roll', expectedUnitCost: 1480000, neededDayOffset: 46, mandorId: 'm-1', audit: [] },
+    { id: 'b-25', projectId: 'p-10', materialId: 'mat-triplek', description: 'Backing panel & built-in', quantity: 70, unit: 'lembar', expectedUnitCost: 122000, neededDayOffset: 50, mandorId: 'm-1', audit: [] },
+    { id: 'b-26', projectId: 'p-10', materialId: 'mat-cat', description: 'Cat dinding interior', quantity: 18, unit: 'pail', expectedUnitCost: 850000, neededDayOffset: 55, mandorId: 'm-2', audit: [] },
+    { id: 'b-27', projectId: 'p-11', materialId: 'mat-pipa', description: 'Plumbing pantry & toilet', quantity: 35, unit: 'batang', expectedUnitCost: 130000, neededDayOffset: 38, mandorId: 'm-3', audit: [] },
+    { id: 'b-28', projectId: 'p-11', materialId: 'mat-semen', description: 'Screeding & acian', quantity: 95, unit: 'sak', expectedUnitCost: 62000, neededDayOffset: 50, mandorId: 'm-1', audit: [] },
+    { id: 'b-29', projectId: 'p-12', materialId: 'mat-gypsum', description: 'Partisi area dining & kasir', quantity: 130, unit: 'lembar', expectedUnitCost: 64000, neededDayOffset: 46, mandorId: 'm-1', audit: [] },
+    { id: 'b-30', projectId: 'p-12', materialId: 'mat-hollow', description: 'Rangka plafon & drop ceiling', quantity: 75, unit: 'batang', expectedUnitCost: 78000, neededDayOffset: 52, mandorId: 'm-2', audit: [] },
   ],
 
   // Purchase Requests (Feature 5.4). Material inherited from BoQ item (BR-1).
@@ -94,5 +124,9 @@ export const seed = {
     { id: 'pr-4', boqItemId: 'b-9', materialId: 'mat-semen', quantity: 150, unit: 'sak', supplierPrimaryId: 's-4', supplierSecondaryId: 's-1', picId: 'u-pic-2', unitCost: 61500, status: 'received', orderDate: '2026-05-13', receiptDate: '2026-05-21', createdAt: '2026-05-12T02:10:00.000Z' },
     { id: 'pr-5', boqItemId: 'b-6', materialId: 'mat-kabel', quantity: 18, unit: 'roll', supplierPrimaryId: 's-3', supplierSecondaryId: null, picId: 'u-pic-1', unitCost: 1480000, status: 'ordered', orderDate: '2026-05-22', receiptDate: null, createdAt: '2026-05-21T06:00:00.000Z' },
     { id: 'pr-6', boqItemId: 'b-1', materialId: 'mat-gypsum', quantity: 100, unit: 'lembar', supplierPrimaryId: 's-2', supplierSecondaryId: 's-1', picId: 'u-pic-1', unitCost: 64000, status: 'quoted', orderDate: null, receiptDate: null, createdAt: '2026-05-28T08:00:00.000Z' },
+    { id: 'pr-7', boqItemId: 'b-19', materialId: 'mat-semen', quantity: 60, unit: 'sak', supplierPrimaryId: 's-4', supplierSecondaryId: null, picId: 'u-pic-1', unitCost: 61500, status: 'received', orderDate: daysAgoISO(28), receiptDate: daysAgoISO(18), createdAt: daysAgoISO(29) + 'T02:00:00.000Z' },
+    { id: 'pr-8', boqItemId: 'b-20', materialId: 'mat-besi', quantity: 40, unit: 'batang', supplierPrimaryId: 's-1', supplierSecondaryId: 's-2', picId: 'u-pic-2', unitCost: 94000, status: 'received', orderDate: daysAgoISO(26), receiptDate: daysAgoISO(16), createdAt: daysAgoISO(27) + 'T02:00:00.000Z' },
+    { id: 'pr-9', boqItemId: 'b-21', materialId: 'mat-gypsum', quantity: 90, unit: 'lembar', supplierPrimaryId: 's-2', supplierSecondaryId: null, picId: 'u-pic-1', unitCost: 64500, status: 'received', orderDate: daysAgoISO(45), receiptDate: daysAgoISO(35), createdAt: daysAgoISO(46) + 'T02:00:00.000Z' },
+    { id: 'pr-10', boqItemId: 'b-22', materialId: 'mat-keramik', quantity: 55, unit: 'm2', supplierPrimaryId: 's-5', supplierSecondaryId: 's-1', picId: 'u-pic-2', unitCost: 148000, status: 'received', orderDate: daysAgoISO(42), receiptDate: daysAgoISO(30), createdAt: daysAgoISO(43) + 'T02:00:00.000Z' },
   ],
 };

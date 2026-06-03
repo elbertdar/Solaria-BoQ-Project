@@ -18,6 +18,11 @@ const GROUPS = [
       { to: '/boq', ico: '☰', label: 'Bill of Quantities' },
       { to: '/purchase-requests', ico: '⛁', label: 'Purchase Requests' },
       { to: '/reconciliation', ico: '⇄', label: 'Balance', badgeKey: 'warn' },
+    ],
+  },
+  {
+    label: 'Library',
+    items: [
       { to: '/suppliers', ico: '⌂', label: 'Suppliers' },
       { to: '/catalogue', ico: '✦', label: 'Material Catalogue' },
     ],

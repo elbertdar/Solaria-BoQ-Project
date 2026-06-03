@@ -48,7 +48,7 @@ Schema changed, so the storage key is now **v3** (auto-reseeds on first load).
 ### `src/store/`
 | File | Purpose |
 |---|---|
-| `src/store/StoreContext.jsx` | `db` + localStorage (key `solaria_boq_db_v4`) + all CRUD actions: +`addProject`, `addMandor`, `deletePr` (undo), `importData` (the import seam). The future Supabase seam. |
+| `src/store/StoreContext.jsx` | `db` + localStorage (key `solaria_boq_db_v5`) + all CRUD actions: +`addProject`, `addMandor`, `deletePr` (undo), `importData` (the import seam). The future Supabase seam. |
 
 ### `src/engine/` — pure logic
 | File | Purpose |
@@ -61,8 +61,8 @@ Schema changed, so the storage key is now **v3** (auto-reseeds on first load).
 ### `src/components/`
 | File | Purpose |
 |---|---|
-| `src/components/Sidebar.jsx` | Left nav split into **Portfolio** (This Week) + **Project** sections; portfolio/Schedule/Balance badges; user profile |
-| `src/components/ui.jsx` | `KpiCard`, `AlertBanner`, `StatusPill`, `OverPill`, `ProjectBar` |
+| `src/components/Sidebar.jsx` | Left nav in three sections — **Portfolio** (This Week), **Project** (Overview/Schedule/BoQ/PRs/Balance), **Library** (Suppliers + Material Catalogue, the shared master data); portfolio/Schedule/Balance badges; user profile |
+| `src/components/ui.jsx` | `KpiCard`, `AlertBanner`, `StatusPill`, `OverPill`, and the **searchable `ProjectBar`** (Excel-style filter popover: type-to-filter, grouped by health Needs-attention/On-track/Done, "All projects → dashboard", single-select switch) |
 | `src/components/Modal.jsx` | Reusable modal shell (overlay, Esc to close) |
 | `src/components/PrModal.jsx` | Create/edit Purchase Request; live over-qty warning |
 | `src/components/ReceiveModal.jsx` | Receipt-date prompt before marking a PR received (BR-4) |
@@ -82,6 +82,8 @@ Schema changed, so the storage key is now **v3** (auto-reseeds on first load).
 ---
 
 ## Changelog
+- **3 Jun 2026 — Sidebar Library group.** Split the shared master data (Suppliers, Material Catalogue) out of the project-scoped nav into its own **Library** section, so the sidebar now reads Portfolio / Project / Library. Nav-only — no data or storage change. (`components/Sidebar.jsx`)
+- **3 Jun 2026 — Searchable project picker + 12-project demo seed.** Rebuilt `ProjectBar` (in `components/ui.jsx`) from a plain `<select>` into an Excel-filter-style popover: a type-to-filter search, projects **grouped by derived health** (Needs attention / On track / Done) with per-project attention badges and open-item counts, an **"All projects → This Week"** row routing to the dashboard, "Name (CODE)" formatting, and single-select switching (click-outside / Esc to close). Single-select by design — the project-scoped pages act on one project; cross-project aggregation stays on the dashboard. Expanded the seed to **12 projects / 30 BoQ items / 10 PRs** (incl. two fully-received "Done" projects) so the picker's grouping/filtering is demonstrable at the client's real 10–15 scale; storage key bumped **v4 → v5** (reseeds), `meta.version` → 4.
 - **3 Jun 2026 — Multi-project dashboard + business-day planning.** New `pages/DashboardPage.jsx` is now the landing screen (`/`): a cross-project "This Week" worklist with three action lists — **Overdue — order now**, **Order this week**, **Chase supplier** — plus a **Heads-up: next week** strip and subordinate health KPIs. One-tap **Mark ordered** (raises a PO) with session **undo**; late deliveries resolve via **Received / Push date / Snooze** (no permanent ignore). Order days now backtrace in **business days** (skip weekends, holidays ignored). Added per-line **lead-time override** and inline **add-mandor** on the BoQ; **New project** modal (name + start date required, code optional). Schedule timeline rebuilt **day-granular** (42-day axis, weekends shaded, today highlighted). New store actions `addProject`, `addMandor`, `deletePr`, and an `importData` seam for future manual/automatic imports. `engine/schedule.js` reworked (`computeLine`, `portfolioWorklist`, `dayColOf`); `Sidebar.jsx` split Portfolio/Project; `App.jsx` routes (Dashboard `/`, Overview `/overview`); storage → **v4** (reseeds). Verified: clean esbuild compile + worklist harness (3 overdue / 2 this-week / 1 late / 1 next-week).
 - **2 Jun 2026 — Day-offset planning.** Switched scheduling to "days after project start": materials gained `leadTimeDays`, projects gained `startDate`, BoQ lines now take a single `neededDayOffset` and the order day is auto-derived (`needed − lead`). Reworked `engine/schedule.js`, `seed.js` (→ v3), `StoreContext.jsx` (+`updateProject`), `BoqPage.jsx`, `CataloguePage.jsx`, `SchedulePage.jsx`.
 - **2 Jun 2026 — Timeline hardened.** `pages/SchedulePage.jsx` carries its layout as inline styles so the graph renders even if `index.css` is stale/cached.
