@@ -1,28 +1,24 @@
 import { NavLink } from 'react-router-dom';
 import { useStore } from '../store/StoreContext.jsx';
 import { projectWarnings } from '../engine/reconcile.js';
-import { scheduleForProject, scheduleCounts } from '../engine/schedule.js';
+import { scheduleForProject, scheduleCounts, portfolioWorklist } from '../engine/schedule.js';
 
 const GROUPS = [
   {
-    label: 'Overview',
+    label: 'Portfolio',
     items: [
-      { to: '/', ico: '◳', label: 'Project Overview', end: true },
-      { to: '/reconciliation', ico: '⇄', label: 'Balance', badgeKey: 'warn' },
-      { to: '/schedule', ico: '◷', label: 'Schedule', badgeKey: 'sched' },
+      { to: '/', ico: '◧', label: 'This Week', end: true, badgeKey: 'portfolio' },
     ],
   },
   {
-    label: 'Procurement',
+    label: 'Project',
     items: [
+      { to: '/overview', ico: '◳', label: 'Overview' },
+      { to: '/schedule', ico: '◷', label: 'Schedule', badgeKey: 'sched' },
       { to: '/boq', ico: '☰', label: 'Bill of Quantities' },
       { to: '/purchase-requests', ico: '⛁', label: 'Purchase Requests' },
+      { to: '/reconciliation', ico: '⇄', label: 'Balance', badgeKey: 'warn' },
       { to: '/suppliers', ico: '⌂', label: 'Suppliers' },
-    ],
-  },
-  {
-    label: 'Admin',
-    items: [
       { to: '/catalogue', ico: '✦', label: 'Material Catalogue' },
     ],
   },
@@ -33,6 +29,12 @@ export default function Sidebar() {
   const warnCount = projectWarnings(db, currentProjectId).length;
   const sched = scheduleCounts(scheduleForProject(db, currentProjectId).lines);
   const overdueCount = sched.overdueOrder + sched.overdueDeliver;
+  const wl = portfolioWorklist(db);
+  const portfolioCount = wl.counts.overdueToOrder + wl.counts.lateDelivery;
+
+  const project = db.projects.find((p) => p.id === currentProjectId) || db.projects[0];
+
+  const badgeFor = (key) => (key === 'portfolio' ? portfolioCount : key === 'sched' ? overdueCount : key === 'warn' ? warnCount : 0);
 
   return (
     <aside className="sidebar">
@@ -45,23 +47,20 @@ export default function Sidebar() {
         {GROUPS.map((g) => (
           <div className="sb-group" key={g.label}>
             <div className="sb-group-label">{g.label}</div>
-            {g.items.map((it) => (
-              <NavLink
-                key={it.to}
-                to={it.to}
-                end={it.end}
-                className={({ isActive }) => 'nav-item' + (isActive ? ' active' : '')}
-              >
-                <span className="ico">{it.ico}</span>
-                <span>{it.label}</span>
-                {it.badgeKey === 'warn' && warnCount > 0 && (
-                  <span className="badge risk">{warnCount}</span>
-                )}
-                {it.badgeKey === 'sched' && overdueCount > 0 && (
-                  <span className="badge risk">{overdueCount}</span>
-                )}
-              </NavLink>
-            ))}
+            {g.label === 'Project' && project && (
+              <div className="muted" style={{ fontSize: 11, padding: '0 10px 6px' }}>{project.code || project.name}</div>
+            )}
+            {g.items.map((it) => {
+              const n = badgeFor(it.badgeKey);
+              return (
+                <NavLink key={it.to} to={it.to} end={it.end}
+                  className={({ isActive }) => 'nav-item' + (isActive ? ' active' : '')}>
+                  <span className="ico">{it.ico}</span>
+                  <span>{it.label}</span>
+                  {n > 0 && <span className="badge risk">{n}</span>}
+                </NavLink>
+              );
+            })}
           </div>
         ))}
       </nav>

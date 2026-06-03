@@ -5,7 +5,7 @@ import { createContext, useContext, useEffect, useMemo, useState, useCallback } 
 import { seed } from '../data/seed.js';
 import { nowISO } from '../engine/format.js';
 
-const KEY = 'solaria_boq_db_v2';
+const KEY = 'solaria_boq_db_v4';
 const StoreCtx = createContext(null);
 
 function load() {
@@ -77,6 +77,21 @@ export function StoreProvider({ children }) {
     return id;
   }, []);
 
+  // ---- Projects & mandors ----
+  const addProject = useCallback((p) => {
+    const id = uid('p');
+    setDb((d) => ({ ...d, projects: [...d.projects, { id, client: 'Solaria F&B', location: '', ...p }] }));
+    return id;
+  }, []);
+  const updateProject = useCallback((id, patch) => {
+    setDb((d) => ({ ...d, projects: d.projects.map((p) => p.id === id ? { ...p, ...patch } : p) }));
+  }, []);
+  const addMandor = useCallback((name) => {
+    const id = uid('m');
+    setDb((d) => ({ ...d, mandors: [...d.mandors, { id, name }] }));
+    return id;
+  }, []);
+
   // ---- Purchase Requests (Feature 5.4) ----
   // BR-3: a PR cannot exist without a linked BoQ item.
   // BR-1/BR-2: material + unit are inherited from that BoQ item, never re-typed.
@@ -140,6 +155,25 @@ export function StoreProvider({ children }) {
     return result;
   }, []);
 
+  const deletePr = useCallback((id) => {
+    setDb((d) => ({ ...d, prs: d.prs.filter((p) => p.id !== id) }));
+  }, []);
+
+  // Import seam — replace any of the top-level collections from an external source
+  // (manual paste/upload, or a backend fetch later). Shape mirrors `seed`:
+  //   { materials?, materialTypes?, suppliers?, projects?, mandors?, boqItems?, prs? }
+  // Pages never read storage directly, so swapping the source touches only this layer.
+  const importData = useCallback((payload, { merge = false } = {}) => {
+    setDb((d) => {
+      if (!merge) return { ...d, ...payload };
+      const next = { ...d };
+      for (const k of Object.keys(payload)) {
+        next[k] = Array.isArray(d[k]) ? [...d[k], ...payload[k]] : payload[k];
+      }
+      return next;
+    });
+  }, []);
+
   const resetDb = useCallback(() => {
     const fresh = structuredClone(seed);
     setDb(fresh);
@@ -151,10 +185,13 @@ export function StoreProvider({ children }) {
     addMaterial, updateMaterial, addAlias, removeAlias,
     addBoqItem, updateBoqItem,
     addSupplier,
-    addPr, updatePr, setPrStatus,
+    addProject, updateProject, addMandor,
+    addPr, updatePr, setPrStatus, deletePr,
+    importData,
     resetDb,
   }), [db, currentProjectId, addMaterial, updateMaterial, addAlias, removeAlias,
-    addBoqItem, updateBoqItem, addSupplier, addPr, updatePr, setPrStatus, resetDb]);
+    addBoqItem, updateBoqItem, addSupplier, addProject, updateProject, addMandor,
+    addPr, updatePr, setPrStatus, deletePr, importData, resetDb]);
 
   return <StoreCtx.Provider value={value}>{children}</StoreCtx.Provider>;
 }

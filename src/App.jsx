@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { StoreProvider } from './store/StoreContext.jsx';
 import Sidebar from './components/Sidebar.jsx';
+import DashboardPage from './pages/DashboardPage.jsx';
 import Overview from './pages/Overview.jsx';
 import ReconciliationPage from './pages/ReconciliationPage.jsx';
 import BoqPage from './pages/BoqPage.jsx';
@@ -17,14 +18,15 @@ export default function App() {
           <Sidebar />
           <main className="main">
             <Routes>
-              <Route path="/" element={<Overview />} />
+              <Route path="/" element={<DashboardPage />} />
+              <Route path="/overview" element={<Overview />} />
               <Route path="/reconciliation" element={<ReconciliationPage />} />
               <Route path="/schedule" element={<SchedulePage />} />
               <Route path="/boq" element={<BoqPage />} />
               <Route path="/purchase-requests" element={<PurchaseRequestsPage />} />
               <Route path="/suppliers" element={<SuppliersPage />} />
               <Route path="/catalogue" element={<CataloguePage />} />
-              <Route path="*" element={<Overview />} />
+              <Route path="*" element={<DashboardPage />} />
             </Routes>
           </main>
         </div>
