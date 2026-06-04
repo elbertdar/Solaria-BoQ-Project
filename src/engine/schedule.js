@@ -112,13 +112,13 @@ export function computeLine(db, b, today = todayLocal()) {
   else if (state === 'awaiting') { nextMilestoneDate = effectiveArrival; nextKind = 'deliver'; }
 
   let urgency = 5, tone = 'neutral';
-  if (deliveryOverdue) { urgency = 0; tone = 'risk'; }
-  else if (orderOverdue) { urgency = 1; tone = 'risk'; }
-  else if (orderBeforeStart && state === 'to-order') { urgency = 1; tone = 'risk'; }
-  else if (orderThisWeek) { urgency = 2; tone = 'amber'; }
-  else if (dueThisWeek) { urgency = 3; tone = 'amber'; }
-  else if (state === 'awaiting') { urgency = 4; tone = 'info'; }
-  else if (state === 'received') { urgency = 6; tone = 'ok'; }
+  if (state === 'received') { urgency = 6; tone = 'done'; }
+  else if (orderOverdue) { urgency = 0; tone = 'overdue'; }        // late order → red
+  else if (deliveryOverdue) { urgency = 1; tone = 'late'; }        // late delivery → orange
+  else if (orderBeforeStart && state === 'to-order') { urgency = 1; tone = 'overdue'; }
+  else if (state === 'awaiting') { urgency = 4; tone = 'awaiting'; } // ordered & waiting → blue
+  else if (orderThisWeek || dueThisWeek) { urgency = 2; tone = 'orderNow'; } // routine → yellow
+  else { urgency = 5; tone = 'neutral'; }
 
   return {
     boqItem: b, projectId: b.projectId, materialName: materialName(db, b.materialId), unit: b.unit, mandorId: b.mandorId,
@@ -204,15 +204,18 @@ export function matchesFilter(line, filter) {
 export function agendaBuckets(lines, today = todayLocal()) {
   const mon0 = (today.getDay() + 6) % 7;
   const monThis = addDays(today, -mon0);
-  const monNext = addDays(monThis, 7);
+  const friThis = addDays(monThis, 4);
   const followingMon = addDays(monThis, 14);
-  const buckets = { overdue: [], thisWeek: [], nextWeek: [], later: [], done: [] };
+  // orderNow = routine to-order due this week; overdue = late ORDER; late = late DELIVERY.
+  const buckets = { orderNow: [], overdue: [], late: [], thisWeek: [], nextWeek: [], later: [], done: [] };
   for (const l of lines) {
     if (l.state === 'received') { buckets.done.push(l); continue; }
-    if (l.orderOverdue || l.deliveryOverdue) { buckets.overdue.push(l); continue; }
+    if (l.orderOverdue) { buckets.overdue.push(l); continue; }       // late order
+    if (l.deliveryOverdue) { buckets.late.push(l); continue; }       // late delivery
+    if (l.orderThisWeek) { buckets.orderNow.push(l); continue; }     // routine
     const m = l.nextMilestoneDate;
     if (!m) { buckets.later.push(l); continue; }
-    if (m < monNext) buckets.thisWeek.push(l);
+    if (m <= friThis) buckets.thisWeek.push(l);
     else if (m < followingMon) buckets.nextWeek.push(l);
     else buckets.later.push(l);
   }

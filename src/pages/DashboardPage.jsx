@@ -8,7 +8,7 @@ import NewProjectModal from '../components/NewProjectModal.jsx';
 import { portfolioWorklist, todayLocal, addDays, toISO, computeLine } from '../engine/schedule.js';
 import { fmtDate, today as todayISO } from '../engine/format.js';
 
-const TONE = { risk: '#E11D48', amber: '#F59E0B', info: '#0EA5E9', ok: '#16A34A', neutral: '#94A3B8' };
+const TONE = { overdue: '#E11D48', late: '#8B5CF6', orderNow: '#EAB308', awaiting: '#0EA5E9', done: '#16A34A', neutral: '#94A3B8' };
 const BORDER = '#E5E7EB';
 
 export default function DashboardPage() {
@@ -66,7 +66,7 @@ export default function DashboardPage() {
 
       {/* action lists */}
       <Bucket
-        title="Order this week" tone="amber"
+        title="Order this week" tone="orderNow"
         empty="Nothing to order this week — you’re clear."
         rows={wl.orderThisWeek} doneRows={doneFor('week')} onUndo={undo}
         renderWhen={(l) => <span>Order by {fmtDate(l.orderDate)} · {l.lead}d lead</span>}
@@ -75,19 +75,19 @@ export default function DashboardPage() {
       />
 
       <Bucket
-        title="Overdue — order now" tone="risk"
+        title="Overdue — order now" tone="overdue"
         empty="Nothing overdue to order. 👍"
         rows={wl.overdueToOrder} doneRows={doneFor('overdue')} onUndo={undo}
-        renderWhen={(l) => <span style={{ color: TONE.risk, fontWeight: 600 }}>{Math.max(1, Math.round((today - l.orderDate) / 86400000))}d overdue · was due {fmtDate(l.orderDate)}</span>}
+        renderWhen={(l) => <span style={{ color: TONE.overdue, fontWeight: 600 }}>{Math.max(1, Math.round((today - l.orderDate) / 86400000))}d overdue · was due {fmtDate(l.orderDate)}</span>}
         action={(l) => <button className="btn sm" onClick={() => markOrdered(l, 'overdue')}>Mark ordered</button>}
         onOpen={openProject} db={db}
       />
 
       <Bucket
-        title="Chase supplier" tone="risk" subtitle="ordered, but delivery is overdue"
+        title="Late — chase supplier" tone="late" subtitle="ordered, but delivery is overdue"
         empty="No late deliveries to chase."
         rows={wl.lateDelivery} onUndo={undo}
-        renderWhen={(l) => <span style={{ color: TONE.risk, fontWeight: 600 }}>{l.lateDays}d late · expected {fmtDate(l.effectiveArrival)}{supplierName(orderedPrFor(l)?.supplierPrimaryId) ? ` · ${supplierName(orderedPrFor(l).supplierPrimaryId)}` : ''}</span>}
+        renderWhen={(l) => <span style={{ color: TONE.late, fontWeight: 600 }}>{l.lateDays}d late · expected {fmtDate(l.effectiveArrival)}{supplierName(orderedPrFor(l)?.supplierPrimaryId) ? ` · ${supplierName(orderedPrFor(l).supplierPrimaryId)}` : ''}</span>}
         action={(l) => (
           <span style={{ display: 'inline-flex', gap: 6 }}>
             <button className="btn sm" onClick={() => setReceiveFor(l)}>Received</button>
@@ -101,7 +101,7 @@ export default function DashboardPage() {
       {/* heads-up */}
       {wl.orderNextWeek.length > 0 && (
         <Bucket
-          title="Heads-up: next week" tone="info" subtitle="coming up — no action needed yet"
+          title="Heads-up: next week" tone="neutral" subtitle="coming up — no action needed yet"
           rows={wl.orderNextWeek} muted onUndo={undo}
           renderWhen={(l) => <span className="muted">Order by {fmtDate(l.orderDate)}</span>}
           action={() => null} onOpen={openProject} db={db}
@@ -161,7 +161,7 @@ function Bucket({ title, subtitle, tone = 'neutral', rows, doneRows = [], empty,
               <div key={'done-' + entry.prId} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 16px', borderBottom: '1px solid ' + BORDER, background: '#FCFCFD' }}>
                 <div style={{ flex: 1, minWidth: 0, color: '#94A3B8' }}>
                   <span style={{ textDecoration: 'line-through' }}>{entry.materialName}</span>
-                  <span style={{ marginLeft: 8, color: TONE.ok, fontWeight: 600 }}>✓ ordered</span>
+                  <span style={{ marginLeft: 8, color: TONE.done, fontWeight: 600 }}>✓ ordered</span>
                 </div>
                 <button className="btn sm ghost" onClick={() => onUndo(entry)}>Undo</button>
               </div>

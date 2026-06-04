@@ -8,14 +8,19 @@ import {
 } from '../engine/schedule.js';
 import { fmtDate } from '../engine/format.js';
 
-const TONE = { risk: '#E11D48', amber: '#F59E0B', info: '#0EA5E9', ok: '#16A34A', neutral: '#94A3B8' };
+const TONE = { overdue: '#E11D48', late: '#8B5CF6', orderNow: '#EAB308', awaiting: '#0EA5E9', done: '#16A34A', neutral: '#94A3B8' };
 const BORDER = '#E5E7EB';
 const WEEKEND = 'rgba(100,116,139,0.07)';
 const TODAYBG = 'rgba(245,158,11,0.14)';
 
 const BUCKETS = [
-  { key: 'overdue', label: 'Overdue' }, { key: 'thisWeek', label: 'This week' },
-  { key: 'nextWeek', label: 'Next week' }, { key: 'later', label: 'Later' }, { key: 'done', label: 'Done' },
+  { key: 'orderNow', label: 'Order this week', sub: 'routine', color: '#EAB308' },
+  { key: 'overdue', label: 'Overdue', sub: 'late order — order now', color: '#E11D48' },
+  { key: 'late', label: 'Late', sub: 'delivery overdue — chase supplier', color: '#8B5CF6' },
+  { key: 'thisWeek', label: 'Arriving this week', sub: 'ordered & waiting', color: '#0EA5E9' },
+  { key: 'nextWeek', label: 'Next week', color: '#94A3B8' },
+  { key: 'later', label: 'Later', color: '#94A3B8' },
+  { key: 'done', label: 'Done', color: '#16A34A' },
 ];
 const dayLabel = (o) => (o == null ? '—' : `Day ${o}`);
 
@@ -56,15 +61,15 @@ export default function SchedulePage() {
         <input type="date" value={start ? start.toISOString().slice(0, 10) : ''}
           onChange={(e) => updateProject(currentProjectId, { startDate: e.target.value || null })} style={{ width: 170 }} />
         {start ? <span className="pill gray">Today is day {curOff}</span>
-          : <span style={{ color: TONE.risk }}>set a start date to place items on the calendar</span>}
+          : <span style={{ color: TONE.overdue }}>set a start date to place items on the calendar</span>}
       </div>
 
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
         <Chip active={filter === 'order'} onClick={() => toggleFilter('order')} n={counts.toOrder} label="To order this week"
-          extra={counts.overdueOrder > 0 ? <span style={{ color: TONE.risk, fontWeight: 600 }}>{counts.overdueOrder} overdue</span> : 'on track'} />
+          extra={counts.overdueOrder > 0 ? <span style={{ color: TONE.overdue, fontWeight: 600 }}>{counts.overdueOrder} overdue</span> : 'on track'} />
         <Chip active={filter === 'needed'} onClick={() => toggleFilter('needed')} n={counts.needed} label="Needed this week" extra="delivery due this week" />
         <Chip active={filter === 'arriving'} onClick={() => toggleFilter('arriving')} n={counts.arriving} label="Arriving this week"
-          extra={counts.overdueDeliver > 0 ? <span style={{ color: TONE.risk, fontWeight: 600 }}>{counts.overdueDeliver} late</span> : 'expected receipts'} />
+          extra={counts.overdueDeliver > 0 ? <span style={{ color: TONE.late, fontWeight: 600 }}>{counts.overdueDeliver} late</span> : 'expected receipts'} />
       </div>
 
       <div className="toolbar">
@@ -200,11 +205,11 @@ function Row({ l, N, cols, baseDay, weekendCols, todayCol, ActionButton }) {
 
 function LineTags({ l }) {
   const tags = [];
-  if (l.deliveryOverdue) tags.push(['Late delivery', TONE.risk, '#FEF2F4']);
-  if (l.orderOverdue) tags.push(['Order overdue', TONE.risk, '#FEF2F4']);
-  if (l.orderBeforeStart && !l.orderOverdue) tags.push(['Order before start', TONE.risk, '#FEF2F4']);
+  if (l.orderOverdue) tags.push(['Overdue', TONE.overdue, '#FEF2F4']);
+  if (l.deliveryOverdue) tags.push(['Late', '#7C3AED', '#F5F3FF']);
+  if (l.orderBeforeStart && !l.orderOverdue) tags.push(['Order before start', TONE.overdue, '#FEF2F4']);
   if (l.dueThisWeek && l.state === 'to-order' && !l.orderOverdue) tags.push(['Needed this wk', '#B45309', '#FFFBEB']);
-  if (l.overBudget) tags.push(['Over budget', TONE.risk, '#FEF2F4']);
+  if (l.overBudget) tags.push(['Over budget', TONE.overdue, '#FEF2F4']);
   if (l.snoozedActive) tags.push(['Snoozed', '#64748B', '#F1F5F9']);
   if (!l.hasLead) tags.push(['No lead time', '#B45309', '#FFFBEB']);
   if (l.state === 'received') tags.push(['Received', '#15803D', '#F0FDF4']);
@@ -222,12 +227,17 @@ function Agenda({ lines, today, db, ActionButton }) {
   const mandorName = (id) => db.mandors.find((m) => m.id === id)?.name || 'Unassigned';
   return (
     <>
-      {BUCKETS.map(({ key, label }) => {
+      {BUCKETS.map(({ key, label, sub, color }) => {
         const rows = buckets[key];
         if (!rows.length) return null;
         return (
           <div className="card" key={key}>
-            <div className="card-head"><h2>{label}</h2><div className="spacer" style={{ flex: 1 }} /><span className="pill gray">{rows.length}</span></div>
+            <div className="card-head">
+              <span style={{ width: 9, height: 9, borderRadius: '50%', background: color, marginRight: 4 }} />
+              <h2>{label}</h2>
+              {sub && <span className="muted" style={{ fontSize: 12.5 }}>· {sub}</span>}
+              <div className="spacer" style={{ flex: 1 }} /><span className="pill gray">{rows.length}</span>
+            </div>
             <div className="card-body flush">
               {rows.map((l) => (
                 <div key={l.boqItem.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 16px', borderBottom: '1px solid ' + BORDER }}>
@@ -248,15 +258,16 @@ function Agenda({ lines, today, db, ActionButton }) {
 }
 
 function Milestone({ l }) {
-  const risk = { color: TONE.risk, fontWeight: 600 };
+  const overdue = { color: TONE.overdue, fontWeight: 600 };
+  const late = { color: TONE.late, fontWeight: 600 };
   const base = { fontSize: 13, color: '#64748B', whiteSpace: 'nowrap' };
   if (l.state === 'received') return <span style={base}>Received {fmtDate(l.actualReceiptDate)}</span>;
-  if (l.state === 'to-order') return <span style={{ ...base, ...(l.orderOverdue || l.orderBeforeStart ? risk : {}) }}>Order by {dayLabel(l.orderOffset)}</span>;
-  return <span style={{ ...base, ...(l.deliveryOverdue ? risk : {}) }}>Needed {dayLabel(l.neededOffset)}</span>;
+  if (l.state === 'to-order') return <span style={{ ...base, ...(l.orderOverdue || l.orderBeforeStart ? overdue : {}) }}>Order by {dayLabel(l.orderOffset)}</span>;
+  return <span style={{ ...base, ...(l.deliveryOverdue ? late : {}) }}>Needed {dayLabel(l.neededOffset)}</span>;
 }
 
 function Legend() {
-  const items = [['Late', TONE.risk], ['Due this week', TONE.amber], ['Ordered', TONE.info], ['Upcoming', TONE.neutral], ['Received', TONE.ok]];
+  const items = [['Order now', TONE.orderNow], ['Ordered / waiting', TONE.awaiting], ['Overdue', TONE.overdue], ['Late', TONE.late], ['Received', TONE.done]];
   return (
     <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center', fontSize: 12, color: '#64748B', margin: '12px 2px 0' }}>
       {items.map(([t, c]) => <span key={t} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><span style={{ width: 10, height: 10, borderRadius: '50%', background: c }} />{t}</span>)}
