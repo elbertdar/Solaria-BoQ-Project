@@ -6,28 +6,30 @@ import { PR_FLOW, PR_STATUS } from '../theme.js';
 import { idr, today } from '../engine/format.js';
 
 export default function PrModal({ pr = null, boqItem = null, onClose }) {
-  const { db, currentProjectId, addPr, updatePr } = useStore();
+  const { db, currentProjectId, addPr, updatePr, deletePr } = useStore();
   const editing = !!pr;
+  // "Raise PR" (from a BoQ row) passes a boqItem and pre-fills from that line.
+  // "New PR" (from the PR page) passes nothing — it starts blank; the user picks the BoQ item.
+  const raising = !editing && !!boqItem;
 
-  // In create mode without a preselected BoQ item, let the user pick one.
   const projectBoq = boqForProject(db, currentProjectId);
-  const initialBoqId = pr?.boqItemId || boqItem?.id || projectBoq[0]?.id || '';
+  const initialBoqId = pr?.boqItemId || boqItem?.id || '';
   const initialBoqItem = db.boqItems.find((b) => b.id === initialBoqId);
 
   const [boqItemId, setBoqItemId] = useState(initialBoqId);
-  // New PRs pre-fill from the linked BoQ line; the PM can edit any of it before saving.
   const [quantity, setQuantity] = useState(
-    pr ? (pr.quantity ?? '') : (initialBoqItem ? String(remainingQty(db, initialBoqId)) : ''));
+    editing ? (pr.quantity ?? '') : (raising ? String(remainingQty(db, initialBoqId)) : ''));
   const [unitCost, setUnitCost] = useState(
-    pr ? (pr.unitCost ?? '') : (initialBoqItem?.expectedUnitCost ?? ''));
+    editing ? (pr.unitCost ?? '') : (raising ? (initialBoqItem?.expectedUnitCost ?? '') : ''));
   const [supplierPrimaryId, setSup1] = useState(pr?.supplierPrimaryId ?? '');
   const [supplierSecondaryId, setSup2] = useState(pr?.supplierSecondaryId ?? '');
   const [picId, setPic] = useState(pr?.picId ?? db.currentUser?.id ?? '');
   const [status, setStatus] = useState(pr?.status ?? 'draft');
-  const [orderDate, setOrderDate] = useState(pr ? (pr.orderDate ?? '') : today());
-  const [receiptDate, setReceiptDate] = useState(pr ? (pr.receiptDate ?? '') : today());
+  const [orderDate, setOrderDate] = useState(editing ? (pr.orderDate ?? '') : (raising ? today() : ''));
+  const [receiptDate, setReceiptDate] = useState(editing ? (pr.receiptDate ?? '') : (raising ? today() : ''));
   const [error, setError] = useState('');
   const [ackOver, setAckOver] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const selectedBoq = db.boqItems.find((b) => b.id === boqItemId);
   const matName = selectedBoq ? materialName(db, selectedBoq.materialId) : '—';
@@ -83,6 +85,16 @@ export default function PrModal({ pr = null, boqItem = null, onClose }) {
       wide
       footer={
         <>
+          {editing && (confirmingDelete ? (
+            <span style={{ marginRight: 'auto', display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <span className="muted" style={{ fontSize: 13 }}>Delete this PR permanently?</span>
+              <button className="btn sm danger" onClick={() => { deletePr(pr.id); onClose(); }}>Confirm delete</button>
+              <button className="btn sm ghost" onClick={() => setConfirmingDelete(false)}>Keep</button>
+            </span>
+          ) : (
+            <button className="btn sm ghost" style={{ marginRight: 'auto', color: 'var(--risk)' }}
+              onClick={() => setConfirmingDelete(true)}>Delete…</button>
+          ))}
           <button className="btn ghost" onClick={onClose}>Cancel</button>
           <button className="btn primary" onClick={save} disabled={blocked}>
             {editing ? 'Save changes' : 'Create PR'}
@@ -104,11 +116,14 @@ export default function PrModal({ pr = null, boqItem = null, onClose }) {
             <select className="input" value={boqItemId} onChange={(e) => {
               const id = e.target.value;
               setBoqItemId(id);
-              const nb = db.boqItems.find((b) => b.id === id);
-              setQuantity(String(remainingQty(db, id)));
-              setUnitCost(nb?.expectedUnitCost ?? '');
               setAckOver(false);
+              if (raising && id) {            // only Raise PR auto-fills qty + cost from the line
+                const nb = db.boqItems.find((b) => b.id === id);
+                setQuantity(String(remainingQty(db, id)));
+                setUnitCost(nb?.expectedUnitCost ?? '');
+              }
             }}>
+              <option value="">Select a BoQ item…</option>
               {projectBoq.map((b) => (
                 <option key={b.id} value={b.id}>
                   {materialName(db, b.materialId)} — {b.description} ({b.quantity} {b.unit})

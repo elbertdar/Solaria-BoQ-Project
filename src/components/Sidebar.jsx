@@ -29,6 +29,13 @@ const GROUPS = [
       { to: '/material-types', ico: '⊞', label: 'Material Types' },
     ],
   },
+  {
+    label: 'People',
+    items: [
+      { to: '/mandors', ico: '⚑', label: 'Mandors' },
+      { to: '/users', ico: '◎', label: 'Team' },
+    ],
+  },
 ];
 
 export default function Sidebar() {

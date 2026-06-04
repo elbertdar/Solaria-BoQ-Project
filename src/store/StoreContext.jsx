@@ -101,6 +101,33 @@ export function StoreProvider({ children }) {
     setDb((d) => ({ ...d, mandors: [...d.mandors, { id, name }] }));
     return id;
   }, []);
+  const updateMandor = useCallback((id, patch) => {
+    setDb((d) => ({ ...d, mandors: d.mandors.map((m) => m.id === id ? { ...m, ...patch } : m) }));
+  }, []);
+  const deleteMandor = useCallback((id) => {
+    setDb((d) => ({ ...d, mandors: d.mandors.filter((m) => m.id !== id) }));
+  }, []);
+
+  // ---- Team / users (staff records the app references; not login accounts) ----
+  const addUser = useCallback((u) => {
+    const id = uid('u');
+    setDb((d) => ({ ...d, users: [...d.users, { id, role: 'Purchasing PIC', ...u }] }));
+    return id;
+  }, []);
+  const updateUser = useCallback((id, patch) => {
+    setDb((d) => ({
+      ...d,
+      users: d.users.map((u) => u.id === id ? { ...u, ...patch } : u),
+      // keep the signed-in pointer in sync if it's the same person
+      currentUser: d.currentUser && d.currentUser.id === id ? { ...d.currentUser, ...patch } : d.currentUser,
+    }));
+  }, []);
+  const deleteUser = useCallback((id) => {
+    setDb((d) => {
+      if (d.currentUser && d.currentUser.id === id) return d; // never remove the signed-in user
+      return { ...d, users: d.users.filter((u) => u.id !== id) };
+    });
+  }, []);
 
   // ---- Purchase Requests (Feature 5.4) ----
   // BR-3: a PR cannot exist without a linked BoQ item.
@@ -196,12 +223,14 @@ export function StoreProvider({ children }) {
     addBoqItem, updateBoqItem,
     addSupplier,
     addMaterialType, updateMaterialType,
-    addProject, updateProject, addMandor,
+    addProject, updateProject, addMandor, updateMandor, deleteMandor,
+    addUser, updateUser, deleteUser,
     addPr, updatePr, setPrStatus, deletePr,
     importData,
     resetDb,
   }), [db, currentProjectId, addMaterial, updateMaterial, addAlias, removeAlias,
-    addBoqItem, updateBoqItem, addSupplier, addMaterialType, updateMaterialType, addProject, updateProject, addMandor,
+    addBoqItem, updateBoqItem, addSupplier, addMaterialType, updateMaterialType, addProject, updateProject, addMandor, updateMandor, deleteMandor,
+    addUser, updateUser, deleteUser,
     addPr, updatePr, setPrStatus, deletePr, importData, resetDb]);
 
   return <StoreCtx.Provider value={value}>{children}</StoreCtx.Provider>;

@@ -11,6 +11,8 @@ import PurchaseRequestsPage from './pages/PurchaseRequestsPage.jsx';
 import SuppliersPage from './pages/SuppliersPage.jsx';
 import CataloguePage from './pages/CataloguePage.jsx';
 import MaterialTypesPage from './pages/MaterialTypesPage.jsx';
+import MandorsPage from './pages/MandorsPage.jsx';
+import UsersPage from './pages/UsersPage.jsx';
 
 export default function App() {
   return (
@@ -30,6 +32,8 @@ export default function App() {
               <Route path="/suppliers" element={<SuppliersPage />} />
               <Route path="/catalogue" element={<CataloguePage />} />
               <Route path="/material-types" element={<MaterialTypesPage />} />
+              <Route path="/mandors" element={<MandorsPage />} />
+              <Route path="/users" element={<UsersPage />} />
               <Route path="*" element={<DashboardPage />} />
             </Routes>
           </main>
