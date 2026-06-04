@@ -8,6 +8,7 @@ const GROUPS = [
     label: 'Portfolio',
     items: [
       { to: '/', ico: '◧', label: 'This Week', end: true, badgeKey: 'portfolio' },
+      { to: '/projects', ico: '▦', label: 'Projects' },
     ],
   },
   {

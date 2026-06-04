@@ -61,8 +61,9 @@ Schema changed, so the storage key is now **v3** (auto-reseeds on first load).
 ### `src/components/`
 | File | Purpose |
 |---|---|
-| `src/components/Sidebar.jsx` | Left nav in three sections — **Portfolio** (This Week), **Project** (Overview/Schedule/BoQ/PRs/Balance), **Library** (Suppliers + Material Catalogue, the shared master data); portfolio/Schedule/Balance badges; user profile |
+| `src/components/Sidebar.jsx` | Left nav in three sections — **Portfolio** (This Week, Projects), **Project** (Overview/Schedule/BoQ/PRs/Balance), **Library** (Suppliers + Material Catalogue, the shared master data); portfolio/Schedule/Balance badges; user profile |
 | `src/components/ui.jsx` | `KpiCard`, `AlertBanner`, `StatusPill`, `OverPill`, and the **searchable `ProjectBar`** (Excel-style filter popover: type-to-filter, grouped by health Needs-attention/On-track/Done, "All projects → dashboard", single-select switch) |
+| `src/components/NewProjectModal.jsx` | Shared "New project" dialog (name + start date required, code optional) used by This Week and the Project Catalogue |
 | `src/components/Modal.jsx` | Reusable modal shell (overlay, Esc to close) |
 | `src/components/PrModal.jsx` | Create/edit Purchase Request; live over-qty warning |
 | `src/components/ReceiveModal.jsx` | Receipt-date prompt before marking a PR received (BR-4) |
@@ -70,6 +71,7 @@ Schema changed, so the storage key is now **v3** (auto-reseeds on first load).
 ### `src/pages/` — the surfaces
 | File | Route | Purpose |
 |---|---|---|
+| `src/pages/ProjectCataloguePage.jsx` | `/projects` | **Project Catalogue hub** — Active (wired: budget/committed/over-budget/timeline/progress/status table) · Completed · Upcoming (placeholders) |
 | `src/pages/DashboardPage.jsx` | `/` | **Portfolio "This Week":** cross-project action lists (Overdue — order now / Order this week / Chase supplier / Heads-up next week), one-tap Mark-ordered with undo, late-delivery resolutions (Received / Push date / Snooze), health KPIs, + New project |
 | `src/pages/Overview.jsx` | `/overview` | Per-project KPIs, over-qty alert banners, recent activity |
 | `src/pages/ReconciliationPage.jsx` | `/reconciliation` | Balance: per-material qty + cost, drill-down |
@@ -82,6 +84,8 @@ Schema changed, so the storage key is now **v3** (auto-reseeds on first load).
 ---
 
 ## Changelog
+- **3 Jun 2026 — New-project button on Catalogue + shared modal.** Added a **+ New project** button to the Project Catalogue. Extracted the New-Project dialog into a shared `components/NewProjectModal.jsx` now used by both This Week and the Catalogue (no duplication). Creating from either spot lands you on the new project's BoQ. UI-only, no storage change.
+- **3 Jun 2026 — Project Catalogue.** New portfolio page `pages/ProjectCataloguePage.jsx` at `/projects` (Sidebar → Portfolio → Projects). Three tabs — **Active** (wired) shows a table of every project: name/code/location, **timeline** (start → derived est. finish = latest needed-day, plus current day), **budgeted cost**, **committed cost** (% of budget, red if over), **materials over budget**, **delivery progress** (received/total), and a **status** flag (⚠ N to act on / On track). Rows open the project's Overview. **Completed** + **Upcoming** are placeholders (completion workflow undecided). Reuses `projectTotals` + `scheduleForProject`; UI-only, no storage change. Est. finish is derived (no finish-date field yet).
 - **3 Jun 2026 — Dashboard layout + KPI links.** On *This Week*, the health KPIs moved to the **top**, and **Order this week** is now the first action list (then Overdue, Chase supplier, Heads-up). KPIs are now clickable where it helps: **Materials over budget → Balance** and **Open POs → Purchase Requests**, each jumping to a project that actually has the item (`KpiCard` gained an optional `onClick`). UI-only, no storage change.
 - **3 Jun 2026 — Recommended suppliers in PR.** In the Raise-PR modal, the Supplier 1 / Supplier 2 dropdowns now float a **★ Recommended** group to the top — suppliers whose category tags (`materialTypeIds`) match the linked material's type — with everyone else under "Other suppliers" (flat list if nothing matches). Reacts to the linked BoQ item. UI-only, no storage change. (`components/PrModal.jsx`)
 - **3 Jun 2026 — PR pre-fill.** Raising a PR now pre-fills from the linked BoQ line: **quantity** = remaining-to-order (budget − already committed, never negative), **unit cost** = the line's expected cost (which traces to the material's catalogue est cost), and **order date** + **receipt date** default to today. All fields stay fully editable; switching the linked BoQ item in the create picker refills quantity + cost. Edit mode is untouched. New `remainingQty` helper in `reconcile.js`; logic-only, no storage change (still v8).

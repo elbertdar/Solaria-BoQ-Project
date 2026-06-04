@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { StoreProvider } from './store/StoreContext.jsx';
 import Sidebar from './components/Sidebar.jsx';
 import DashboardPage from './pages/DashboardPage.jsx';
+import ProjectCataloguePage from './pages/ProjectCataloguePage.jsx';
 import Overview from './pages/Overview.jsx';
 import ReconciliationPage from './pages/ReconciliationPage.jsx';
 import BoqPage from './pages/BoqPage.jsx';
@@ -19,6 +20,7 @@ export default function App() {
           <main className="main">
             <Routes>
               <Route path="/" element={<DashboardPage />} />
+              <Route path="/projects" element={<ProjectCataloguePage />} />
               <Route path="/overview" element={<Overview />} />
               <Route path="/reconciliation" element={<ReconciliationPage />} />
               <Route path="/schedule" element={<SchedulePage />} />
