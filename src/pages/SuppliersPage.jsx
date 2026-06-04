@@ -1,24 +1,28 @@
 import { useMemo, useState } from 'react';
 import { useStore } from '../store/StoreContext.jsx';
 import Modal from '../components/Modal.jsx';
+import { FilterBar, FilterSearch, FilterSelect } from '../components/ui.jsx';
 
 export default function SuppliersPage() {
   const { db, addSupplier } = useStore();
   const [typeFilter, setTypeFilter] = useState('');
+  const [locationFilter, setLocationFilter] = useState('');
   const [q, setQ] = useState('');
   const [selected, setSelected] = useState(new Set());
   const [adding, setAdding] = useState(false);
 
   const typeName = (id) => db.materialTypes.find((t) => t.id === id)?.name || id;
+  const locations = useMemo(() => [...new Set(db.suppliers.map((s) => s.location).filter(Boolean))].sort(), [db.suppliers]);
 
   const rows = useMemo(() => db.suppliers.filter((s) => {
     if (typeFilter && !s.materialTypeIds.includes(typeFilter)) return false;
+    if (locationFilter && s.location !== locationFilter) return false;
     if (q) {
       const hay = (s.name + ' ' + s.location).toLowerCase();
       if (!hay.includes(q.toLowerCase())) return false;
     }
     return true;
-  }), [db.suppliers, typeFilter, q]);
+  }), [db.suppliers, typeFilter, locationFilter, q]);
 
   function toggle(id) {
     setSelected((prev) => {
@@ -30,24 +34,22 @@ export default function SuppliersPage() {
 
   return (
     <>
-      <div className="page-head">
-        <h1>Supplier Registry</h1>
-        <p className="sub">Who to request quotes from — filterable by material type and location</p>
-      </div>
-
-      <div className="toolbar">
-        <select className="input" style={{ width: 220 }} value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
-          <option value="">All material types</option>
-          {db.materialTypes.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-        </select>
-        <input type="text" style={{ width: 240 }} placeholder="Search name or location…"
-          value={q} onChange={(e) => setQ(e.target.value)} />
-        <div className="spacer" />
-        {selected.size > 0 && (
-          <span className="pill info" style={{ marginRight: 4 }}>{selected.size} selected for quotes</span>
-        )}
+      <div className="page-head" style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+        <div>
+          <h1>Supplier Registry</h1>
+          <p className="sub">Who to request quotes from — filterable by material type and location</p>
+        </div>
         <button className="btn primary" onClick={() => setAdding(true)}>+ Add supplier</button>
       </div>
+
+      <FilterBar shown={rows.length} total={db.suppliers.length} unit="suppliers">
+        <FilterSearch value={q} onChange={setQ} placeholder="Search name or location…" />
+        <FilterSelect value={typeFilter} onChange={setTypeFilter} allLabel="All material types" width={190}
+          options={db.materialTypes.map((t) => ({ value: t.id, label: t.name }))} />
+        <FilterSelect value={locationFilter} onChange={setLocationFilter} allLabel="All locations" width={170}
+          options={locations.map((l) => ({ value: l, label: l }))} />
+        {selected.size > 0 && <span className="pill info">{selected.size} selected for quotes</span>}
+      </FilterBar>
 
       <div className="card">
         <div className="card-body flush">

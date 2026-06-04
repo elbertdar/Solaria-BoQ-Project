@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { useStore, useProject } from '../store/StoreContext.jsx';
 import { prsForProject, materialName } from '../engine/reconcile.js';
-import { ProjectBar, StatusPill } from '../components/ui.jsx';
+import { ProjectBar, StatusPill, FilterBar, FilterSearch, FilterSelect } from '../components/ui.jsx';
 import PrModal from '../components/PrModal.jsx';
 import Modal from '../components/Modal.jsx';
 import { idr, fmtDate, num, today } from '../engine/format.js';
-import { PR_FLOW } from '../theme.js';
+import { PR_FLOW, PR_STATUS } from '../theme.js';
 
 export default function PurchaseRequestsPage() {
   const { db, currentProjectId, setPrStatus } = useStore();
@@ -15,9 +15,19 @@ export default function PurchaseRequestsPage() {
 
   const [modal, setModal] = useState(undefined); // undefined=closed, null=new, obj=edit
   const [receiveFor, setReceiveFor] = useState(null);
+  const [q, setQ] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [supplierFilter, setSupplierFilter] = useState('');
 
   const supplierName = (id) => db.suppliers.find((s) => s.id === id)?.name || '—';
   const picName = (id) => db.users.find((u) => u.id === id)?.name || '—';
+
+  const filtered = prs.filter((p) => {
+    if (statusFilter && p.status !== statusFilter) return false;
+    if (supplierFilter && p.supplierPrimaryId !== supplierFilter && p.supplierSecondaryId !== supplierFilter) return false;
+    if (q && !materialName(db, p.materialId).toLowerCase().includes(q.toLowerCase())) return false;
+    return true;
+  });
 
   function advance(p) {
     const i = PR_FLOW.indexOf(p.status);
@@ -27,19 +37,25 @@ export default function PurchaseRequestsPage() {
     setPrStatus(p.id, next);
   }
 
+  const statusOptions = [...PR_FLOW.map((s) => ({ value: s, label: PR_STATUS[s].label })), { value: 'cancelled', label: 'Cancelled' }];
+
   return (
     <>
-      <div className="page-head">
-        <h1>Purchase Requests</h1>
-        <p className="sub">{project.name} · the realized counterpart to the BoQ — what’s actually been ordered</p>
-      </div>
-
-      <ProjectBar />
-
-      <div className="toolbar">
-        <div className="spacer" />
+      <div className="page-head" style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+        <div>
+          <h1>Purchase Requests</h1>
+          <p className="sub">{project.name} · the realized counterpart to the BoQ — what’s actually been ordered</p>
+        </div>
         <button className="btn primary" onClick={() => setModal(null)}>+ New PR</button>
       </div>
+
+      <FilterBar shown={filtered.length} total={prs.length} unit="PRs">
+        <ProjectBar embedded />
+        <FilterSearch value={q} onChange={setQ} placeholder="Search material…" />
+        <FilterSelect value={statusFilter} onChange={setStatusFilter} allLabel="All statuses" options={statusOptions} />
+        <FilterSelect value={supplierFilter} onChange={setSupplierFilter} allLabel="All suppliers" width={200}
+          options={db.suppliers.map((s) => ({ value: s.id, label: s.name }))} />
+      </FilterBar>
 
       <div className="card">
         <div className="card-body flush">
@@ -52,7 +68,7 @@ export default function PurchaseRequestsPage() {
               </tr>
             </thead>
             <tbody>
-              {prs.map((p) => (
+              {filtered.map((p) => (
                 <tr key={p.id}>
                   <td className="mat-link">{materialName(db, p.materialId)}</td>
                   <td><StatusPill status={p.status} /></td>
@@ -74,8 +90,8 @@ export default function PurchaseRequestsPage() {
                   </td>
                 </tr>
               ))}
-              {prs.length === 0 && (
-                <tr><td colSpan={10}><div className="empty">No purchase requests yet. Raise one from a BoQ item.</div></td></tr>
+              {filtered.length === 0 && (
+                <tr><td colSpan={10}><div className="empty">{prs.length === 0 ? 'No purchase requests yet. Raise one from a BoQ item.' : 'No PRs match these filters.'}</div></td></tr>
               )}
             </tbody>
           </table>

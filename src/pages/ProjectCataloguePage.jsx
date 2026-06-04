@@ -5,6 +5,7 @@ import { projectTotals } from '../engine/reconcile.js';
 import { scheduleForProject, todayLocal } from '../engine/schedule.js';
 import { idr, fmtDate } from '../engine/format.js';
 import NewProjectModal from '../components/NewProjectModal.jsx';
+import { FilterBar, FilterSearch, FilterSelect } from '../components/ui.jsx';
 
 const TABS = [
   { key: 'active', label: 'Active' },
@@ -23,6 +24,10 @@ export default function ProjectCataloguePage() {
   const today = todayLocal();
   const [tab, setTab] = useState('active');
   const [newProject, setNewProject] = useState(false);
+  const [q, setQ] = useState('');
+  const [projectFilter, setProjectFilter] = useState('');
+  const [overFilter, setOverFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
 
   const rows = db.projects.map((p) => {
     const totals = projectTotals(db, p.id);
@@ -35,6 +40,18 @@ export default function ProjectCataloguePage() {
   });
 
   const open = (id) => { setCurrentProjectId(id); nav('/overview'); };
+
+  const filteredRows = rows.filter(({ p, totals, attention }) => {
+    if (projectFilter && p.id !== projectFilter) return false;
+    if (overFilter === 'over' && !(totals.materialsOver > 0)) return false;
+    if (statusFilter === 'attention' && !(attention > 0)) return false;
+    if (statusFilter === 'ontrack' && attention > 0) return false;
+    if (q) {
+      const hay = (p.name + ' ' + (p.code || '') + ' ' + (p.location || '')).toLowerCase();
+      if (!hay.includes(q.toLowerCase())) return false;
+    }
+    return true;
+  });
 
   return (
     <>
@@ -54,7 +71,20 @@ export default function ProjectCataloguePage() {
         ))}
       </div>
 
-      {tab === 'active' && <ActiveTable rows={rows} onOpen={open} />}
+      {tab === 'active' && (
+        <>
+          <FilterBar shown={filteredRows.length} total={rows.length} unit="projects">
+            <FilterSearch value={q} onChange={setQ} placeholder="Search name, code, location…" />
+            <FilterSelect value={projectFilter} onChange={setProjectFilter} allLabel="All projects" width={200}
+              options={db.projects.map((p) => ({ value: p.id, label: p.code || p.name }))} />
+            <FilterSelect value={overFilter} onChange={setOverFilter} allLabel="Any budget" width={160}
+              options={[{ value: 'over', label: 'Over budget only' }]} />
+            <FilterSelect value={statusFilter} onChange={setStatusFilter} allLabel="Any status" width={170}
+              options={[{ value: 'attention', label: 'Needs attention' }, { value: 'ontrack', label: 'On track' }]} />
+          </FilterBar>
+          <ActiveTable rows={filteredRows} onOpen={open} />
+        </>
+      )}
 
       {tab === 'completed' && (
         <div className="card"><div className="empty" style={{ padding: '52px 24px', lineHeight: 1.6 }}>
@@ -79,7 +109,7 @@ export default function ProjectCataloguePage() {
 
 function ActiveTable({ rows, onOpen }) {
   if (rows.length === 0) {
-    return <div className="card"><div className="empty">No active projects. Create one from This Week.</div></div>;
+    return <div className="card"><div className="empty">No projects match these filters.</div></div>;
   }
   return (
     <div className="card">

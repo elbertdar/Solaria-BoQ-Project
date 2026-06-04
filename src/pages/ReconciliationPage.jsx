@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { useStore, useProject } from '../store/StoreContext.jsx';
 import { summarizeProject } from '../engine/reconcile.js';
-import { ProjectBar, AlertBanner } from '../components/ui.jsx';
-import { StatusPill } from '../components/ui.jsx';
+import { ProjectBar, AlertBanner, StatusPill, FilterBar, FilterSearch, FilterSelect } from '../components/ui.jsx';
 import { idr, num, fmtDate } from '../engine/format.js';
 
 export default function ReconciliationPage() {
@@ -10,8 +9,18 @@ export default function ReconciliationPage() {
   const project = useProject();
   const rows = summarizeProject(db, currentProjectId);
   const [open, setOpen] = useState(null);
+  const [q, setQ] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
+  const [overFilter, setOverFilter] = useState('');
 
   const overCount = rows.filter((r) => r.isOverCommitted).length;
+  const matType = (mid) => db.materials.find((m) => m.id === mid)?.materialTypeId;
+  const filtered = rows.filter((r) => {
+    if (typeFilter && matType(r.materialId) !== typeFilter) return false;
+    if (overFilter === 'over' && !r.isOverCommitted) return false;
+    if (q && !r.materialName.toLowerCase().includes(q.toLowerCase())) return false;
+    return true;
+  });
 
   return (
     <>
@@ -20,7 +29,14 @@ export default function ReconciliationPage() {
         <p className="sub">{project.name} · live reconciliation, recomputed from source records</p>
       </div>
 
-      <ProjectBar />
+      <FilterBar shown={filtered.length} total={rows.length} unit="materials">
+        <ProjectBar embedded />
+        <FilterSearch value={q} onChange={setQ} placeholder="Search material…" />
+        <FilterSelect value={typeFilter} onChange={setTypeFilter} allLabel="All types"
+          options={db.materialTypes.map((t) => ({ value: t.id, label: t.name }))} />
+        <FilterSelect value={overFilter} onChange={setOverFilter} allLabel="All materials" width={170}
+          options={[{ value: 'over', label: 'Over budget only' }]} />
+      </FilterBar>
 
       {overCount > 0 && (
         <AlertBanner tone="risk" title={`${overCount} material${overCount > 1 ? 's' : ''} over budget`}>
@@ -45,15 +61,15 @@ export default function ReconciliationPage() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => {
+              {filtered.map((r) => {
                 const isOpen = open === r.materialId;
                 return (
                   <RowGroup key={r.materialId} r={r} isOpen={isOpen}
                     onToggle={() => setOpen(isOpen ? null : r.materialId)} db={db} />
                 );
               })}
-              {rows.length === 0 && (
-                <tr><td colSpan={9}><div className="empty">No materials on this project yet.</div></td></tr>
+              {filtered.length === 0 && (
+                <tr><td colSpan={9}><div className="empty">{rows.length === 0 ? 'No materials on this project yet.' : 'No materials match these filters.'}</div></td></tr>
               )}
             </tbody>
           </table>

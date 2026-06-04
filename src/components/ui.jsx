@@ -70,7 +70,7 @@ function projectHealth(db, projectId, today) {
 
 const fmtProject = (p) => (p?.code ? `${p.name} (${p.code})` : p?.name || 'Untitled');
 
-export function ProjectBar({ children }) {
+export function ProjectBar({ children, embedded }) {
   const { db, currentProjectId, setCurrentProjectId } = useStore();
   const nav = useNavigate();
   const today = todayLocal();
@@ -111,7 +111,7 @@ export function ProjectBar({ children }) {
   const goAll = () => { setOpen(false); setQ(''); nav('/'); };
 
   return (
-    <div className="proj-bar" ref={wrapRef} style={{ position: 'relative' }}>
+    <div className={embedded ? '' : 'proj-bar'} ref={wrapRef} style={{ position: 'relative', ...(embedded ? { display: 'inline-block' } : {}) }}>
       <button onClick={() => setOpen((o) => !o)} style={{
         display: 'inline-flex', alignItems: 'center', gap: 9, cursor: 'pointer', font: 'inherit',
         background: '#fff', border: '1px solid ' + (open ? PB.ink : PB.border), borderRadius: 9,
@@ -125,9 +125,9 @@ export function ProjectBar({ children }) {
         </span>
         <span style={{ color: PB.faint, fontSize: 11 }}>▾</span>
       </button>
-      <span className="meta" style={{ color: PB.faint, fontSize: 12.5, marginLeft: 10 }}>{proj?.location}</span>
-      <div className="spacer" style={{ flex: 1 }} />
-      {children}
+      {!embedded && <span className="meta" style={{ color: PB.faint, fontSize: 12.5, marginLeft: 10 }}>{proj?.location}</span>}
+      {!embedded && <div className="spacer" style={{ flex: 1 }} />}
+      {!embedded && children}
 
       {open && (
         <div style={{
@@ -192,5 +192,38 @@ function Row({ onClick, icon, title, sub, accent }) {
       </div>
       <span style={{ color: PB.faint, fontSize: 12 }}>→</span>
     </div>
+  );
+}
+
+// ---- Reusable filter/search bar for detailed-table pages ----
+// Lays out controls (in the order given) on the left and a "Showing X of Y" count on the right.
+export function FilterBar({ children, shown, total, unit = 'rows' }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', margin: '0 0 16px' }}>
+      {children}
+      <div style={{ flex: 1, minWidth: 8 }} />
+      {total != null && (
+        <span style={{ fontSize: 12.5, color: '#94A3B8', whiteSpace: 'nowrap' }}>
+          Showing {shown} of {total} {unit}
+        </span>
+      )}
+    </div>
+  );
+}
+
+export function FilterSearch({ value, onChange, placeholder = 'Search…', width = 260 }) {
+  return (
+    <input type="text" value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
+      style={{ width, maxWidth: '100%', boxSizing: 'border-box', padding: '8px 12px', border: '1px solid #E5E7EB', borderRadius: 9, font: 'inherit', fontSize: 13.5 }} />
+  );
+}
+
+// options: [{ value, label }]; allLabel renders the default "" option (e.g. "All statuses").
+export function FilterSelect({ value, onChange, options, allLabel, width = 170 }) {
+  return (
+    <select className="input" value={value} onChange={(e) => onChange(e.target.value)} style={{ width }}>
+      {allLabel != null && <option value="">{allLabel}</option>}
+      {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+    </select>
   );
 }

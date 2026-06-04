@@ -3,26 +3,42 @@ import { useStore } from '../store/StoreContext.jsx';
 import { suggestMaterials } from '../engine/match.js';
 import { idr } from '../engine/format.js';
 import Modal from '../components/Modal.jsx';
+import { FilterBar, FilterSearch, FilterSelect } from '../components/ui.jsx';
 
 export default function CataloguePage() {
   const { db, addMaterial, updateMaterial, addAlias, removeAlias } = useStore();
   const [adding, setAdding] = useState(false);
   const [editMat, setEditMat] = useState(null);
   const [aliasFor, setAliasFor] = useState(null);
+  const [q, setQ] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
 
   const typeName = (id) => db.materialTypes.find((t) => t.id === id)?.name || id;
 
+  const filtered = db.materials.filter((m) => {
+    if (typeFilter && m.materialTypeId !== typeFilter) return false;
+    if (q) {
+      const hay = (m.canonicalName + ' ' + (m.aliases || []).join(' ')).toLowerCase();
+      if (!hay.includes(q.toLowerCase())) return false;
+    }
+    return true;
+  });
+
   return (
     <>
-      <div className="page-head">
-        <h1>Material Catalogue</h1>
-        <p className="sub">Canonical names, aliases, and delivery lead times. The normalization + timing layer the rest of the app relies on.</p>
-      </div>
-
-      <div className="toolbar">
-        <div className="spacer" style={{ flex: 1 }} />
+      <div className="page-head" style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+        <div>
+          <h1>Material Catalogue</h1>
+          <p className="sub">Canonical names, aliases, and delivery lead times. The normalization + timing layer the rest of the app relies on.</p>
+        </div>
         <button className="btn primary" onClick={() => setAdding(true)}>+ Add canonical material</button>
       </div>
+
+      <FilterBar shown={filtered.length} total={db.materials.length} unit="materials">
+        <FilterSearch value={q} onChange={setQ} placeholder="Search name or alias…" />
+        <FilterSelect value={typeFilter} onChange={setTypeFilter} allLabel="All material types" width={200}
+          options={db.materialTypes.map((t) => ({ value: t.id, label: t.name }))} />
+      </FilterBar>
 
       <div className="card">
         <div className="card-body flush">
@@ -31,7 +47,7 @@ export default function CataloguePage() {
               <tr><th>Canonical name</th><th>Type</th><th>Default unit</th><th className="num">Est. unit cost</th><th className="num">Lead time</th><th>Aliases</th><th></th></tr>
             </thead>
             <tbody>
-              {db.materials.map((m) => (
+              {filtered.map((m) => (
                 <tr key={m.id}>
                   <td><b>{m.canonicalName}</b></td>
                   <td className="muted">{typeName(m.materialTypeId)}</td>
@@ -55,6 +71,9 @@ export default function CataloguePage() {
                   </td>
                 </tr>
               ))}
+              {filtered.length === 0 && (
+                <tr><td colSpan={7}><div className="empty">{db.materials.length === 0 ? 'No materials yet.' : 'No materials match these filters.'}</div></td></tr>
+              )}
             </tbody>
           </table>
         </div>

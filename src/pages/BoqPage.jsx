@@ -3,7 +3,7 @@ import { useStore, useProject } from '../store/StoreContext.jsx';
 import { boqForProject, boqItemHasPr, materialName } from '../engine/reconcile.js';
 import { suggestMaterials, resolveMaterial } from '../engine/match.js';
 import { leadTimeFor, projectStart, addDays, addBusinessDays } from '../engine/schedule.js';
-import { ProjectBar } from '../components/ui.jsx';
+import { ProjectBar, FilterBar, FilterSearch, FilterSelect } from '../components/ui.jsx';
 import Modal from '../components/Modal.jsx';
 import PrModal from '../components/PrModal.jsx';
 import { idr, fmtDate, num } from '../engine/format.js';
@@ -19,37 +19,51 @@ export default function BoqPage() {
   const [grouped, setGrouped] = useState(true);
   const [editItem, setEditItem] = useState(undefined);
   const [prFor, setPrFor] = useState(null);
+  const [q, setQ] = useState('');
+  const [mandorFilter, setMandorFilter] = useState('');
 
   const mandorName = (id) => db.mandors.find((m) => m.id === id)?.name || 'Unassigned';
 
+  const filtered = items.filter((b) => {
+    if (mandorFilter && (b.mandorId || '') !== mandorFilter) return false;
+    if (q) {
+      const hay = (materialName(db, b.materialId) + ' ' + (b.description || '')).toLowerCase();
+      if (!hay.includes(q.toLowerCase())) return false;
+    }
+    return true;
+  });
+
   const groups = useMemo(() => {
-    if (!grouped) return [{ key: '__all', label: null, rows: items }];
+    if (!grouped) return [{ key: '__all', label: null, rows: filtered }];
     const map = new Map();
-    for (const it of items) {
+    for (const it of filtered) {
       const k = it.mandorId || '__none';
       if (!map.has(k)) map.set(k, []);
       map.get(k).push(it);
     }
     return [...map.entries()].map(([k, rows]) => ({ key: k, label: mandorName(k), rows }));
-  }, [items, grouped, db.mandors]);
+  }, [filtered, grouped, db.mandors]);
 
   return (
     <>
-      <div className="page-head">
-        <h1>Bill of Quantities</h1>
-        <p className="sub">{project.name} · the material plan — quantity, mandor, and needed day (order day is auto-computed)</p>
+      <div className="page-head" style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+        <div>
+          <h1>Bill of Quantities</h1>
+          <p className="sub">{project.name} · the material plan — quantity, mandor, and needed day (order day is auto-computed)</p>
+        </div>
+        <button className="btn primary" onClick={() => setEditItem(null)}>+ Add BoQ item</button>
       </div>
 
-      <ProjectBar />
-
-      <div className="toolbar">
-        <label className="toggle">
+      <FilterBar shown={filtered.length} total={items.length} unit="items">
+        <ProjectBar embedded />
+        <FilterSearch value={q} onChange={setQ} placeholder="Search material or description…" />
+        <FilterSelect value={mandorFilter} onChange={setMandorFilter} allLabel="All mandors"
+          options={db.mandors.map((m) => ({ value: m.id, label: m.name }))} />
+        <label className="toggle" style={{ whiteSpace: 'nowrap' }}>
           <input type="checkbox" checked={grouped} onChange={(e) => setGrouped(e.target.checked)} />
           Group by mandor
         </label>
-        <div className="spacer" style={{ flex: 1 }} />
-        <button className="btn primary" onClick={() => setEditItem(null)}>+ Add BoQ item</button>
-      </div>
+      </FilterBar>
 
       <div className="card">
         <div className="card-body flush">
@@ -66,8 +80,8 @@ export default function BoqPage() {
                 <Group key={g.key} g={g} db={db} grouped={grouped} start={start}
                   onEdit={setEditItem} onRaisePr={setPrFor} />
               ))}
-              {items.length === 0 && (
-                <tr><td colSpan={8}><div className="empty">No BoQ items yet. Add the first line item to begin.</div></td></tr>
+              {filtered.length === 0 && (
+                <tr><td colSpan={8}><div className="empty">{items.length === 0 ? 'No BoQ items yet. Add the first line item to begin.' : 'No items match these filters.'}</div></td></tr>
               )}
             </tbody>
           </table>
