@@ -4,7 +4,7 @@ import { useStore } from '../store/StoreContext.jsx';
 import { KpiCard } from '../components/ui.jsx';
 import Modal from '../components/Modal.jsx';
 import ReceiveModal from '../components/ReceiveModal.jsx';
-import { portfolioWorklist, todayLocal, addDays, toISO } from '../engine/schedule.js';
+import { portfolioWorklist, todayLocal, addDays, toISO, computeLine } from '../engine/schedule.js';
 import { fmtDate, today as todayISO } from '../engine/format.js';
 
 const TONE = { risk: '#E11D48', amber: '#F59E0B', info: '#0EA5E9', ok: '#16A34A', neutral: '#94A3B8' };
@@ -23,6 +23,11 @@ export default function DashboardPage() {
   const [newProject, setNewProject] = useState(false);
 
   const openProject = (projectId, route = '/boq') => { setCurrentProjectId(projectId); nav(route); };
+
+  // KPI link targets: jump to a project that actually has the thing.
+  const overBudgetLine = db.boqItems.map((b) => computeLine(db, b, today)).find((l) => l.overBudget);
+  const openPo = db.prs.find((p) => p.status === 'ordered');
+  const openPoProjectId = openPo ? db.boqItems.find((b) => b.id === openPo.boqItemId)?.projectId : null;
 
   function markOrdered(line, bucket) {
     const prId = addPr({ boqItemId: line.boqItem.id, quantity: line.budget, status: 'ordered', orderDate: todayISO() });
@@ -44,22 +49,36 @@ export default function DashboardPage() {
         <button className="btn primary" onClick={() => setNewProject(true)}>+ New project</button>
       </div>
 
-      {/* the three action lists */}
-      <Bucket
-        title="Overdue — order now" tone="risk"
-        empty="Nothing overdue to order. 👍"
-        rows={wl.overdueToOrder} doneRows={doneFor('overdue')} onUndo={undo}
-        renderWhen={(l) => <span style={{ color: TONE.risk, fontWeight: 600 }}>{Math.max(1, Math.round((today - l.orderDate) / 86400000))}d overdue · was due {fmtDate(l.orderDate)}</span>}
-        action={(l) => <button className="btn sm" onClick={() => markOrdered(l, 'overdue')}>Mark ordered</button>}
-        onOpen={openProject} db={db}
-      />
+      {/* health snapshot, up top */}
+      <div className="kpi-grid" style={{ marginBottom: 20 }}>
+        <KpiCard label="Active projects" value={wl.health.activeProjects} />
+        <KpiCard label="Materials over budget" value={wl.health.overBudget}
+          tone={wl.health.overBudget ? 'risk' : 'ok'}
+          sub={wl.health.overBudget ? 'view in Balance' : 'all within budget'}
+          subTone={wl.health.overBudget ? 'risk' : 'ok'}
+          onClick={overBudgetLine ? () => { setCurrentProjectId(overBudgetLine.projectId); nav('/reconciliation'); } : undefined} />
+        <KpiCard label="Open POs" value={wl.health.openPos}
+          sub={wl.health.openPos ? 'view in Purchase Requests' : 'ordered, awaiting delivery'}
+          onClick={openPoProjectId ? () => { setCurrentProjectId(openPoProjectId); nav('/purchase-requests'); } : undefined} />
+        <KpiCard label="Snoozed" value={wl.health.snoozed} sub="late items you’re tracking" />
+      </div>
 
+      {/* action lists */}
       <Bucket
         title="Order this week" tone="amber"
         empty="Nothing to order this week — you’re clear."
         rows={wl.orderThisWeek} doneRows={doneFor('week')} onUndo={undo}
         renderWhen={(l) => <span>Order by {fmtDate(l.orderDate)} · {l.lead}d lead</span>}
         action={(l) => <button className="btn sm" onClick={() => markOrdered(l, 'week')}>Mark ordered</button>}
+        onOpen={openProject} db={db}
+      />
+
+      <Bucket
+        title="Overdue — order now" tone="risk"
+        empty="Nothing overdue to order. 👍"
+        rows={wl.overdueToOrder} doneRows={doneFor('overdue')} onUndo={undo}
+        renderWhen={(l) => <span style={{ color: TONE.risk, fontWeight: 600 }}>{Math.max(1, Math.round((today - l.orderDate) / 86400000))}d overdue · was due {fmtDate(l.orderDate)}</span>}
+        action={(l) => <button className="btn sm" onClick={() => markOrdered(l, 'overdue')}>Mark ordered</button>}
         onOpen={openProject} db={db}
       />
 
@@ -87,15 +106,6 @@ export default function DashboardPage() {
           action={() => null} onOpen={openProject} db={db}
         />
       )}
-
-      {/* health metrics, subordinate */}
-      <div className="kpi-grid" style={{ marginTop: 22 }}>
-        <KpiCard label="Active projects" value={wl.health.activeProjects} />
-        <KpiCard label="Materials over budget" value={wl.health.overBudget} tone={wl.health.overBudget ? 'risk' : 'ok'}
-          sub={wl.health.overBudget ? 'across all projects' : 'all within budget'} subTone={wl.health.overBudget ? 'risk' : 'ok'} />
-        <KpiCard label="Open POs" value={wl.health.openPos} sub="ordered, awaiting delivery" />
-        <KpiCard label="Snoozed" value={wl.health.snoozed} sub="late items you’re tracking" />
-      </div>
 
       {receiveFor && (
         <ReceiveModal title={`Mark received · ${receiveFor.materialName}`} onClose={() => setReceiveFor(null)}

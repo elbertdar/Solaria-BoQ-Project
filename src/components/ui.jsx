@@ -4,12 +4,16 @@ import { useStore } from '../store/StoreContext.jsx';
 import { PR_STATUS } from '../theme.js';
 import { computeLine, todayLocal } from '../engine/schedule.js';
 
-export function KpiCard({ label, value, tone = '', sub, subTone = '' }) {
+export function KpiCard({ label, value, tone = '', sub, subTone = '', onClick }) {
+  const clickable = typeof onClick === 'function';
   return (
-    <div className="kpi">
+    <div className={'kpi' + (clickable ? ' clickable' : '')} onClick={onClick}
+      role={clickable ? 'button' : undefined} tabIndex={clickable ? 0 : undefined}
+      onKeyDown={clickable ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } } : undefined}
+      style={clickable ? { cursor: 'pointer' } : undefined}>
       <div className="label">{label}</div>
       <div className={'value ' + tone}>{value}</div>
-      {sub != null && <div className={'sub ' + subTone}>{sub}</div>}
+      {sub != null && <div className={'sub ' + subTone}>{sub}{clickable ? ' →' : ''}</div>}
     </div>
   );
 }
