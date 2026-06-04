@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import Modal from './Modal.jsx';
 import { useStore } from '../store/StoreContext.jsx';
-import { checkProspectivePr, materialName, boqForProject } from '../engine/reconcile.js';
+import { checkProspectivePr, materialName, boqForProject, remainingQty } from '../engine/reconcile.js';
 import { PR_FLOW, PR_STATUS } from '../theme.js';
 import { idr, today } from '../engine/format.js';
 
@@ -12,22 +12,33 @@ export default function PrModal({ pr = null, boqItem = null, onClose }) {
   // In create mode without a preselected BoQ item, let the user pick one.
   const projectBoq = boqForProject(db, currentProjectId);
   const initialBoqId = pr?.boqItemId || boqItem?.id || projectBoq[0]?.id || '';
+  const initialBoqItem = db.boqItems.find((b) => b.id === initialBoqId);
 
   const [boqItemId, setBoqItemId] = useState(initialBoqId);
-  const [quantity, setQuantity] = useState(pr?.quantity ?? '');
-  const [unitCost, setUnitCost] = useState(pr?.unitCost ?? '');
+  // New PRs pre-fill from the linked BoQ line; the PM can edit any of it before saving.
+  const [quantity, setQuantity] = useState(
+    pr ? (pr.quantity ?? '') : (initialBoqItem ? String(remainingQty(db, initialBoqId)) : ''));
+  const [unitCost, setUnitCost] = useState(
+    pr ? (pr.unitCost ?? '') : (initialBoqItem?.expectedUnitCost ?? ''));
   const [supplierPrimaryId, setSup1] = useState(pr?.supplierPrimaryId ?? '');
   const [supplierSecondaryId, setSup2] = useState(pr?.supplierSecondaryId ?? '');
   const [picId, setPic] = useState(pr?.picId ?? db.currentUser?.id ?? '');
   const [status, setStatus] = useState(pr?.status ?? 'draft');
-  const [orderDate, setOrderDate] = useState(pr?.orderDate ?? '');
-  const [receiptDate, setReceiptDate] = useState(pr?.receiptDate ?? '');
+  const [orderDate, setOrderDate] = useState(pr ? (pr.orderDate ?? '') : today());
+  const [receiptDate, setReceiptDate] = useState(pr ? (pr.receiptDate ?? '') : today());
   const [error, setError] = useState('');
   const [ackOver, setAckOver] = useState(false);
 
   const selectedBoq = db.boqItems.find((b) => b.id === boqItemId);
   const matName = selectedBoq ? materialName(db, selectedBoq.materialId) : '—';
   const unit = selectedBoq?.unit || '';
+
+  // Recommend suppliers whose category tags match the linked material's type (BR-style nicety).
+  const matTypeId = selectedBoq ? db.materials.find((m) => m.id === selectedBoq.materialId)?.materialTypeId : null;
+  const recTypeLabel = matTypeId ? (db.materialTypes.find((t) => t.id === matTypeId)?.name || '') : '';
+  const recommendedSuppliers = matTypeId ? db.suppliers.filter((s) => (s.materialTypeIds || []).includes(matTypeId)) : [];
+  const recIds = new Set(recommendedSuppliers.map((s) => s.id));
+  const otherSuppliers = db.suppliers.filter((s) => !recIds.has(s.id));
 
   // Live reconciliation check as quantity changes (BR-7 / Feature 5.6).
   const check = useMemo(() => {
@@ -90,7 +101,14 @@ export default function PrModal({ pr = null, boqItem = null, onClose }) {
           {editing ? (
             <div className="readonly-val">{matName} — {selectedBoq?.description}</div>
           ) : (
-            <select className="input" value={boqItemId} onChange={(e) => setBoqItemId(e.target.value)}>
+            <select className="input" value={boqItemId} onChange={(e) => {
+              const id = e.target.value;
+              setBoqItemId(id);
+              const nb = db.boqItems.find((b) => b.id === id);
+              setQuantity(String(remainingQty(db, id)));
+              setUnitCost(nb?.expectedUnitCost ?? '');
+              setAckOver(false);
+            }}>
               {projectBoq.map((b) => (
                 <option key={b.id} value={b.id}>
                   {materialName(db, b.materialId)} — {b.description} ({b.quantity} {b.unit})
@@ -123,15 +141,16 @@ export default function PrModal({ pr = null, boqItem = null, onClose }) {
         <div>
           <label className="lbl">Supplier 1</label>
           <select className="input" value={supplierPrimaryId} onChange={(e) => setSup1(e.target.value)}>
-            <option value="">—</option>
-            {db.suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            <SupplierOptions recommended={recommendedSuppliers} others={otherSuppliers} typeLabel={recTypeLabel} />
           </select>
+          {recommendedSuppliers.length > 0 && (
+            <div className="help">★ Recommended = suppliers tagged for {recTypeLabel}</div>
+          )}
         </div>
         <div>
           <label className="lbl">Supplier 2 (comparison)</label>
           <select className="input" value={supplierSecondaryId} onChange={(e) => setSup2(e.target.value)}>
-            <option value="">—</option>
-            {db.suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+            <SupplierOptions recommended={recommendedSuppliers} others={otherSuppliers} typeLabel={recTypeLabel} />
           </select>
         </div>
 
@@ -178,5 +197,27 @@ export default function PrModal({ pr = null, boqItem = null, onClose }) {
 
       {error && <div className="inline-warn"><span>•</span><div>{error}</div></div>}
     </Modal>
+  );
+}
+
+// Supplier <select> options with a "Recommended" group (category tag matches the material)
+// floated to the top, then everyone else. Falls back to a flat list when nothing matches.
+function SupplierOptions({ recommended, others, typeLabel }) {
+  return (
+    <>
+      <option value="">—</option>
+      {recommended.length > 0 ? (
+        <>
+          <optgroup label={`★ Recommended${typeLabel ? ` · ${typeLabel}` : ''}`}>
+            {recommended.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </optgroup>
+          <optgroup label="Other suppliers">
+            {others.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </optgroup>
+        </>
+      ) : (
+        others.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)
+      )}
+    </>
   );
 }

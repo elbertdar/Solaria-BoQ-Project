@@ -30,6 +30,16 @@ export function prsForBoqItem(db, boqItemId) {
 export function boqItemHasPr(db, boqItemId) {
   return db.prs.some((p) => p.boqItemId === boqItemId && p.status !== 'cancelled');
 }
+// Quantity still left to order on a BoQ line = budget − already-committed (ordered + received).
+// Used to pre-fill a new PR's quantity. Never negative.
+export function remainingQty(db, boqItemId) {
+  const b = db.boqItems.find((x) => x.id === boqItemId);
+  if (!b) return 0;
+  const committed = prsForBoqItem(db, boqItemId)
+    .filter((p) => COMMITTED_STATUSES.includes(p.status))
+    .reduce((t, p) => t + (p.quantity || 0), 0);
+  return Math.max(0, (b.quantity || 0) - committed);
+}
 
 // One reconciliation row per canonical material that appears in this project.
 export function summarizeProject(db, projectId) {
