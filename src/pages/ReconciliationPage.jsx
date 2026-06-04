@@ -40,7 +40,7 @@ export default function ReconciliationPage() {
 
       {overCount > 0 && (
         <AlertBanner tone="risk" title={`${overCount} material${overCount > 1 ? 's' : ''} over budget`}>
-          committed quantity exceeds the BoQ plan. Expand the flagged rows to see the contributing orders.
+          Committed quantity (ordered + received) exceeds the BoQ plan. Over-committed materials sort to the top — expand a row to see the contributing orders.
         </AlertBanner>
       )}
 
@@ -50,6 +50,7 @@ export default function ReconciliationPage() {
             <thead>
               <tr>
                 <th>Material</th>
+                <th>Unit</th>
                 <th className="num">Budget qty</th>
                 <th className="num">Committed</th>
                 <th className="num">Received</th>
@@ -69,7 +70,7 @@ export default function ReconciliationPage() {
                 );
               })}
               {filtered.length === 0 && (
-                <tr><td colSpan={9}><div className="empty">{rows.length === 0 ? 'No materials on this project yet.' : 'No materials match these filters.'}</div></td></tr>
+                <tr><td colSpan={10}><div className="empty">{rows.length === 0 ? 'No materials on this project yet.' : 'No materials match these filters.'}</div></td></tr>
               )}
             </tbody>
           </table>
@@ -89,12 +90,12 @@ function RowGroup({ r, isOpen, onToggle, db }) {
     <>
       <tr className="clickable" onClick={onToggle}>
         <td className="mat-link">{r.materialName}</td>
-        <td className="num">{num(r.budgetQty)} {r.unit}</td>
+        <td>{r.unit}</td>
+        <td className="num">{num(r.budgetQty)}</td>
         <td className="num">{num(r.committedQty)}</td>
         <td className="num">{num(r.receivedQty)}</td>
-        <td className={'num ' + (r.balanceQty > 0 ? 'val-risk' : r.balanceQty < 0 ? '' : '')}>
+        <td className={'num ' + (r.balanceQty > 0 ? 'val-risk' : '')}>
           {r.balanceQty > 0 ? '+' : ''}{num(r.balanceQty)}
-          {r.isOverCommitted && <span className="pill risk" style={{ marginLeft: 8 }}>over</span>}
         </td>
         <td className="num">{idr(r.budgetCost)}</td>
         <td className="num">{idr(r.actualCost)}</td>
@@ -105,16 +106,17 @@ function RowGroup({ r, isOpen, onToggle, db }) {
       </tr>
       {isOpen && (
         <tr className="drill">
-          <td colSpan={9}>
+          <td colSpan={10}>
             <div className="drill-inner">
               <h4>BoQ entries (plan)</h4>
               <table className="table">
-                <thead><tr><th>Description</th><th className="num">Qty</th><th className="num">Expected unit cost</th><th>Purchase by</th></tr></thead>
+                <thead><tr><th>Description</th><th className="num">Qty</th><th>Unit</th><th className="num">Expected unit cost</th><th>Purchase by</th></tr></thead>
                 <tbody>
                   {r.boqItems.map((b) => (
                     <tr key={b.id}>
                       <td>{b.description}</td>
-                      <td className="num">{num(b.quantity)} {b.unit}</td>
+                      <td className="num">{num(b.quantity)}</td>
+                      <td>{b.unit}</td>
                       <td className="num">{idr(b.expectedUnitCost)}</td>
                       <td>{fmtDate(b.schedulePurchaseDate)}</td>
                     </tr>
@@ -127,12 +129,13 @@ function RowGroup({ r, isOpen, onToggle, db }) {
                 <p className="help" style={{ paddingLeft: 0 }}>No PRs raised for this material yet.</p>
               ) : (
                 <table className="table">
-                  <thead><tr><th>Status</th><th className="num">Qty</th><th className="num">Unit cost</th><th>Supplier</th><th>Receipt</th></tr></thead>
+                  <thead><tr><th>Status</th><th className="num">Qty</th><th>Unit</th><th className="num">Unit cost</th><th>Supplier</th><th>Receipt</th></tr></thead>
                   <tbody>
                     {r.prs.map((p) => (
                       <tr key={p.id}>
                         <td><StatusPill status={p.status} /></td>
-                        <td className="num">{num(p.quantity)} {p.unit}</td>
+                        <td className="num">{num(p.quantity)}</td>
+                        <td>{p.unit}</td>
                         <td className="num">{idr(p.unitCost)}</td>
                         <td>{db.suppliers.find((s) => s.id === p.supplierPrimaryId)?.name || '—'}</td>
                         <td>{fmtDate(p.receiptDate)}</td>

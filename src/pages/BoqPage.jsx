@@ -71,7 +71,7 @@ export default function BoqPage() {
             <thead>
               <tr>
                 <th>Material</th><th>Description</th>
-                <th className="num">Qty</th><th className="num">Exp. unit cost</th>
+                <th className="num">Qty</th><th>Unit</th><th className="num">Exp. unit cost</th>
                 <th className="num">Needed</th><th className="num">Order by</th><th>PR</th><th></th>
               </tr>
             </thead>
@@ -81,7 +81,7 @@ export default function BoqPage() {
                   onEdit={setEditItem} onRaisePr={setPrFor} />
               ))}
               {filtered.length === 0 && (
-                <tr><td colSpan={8}><div className="empty">{items.length === 0 ? 'No BoQ items yet. Add the first line item to begin.' : 'No items match these filters.'}</div></td></tr>
+                <tr><td colSpan={9}><div className="empty">{items.length === 0 ? 'No BoQ items yet. Add the first line item to begin.' : 'No items match these filters.'}</div></td></tr>
               )}
             </tbody>
           </table>
@@ -98,7 +98,7 @@ function Group({ g, db, grouped, start, onEdit, onRaisePr }) {
   return (
     <>
       {grouped && g.label && (
-        <tr className="group-row"><td colSpan={8}>Mandor · {g.label} ({g.rows.length})</td></tr>
+        <tr className="group-row"><td colSpan={9}>Mandor · {g.label} ({g.rows.length})</td></tr>
       )}
       {g.rows.map((b) => {
         const linked = boqItemHasPr(db, b.id);
@@ -112,7 +112,8 @@ function Group({ g, db, grouped, start, onEdit, onRaisePr }) {
           <tr key={b.id}>
             <td className="mat-link">{materialName(db, b.materialId)}</td>
             <td>{b.description}</td>
-            <td className="num">{num(b.quantity)} {b.unit}</td>
+            <td className="num">{num(b.quantity)}</td>
+            <td>{b.unit}</td>
             <td className="num">{idr(b.expectedUnitCost)}</td>
             <td className="num">
               {needed != null ? <>Day {needed}{neededDate && <div className="muted" style={{ fontSize: 11 }}>{fmtDate(neededDate)}</div>}</> : '—'}

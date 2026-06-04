@@ -63,7 +63,7 @@ export default function PurchaseRequestsPage() {
             <thead>
               <tr>
                 <th>Material</th><th>Status</th>
-                <th className="num">Qty</th><th className="num">Unit cost</th><th className="num">Line total</th>
+                <th className="num">Qty</th><th>Unit</th><th className="num">Unit cost</th><th className="num">Line total</th>
                 <th>Sup 1 / Sup 2</th><th>PIC</th><th>Order</th><th>Receipt</th><th></th>
               </tr>
             </thead>
@@ -72,7 +72,8 @@ export default function PurchaseRequestsPage() {
                 <tr key={p.id}>
                   <td className="mat-link">{materialName(db, p.materialId)}</td>
                   <td><StatusPill status={p.status} /></td>
-                  <td className="num">{num(p.quantity)} {p.unit}</td>
+                  <td className="num">{num(p.quantity)}</td>
+                  <td>{p.unit}</td>
                   <td className="num">{idr(p.unitCost)}</td>
                   <td className="num">{idr(p.quantity * (p.unitCost || 0))}</td>
                   <td>
@@ -91,7 +92,7 @@ export default function PurchaseRequestsPage() {
                 </tr>
               ))}
               {filtered.length === 0 && (
-                <tr><td colSpan={10}><div className="empty">{prs.length === 0 ? 'No purchase requests yet. Raise one from a BoQ item.' : 'No PRs match these filters.'}</div></td></tr>
+                <tr><td colSpan={11}><div className="empty">{prs.length === 0 ? 'No purchase requests yet. Raise one from a BoQ item.' : 'No PRs match these filters.'}</div></td></tr>
               )}
             </tbody>
           </table>
