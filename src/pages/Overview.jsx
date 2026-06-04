@@ -41,11 +41,15 @@ export default function Overview() {
       )}
 
       <div className="kpi-grid">
-        <KpiCard label="Budgeted cost" value={idrShort(t.budgetCost)} sub="from BoQ line items" />
-        <KpiCard label="Committed" value={idrShort(t.committedCost)} tone="info" sub="ordered + received" subTone="" />
+        <KpiCard label="Budgeted cost" value={idrShort(t.budgetCost)} sub="from BoQ line items"
+          onClick={() => nav('/boq')} />
+        <KpiCard label="Committed" value={idrShort(t.committedCost)} tone="info" sub="ordered + received" subTone=""
+          onClick={() => nav('/purchase-requests')} />
         <KpiCard label="Materials over budget" value={t.materialsOver} tone={t.materialsOver ? 'risk' : 'ok'}
-          sub={t.materialsOver ? 'needs attention' : 'all within budget'} subTone={t.materialsOver ? 'risk' : 'ok'} />
-        <KpiCard label="Open PRs" value={t.openPrs} sub={`${t.totalPrs} total this project`} />
+          sub={t.materialsOver ? 'needs attention' : 'all within budget'} subTone={t.materialsOver ? 'risk' : 'ok'}
+          onClick={() => nav('/reconciliation')} />
+        <KpiCard label="Open PRs" value={t.openPrs} sub={`${t.totalPrs} total this project`}
+          onClick={() => nav('/purchase-requests')} />
       </div>
 
       <div className="card">
