@@ -5,7 +5,7 @@ import { createContext, useContext, useEffect, useMemo, useState, useCallback } 
 import { seed } from '../data/seed.js';
 import { nowISO } from '../engine/format.js';
 
-const KEY = 'solaria_boq_db_v8';
+const KEY = 'solaria_boq_db_v9';
 const StoreCtx = createContext(null);
 
 function load() {
@@ -75,6 +75,16 @@ export function StoreProvider({ children }) {
     const id = uid('s');
     setDb((d) => ({ ...d, suppliers: [...d.suppliers, { id, materialTypeIds: [], ...s }] }));
     return id;
+  }, []);
+
+  // ---- Material types (source of truth for every type dropdown / filter) ----
+  const addMaterialType = useCallback((t) => {
+    const id = uid('mt');
+    setDb((d) => ({ ...d, materialTypes: [...d.materialTypes, { id, description: '', ...t }] }));
+    return id;
+  }, []);
+  const updateMaterialType = useCallback((id, patch) => {
+    setDb((d) => ({ ...d, materialTypes: d.materialTypes.map((t) => t.id === id ? { ...t, ...patch } : t) }));
   }, []);
 
   // ---- Projects & mandors ----
@@ -185,12 +195,13 @@ export function StoreProvider({ children }) {
     addMaterial, updateMaterial, addAlias, removeAlias,
     addBoqItem, updateBoqItem,
     addSupplier,
+    addMaterialType, updateMaterialType,
     addProject, updateProject, addMandor,
     addPr, updatePr, setPrStatus, deletePr,
     importData,
     resetDb,
   }), [db, currentProjectId, addMaterial, updateMaterial, addAlias, removeAlias,
-    addBoqItem, updateBoqItem, addSupplier, addProject, updateProject, addMandor,
+    addBoqItem, updateBoqItem, addSupplier, addMaterialType, updateMaterialType, addProject, updateProject, addMandor,
     addPr, updatePr, setPrStatus, deletePr, importData, resetDb]);
 
   return <StoreCtx.Provider value={value}>{children}</StoreCtx.Provider>;

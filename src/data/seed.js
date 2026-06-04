@@ -34,12 +34,12 @@ export const seed = {
   ],
 
   materialTypes: [
-    { id: 'mt-drywall', name: 'Drywall & Partition' },
-    { id: 'mt-timber', name: 'Timber & Board' },
-    { id: 'mt-electrical', name: 'Electrical' },
-    { id: 'mt-finishes', name: 'Finishes' },
-    { id: 'mt-structure', name: 'Structure' },
-    { id: 'mt-plumbing', name: 'Plumbing' },
+    { id: 'mt-drywall', name: 'Drywall & Partition', description: 'Gypsum board, hollow metal framing, and partition systems.' },
+    { id: 'mt-timber', name: 'Timber & Board', description: 'Plywood, multiplek, and other board and timber materials.' },
+    { id: 'mt-electrical', name: 'Electrical', description: 'Cabling, switches, sockets, and electrical fittings.' },
+    { id: 'mt-finishes', name: 'Finishes', description: 'Tiles, paint, and surface finishing materials.' },
+    { id: 'mt-structure', name: 'Structure', description: 'Reinforcing bar, cement, and structural materials.' },
+    { id: 'mt-plumbing', name: 'Plumbing', description: 'Pipes, fittings, and water and sanitary materials.' },
   ],
 
   // Canonical catalogue (Feature 5.1). leadTimeDays = estimated delivery time.

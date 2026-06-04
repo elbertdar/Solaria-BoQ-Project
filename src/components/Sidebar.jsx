@@ -26,6 +26,7 @@ const GROUPS = [
     items: [
       { to: '/suppliers', ico: '⌂', label: 'Suppliers' },
       { to: '/catalogue', ico: '✦', label: 'Material Catalogue' },
+      { to: '/material-types', ico: '⊞', label: 'Material Types' },
     ],
   },
 ];

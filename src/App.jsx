@@ -10,6 +10,7 @@ import SchedulePage from './pages/SchedulePage.jsx';
 import PurchaseRequestsPage from './pages/PurchaseRequestsPage.jsx';
 import SuppliersPage from './pages/SuppliersPage.jsx';
 import CataloguePage from './pages/CataloguePage.jsx';
+import MaterialTypesPage from './pages/MaterialTypesPage.jsx';
 
 export default function App() {
   return (
@@ -28,6 +29,7 @@ export default function App() {
               <Route path="/purchase-requests" element={<PurchaseRequestsPage />} />
               <Route path="/suppliers" element={<SuppliersPage />} />
               <Route path="/catalogue" element={<CataloguePage />} />
+              <Route path="/material-types" element={<MaterialTypesPage />} />
               <Route path="*" element={<DashboardPage />} />
             </Routes>
           </main>
