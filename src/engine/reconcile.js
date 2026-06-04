@@ -63,7 +63,9 @@ export function summarizeProject(db, projectId) {
     const receivedQty = sum(received, (p) => p.quantity);
 
     const budgetCost = sum(bItems, (b) => b.quantity * (b.expectedUnitCost || 0));
-    const actualCost = sum(received, (p) => p.quantity * (p.unitCost || 0));
+    // Actual cost is recognized at commit time: once a PR is ordered, its cost counts
+    // (committed = ordered + received), rather than waiting for physical receipt.
+    const actualCost = sum(committed, (p) => p.quantity * (p.unitCost || 0));
 
     const balanceQty = receivedQty - budgetQty;          // + = over (received basis)
     const committedBalanceQty = committedQty - budgetQty; // + = over (commitment basis)

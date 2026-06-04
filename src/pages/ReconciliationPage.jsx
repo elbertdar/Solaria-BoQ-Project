@@ -78,8 +78,10 @@ export default function ReconciliationPage() {
       </div>
 
       <p className="help">
-        Balance = received − budget (positive means over). The over-budget flag fires on
-        <em> committed</em> quantity (ordered + received), so over-ordering is caught before delivery.
+        Balance is quantity-based: received − budget (positive means over). <em>Actual cost</em> counts
+        committed orders (ordered + received) at their PR unit cost — once an order is placed, its cost is
+        treated as actual, so the budget impact (Δ Cost) appears at order time rather than after delivery.
+        The over-budget banner fires on committed quantity, catching over-ordering before it arrives.
       </p>
     </>
   );
