@@ -16,7 +16,7 @@ const daysAgoISO = (n) => {
 };
 
 export const seed = {
-  meta: { version: 4 },
+  meta: { version: 5 },
 
   currentUser: { id: 'u-pic-1', name: 'Rina Hapsari', role: 'Purchasing PIC' },
 
@@ -44,16 +44,16 @@ export const seed = {
 
   // Canonical catalogue (Feature 5.1). leadTimeDays = estimated delivery time.
   materials: [
-    { id: 'mat-gypsum', canonicalName: 'Gypsum', aliases: ['Gypsum Aplus', 'Gipsum', 'Papan Gypsum 9mm'], defaultUnit: 'lembar', materialTypeId: 'mt-drywall', leadTimeDays: 7 },
-    { id: 'mat-hollow', canonicalName: 'Hollow Galvanis', aliases: ['Besi Hollow', 'Rangka Hollow 4x4'], defaultUnit: 'batang', materialTypeId: 'mt-drywall', leadTimeDays: 7 },
-    { id: 'mat-triplek', canonicalName: 'Triplek', aliases: ['Triplek 9mm', 'Plywood', 'Multiplek 9mm'], defaultUnit: 'lembar', materialTypeId: 'mt-timber', leadTimeDays: 10 },
-    { id: 'mat-keramik', canonicalName: 'Keramik', aliases: ['Keramik 60x60', 'Granit Tile', 'Ubin Keramik'], defaultUnit: 'm2', materialTypeId: 'mt-finishes', leadTimeDays: 21 },
-    { id: 'mat-cat', canonicalName: 'Cat Tembok', aliases: ['Cat Dulux', 'Cat Interior', 'Paint'], defaultUnit: 'pail', materialTypeId: 'mt-finishes', leadTimeDays: 5 },
-    { id: 'mat-kabel', canonicalName: 'Kabel NYM', aliases: ['Kabel NYM 3x2.5', 'Kabel Listrik'], defaultUnit: 'roll', materialTypeId: 'mt-electrical', leadTimeDays: 14 },
-    { id: 'mat-saklar', canonicalName: 'Saklar & Stop Kontak', aliases: ['Saklar', 'Stop Kontak', 'Switch Socket'], defaultUnit: 'set', materialTypeId: 'mt-electrical', leadTimeDays: 10 },
-    { id: 'mat-besi', canonicalName: 'Besi Beton', aliases: ['Besi Beton D10', 'Rebar', 'Besi Ulir'], defaultUnit: 'batang', materialTypeId: 'mt-structure', leadTimeDays: 5 },
-    { id: 'mat-semen', canonicalName: 'Semen', aliases: ['Semen Tiga Roda', 'Portland Cement', 'Semen 50kg'], defaultUnit: 'sak', materialTypeId: 'mt-structure', leadTimeDays: 3 },
-    { id: 'mat-pipa', canonicalName: 'Pipa PVC', aliases: ['Pipa PVC 3 inch', 'Pipa Wavin'], defaultUnit: 'batang', materialTypeId: 'mt-plumbing', leadTimeDays: 7 },
+    { id: 'mat-gypsum', canonicalName: 'Gypsum', aliases: ['Gypsum Aplus', 'Gipsum', 'Papan Gypsum 9mm'], defaultUnit: 'lembar', materialTypeId: 'mt-drywall', leadTimeDays: 7, estUnitCost: 65000 },
+    { id: 'mat-hollow', canonicalName: 'Hollow Galvanis', aliases: ['Besi Hollow', 'Rangka Hollow 4x4'], defaultUnit: 'batang', materialTypeId: 'mt-drywall', leadTimeDays: 7, estUnitCost: 78000 },
+    { id: 'mat-triplek', canonicalName: 'Triplek', aliases: ['Triplek 9mm', 'Plywood', 'Multiplek 9mm'], defaultUnit: 'lembar', materialTypeId: 'mt-timber', leadTimeDays: 10, estUnitCost: 122000 },
+    { id: 'mat-keramik', canonicalName: 'Keramik', aliases: ['Keramik 60x60', 'Granit Tile', 'Ubin Keramik'], defaultUnit: 'm2', materialTypeId: 'mt-finishes', leadTimeDays: 21, estUnitCost: 148000 },
+    { id: 'mat-cat', canonicalName: 'Cat Tembok', aliases: ['Cat Dulux', 'Cat Interior', 'Paint'], defaultUnit: 'pail', materialTypeId: 'mt-finishes', leadTimeDays: 5, estUnitCost: 850000 },
+    { id: 'mat-kabel', canonicalName: 'Kabel NYM', aliases: ['Kabel NYM 3x2.5', 'Kabel Listrik'], defaultUnit: 'roll', materialTypeId: 'mt-electrical', leadTimeDays: 14, estUnitCost: 1480000 },
+    { id: 'mat-saklar', canonicalName: 'Saklar & Stop Kontak', aliases: ['Saklar', 'Stop Kontak', 'Switch Socket'], defaultUnit: 'set', materialTypeId: 'mt-electrical', leadTimeDays: 10, estUnitCost: 95000 },
+    { id: 'mat-besi', canonicalName: 'Besi Beton', aliases: ['Besi Beton D10', 'Rebar', 'Besi Ulir'], defaultUnit: 'batang', materialTypeId: 'mt-structure', leadTimeDays: 5, estUnitCost: 95000 },
+    { id: 'mat-semen', canonicalName: 'Semen', aliases: ['Semen Tiga Roda', 'Portland Cement', 'Semen 50kg'], defaultUnit: 'sak', materialTypeId: 'mt-structure', leadTimeDays: 3, estUnitCost: 62000 },
+    { id: 'mat-pipa', canonicalName: 'Pipa PVC', aliases: ['Pipa PVC 3 inch', 'Pipa Wavin'], defaultUnit: 'batang', materialTypeId: 'mt-plumbing', leadTimeDays: 7, estUnitCost: 130000 },
   ],
 
   projects: [

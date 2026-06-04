@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useStore } from '../store/StoreContext.jsx';
 import { suggestMaterials } from '../engine/match.js';
+import { idr } from '../engine/format.js';
 import Modal from '../components/Modal.jsx';
 
 export default function CataloguePage() {
@@ -27,7 +28,7 @@ export default function CataloguePage() {
         <div className="card-body flush">
           <table className="table">
             <thead>
-              <tr><th>Canonical name</th><th>Type</th><th>Default unit</th><th className="num">Lead time</th><th>Aliases</th><th></th></tr>
+              <tr><th>Canonical name</th><th>Type</th><th>Default unit</th><th className="num">Est. unit cost</th><th className="num">Lead time</th><th>Aliases</th><th></th></tr>
             </thead>
             <tbody>
               {db.materials.map((m) => (
@@ -35,6 +36,7 @@ export default function CataloguePage() {
                   <td><b>{m.canonicalName}</b></td>
                   <td className="muted">{typeName(m.materialTypeId)}</td>
                   <td>{m.defaultUnit}</td>
+                  <td className="num">{m.estUnitCost != null ? idr(m.estUnitCost) : <span className="muted">—</span>}</td>
                   <td className="num">
                     {m.leadTimeDays != null ? `${m.leadTimeDays} days` : <span className="muted">— not set</span>}
                   </td>
@@ -73,6 +75,7 @@ function MaterialModal({ title, material, onClose, onSave, types, materials }) {
   const [name, setName] = useState(material?.canonicalName ?? '');
   const [unit, setUnit] = useState(material?.defaultUnit ?? '');
   const [typeId, setTypeId] = useState(material?.materialTypeId ?? types[0]?.id ?? '');
+  const [estCost, setEstCost] = useState(material?.estUnitCost ?? '');
   const [lead, setLead] = useState(material?.leadTimeDays ?? '');
   const [error, setError] = useState('');
 
@@ -83,6 +86,7 @@ function MaterialModal({ title, material, onClose, onSave, types, materials }) {
     if (!unit.trim()) { setError('Default unit is required.'); return; }
     const vals = {
       canonicalName: name.trim(), defaultUnit: unit.trim(), materialTypeId: typeId,
+      estUnitCost: estCost === '' ? null : Number(estCost),
       leadTimeDays: lead === '' ? null : Number(lead),
     };
     onSave(vals);
@@ -114,11 +118,15 @@ function MaterialModal({ title, material, onClose, onSave, types, materials }) {
             {types.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
           </select>
         </div>
-        <div className="full">
+        <div>
+          <label className="lbl">Estimated unit cost (IDR)</label>
+          <input type="number" min="0" value={estCost} onChange={(e) => setEstCost(e.target.value)} placeholder="e.g. 65000" />
+          <div className="help">Default cost used to pre-fill a BoQ line when this material is chosen.</div>
+        </div>
+        <div>
           <label className="lbl">Delivery lead time (days)</label>
-          <input type="number" min="0" value={lead} onChange={(e) => setLead(e.target.value)}
-            placeholder="e.g. 14" style={{ maxWidth: 200 }} />
-          <div className="help">How long this material takes to arrive after ordering. Drives the auto-computed order day on BoQ lines.</div>
+          <input type="number" min="0" value={lead} onChange={(e) => setLead(e.target.value)} placeholder="e.g. 14" />
+          <div className="help">Time to arrive after ordering. Drives the auto-computed order day on BoQ lines.</div>
         </div>
       </div>
       {error && <div className="inline-warn"><span>•</span><div>{error}</div></div>}

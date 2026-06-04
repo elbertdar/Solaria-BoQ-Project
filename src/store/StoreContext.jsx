@@ -5,7 +5,7 @@ import { createContext, useContext, useEffect, useMemo, useState, useCallback } 
 import { seed } from '../data/seed.js';
 import { nowISO } from '../engine/format.js';
 
-const KEY = 'solaria_boq_db_v5';
+const KEY = 'solaria_boq_db_v8';
 const StoreCtx = createContext(null);
 
 function load() {

@@ -157,6 +157,7 @@ function BoqModal({ item, onClose }) {
   function pickMaterial(m) {
     setMaterialId(m.id); setMatQuery(m.canonicalName);
     if (!unit) setUnit(m.defaultUnit);
+    if (expectedUnitCost === '' && m.estUnitCost != null) setCost(m.estUnitCost);
     setTouchedMat(false);
   }
   function createNewMaterial() {
