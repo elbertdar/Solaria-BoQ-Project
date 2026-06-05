@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useStore, useProject } from '../store/StoreContext.jsx';
-import { boqForProject, boqItemHasPr, materialName } from '../engine/reconcile.js';
+import { boqForProject, boqLineStatus, materialName } from '../engine/reconcile.js';
 import { suggestMaterials, resolveMaterial } from '../engine/match.js';
 import { leadTimeFor, projectStart, addDays, addBusinessDays } from '../engine/schedule.js';
 import { ProjectBar, FilterBar, FilterSearch, FilterSelect } from '../components/ui.jsx';
@@ -72,7 +72,7 @@ export default function BoqPage() {
               <tr>
                 <th>Material</th><th>Description</th>
                 <th className="num">Qty</th><th>Unit</th><th className="num">Exp. unit cost</th>
-                <th className="num">Needed</th><th className="num">Order by</th><th>PR</th><th></th>
+                <th className="num">Needed</th><th className="num">Order by</th><th>Status</th><th></th>
               </tr>
             </thead>
             <tbody>
@@ -101,7 +101,7 @@ function Group({ g, db, grouped, start, onEdit, onRaisePr }) {
         <tr className="group-row"><td colSpan={9}>Mandor · {g.label} ({g.rows.length})</td></tr>
       )}
       {g.rows.map((b) => {
-        const linked = boqItemHasPr(db, b.id);
+        const status = boqLineStatus(db, b.id);
         const matLead = leadTimeFor(db, b.materialId);
         const lead = b.leadTimeDays != null ? b.leadTimeDays : matLead;
         const needed = b.neededDayOffset;
@@ -123,7 +123,13 @@ function Group({ g, db, grouped, start, onEdit, onRaisePr }) {
                 ? <>Day {orderDay}<div className="muted" style={{ fontSize: 11 }}>{lead}d lead{b.leadTimeDays != null ? '*' : ''}</div></>
                 : <span className="muted">set lead time</span>}
             </td>
-            <td className={linked ? 'linked-yes' : 'linked-no'}>{linked ? '● linked' : '○ none'}</td>
+            <td>
+              {status === 'complete'
+                ? <span className="pill" style={{ background: '#F0FDF4', color: '#15803D', border: '1px solid #D1FAE5' }}>Complete</span>
+                : status === 'ordered'
+                  ? <span className="pill info">Ordered</span>
+                  : <span className="pill gray">Not ordered</span>}
+            </td>
             <td className="num" style={{ whiteSpace: 'nowrap' }}>
               <button className="btn sm ghost" onClick={() => onEdit(b)}>Edit</button>{' '}
               <button className="btn sm" onClick={() => onRaisePr(b)}>Raise PR</button>

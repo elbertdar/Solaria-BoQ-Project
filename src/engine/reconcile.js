@@ -41,6 +41,22 @@ export function remainingQty(db, boqItemId) {
   return Math.max(0, (b.quantity || 0) - committed);
 }
 
+// Fulfilment status of a BoQ line, derived from its (non-cancelled) PRs:
+//   'none'     — nothing ordered yet
+//   'ordered'  — an order exists but the line isn't fully received
+//   'complete' — received quantity covers the budgeted quantity (order fulfilled)
+export function boqLineStatus(db, boqItemId) {
+  const prs = prsForBoqItem(db, boqItemId);
+  if (prs.length === 0) return 'none';
+  const b = db.boqItems.find((x) => x.id === boqItemId);
+  const budget = b?.quantity || 0;
+  const received = prs
+    .filter((p) => RECEIVED_STATUSES.includes(p.status))
+    .reduce((t, p) => t + (p.quantity || 0), 0);
+  if (budget > 0 && received >= budget) return 'complete';
+  return 'ordered';
+}
+
 // One reconciliation row per canonical material that appears in this project.
 export function summarizeProject(db, projectId) {
   const boq = boqForProject(db, projectId);
