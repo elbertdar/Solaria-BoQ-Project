@@ -123,3 +123,5 @@ export const seed = {
 // Phase 1 posture: the BoQ is filled in but starts as a DRAFT on every project, and there
 // are no purchase requests yet — the user finalizes a BoQ and raises PRs from there.
 for (const p of seed.projects) p.boqStatus = 'draft';
+seed.boqStaged = []; // Phase 2: uncommitted working-phase row changes
+seed.boqEdits = [];  // Phase 2: committed edit history (append-only)

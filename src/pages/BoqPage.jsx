@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, Fragment } from 'react';
 import { useStore, useProject } from '../store/StoreContext.jsx';
-import { boqForProject, boqLineStatus, materialName } from '../engine/reconcile.js';
+import { boqForProject, boqLineStatus, materialName, boqDisplayRows, stagedForProject, changeFields, prsForBoqItem, BOQ_FIELDS } from '../engine/reconcile.js';
 import { suggestMaterials, resolveMaterial } from '../engine/match.js';
 import { leadTimeFor, projectStart, addDays, addBusinessDays } from '../engine/schedule.js';
 import { ProjectBar, FilterBar, FilterSearch, FilterSelect } from '../components/ui.jsx';
@@ -11,11 +11,14 @@ import { idr, fmtDate, num } from '../engine/format.js';
 const dnum = (start, date) => (start && date ? Math.round((date - start) / 86400000) : null);
 
 export default function BoqPage() {
-  const { db, currentProjectId, patchBoqItem, addBoqItem, deleteBoqItem, finalizeBoq } = useStore();
+  const { db, currentProjectId, patchBoqItem, addBoqItem, deleteBoqItem, finalizeBoq,
+    unstageBoq, discardBoqStaged, commitBoqStaged } = useStore();
   const project = useProject();
   const draft = project?.boqStatus !== 'working';
   const items = boqForProject(db, currentProjectId);
   const start = projectStart(db, currentProjectId);
+  const staged = stagedForProject(db, currentProjectId);
+  const projectEdits = (db.boqEdits || []).filter((e) => e.projectId === currentProjectId).slice().reverse();
 
   const [grouped, setGrouped] = useState(true);
   const [editItem, setEditItem] = useState(undefined);
@@ -23,6 +26,9 @@ export default function BoqPage() {
   const [q, setQ] = useState('');
   const [mandorFilter, setMandorFilter] = useState('');
   const [confirmingFinalize, setConfirmingFinalize] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [committing, setCommitting] = useState(false);
+  const [discardArmed, setDiscardArmed] = useState(false);
 
   const mandorName = (id) => db.mandors.find((m) => m.id === id)?.name || 'Unassigned';
 
@@ -35,16 +41,21 @@ export default function BoqPage() {
     return true;
   });
 
-  const groups = useMemo(() => {
-    if (!grouped) return [{ key: '__all', label: null, rows: filtered }];
+  // Working view rows come from the staged-overlay display set (committed + pending changes).
+  const work = useMemo(() => {
+    const rows = boqDisplayRows(db, currentProjectId).filter((r) => {
+      if (mandorFilter && (r.fields.mandorId || '') !== mandorFilter) return false;
+      if (q) {
+        const hay = (materialName(db, r.fields.materialId) + ' ' + (r.fields.description || '')).toLowerCase();
+        if (!hay.includes(q.toLowerCase())) return false;
+      }
+      return true;
+    });
+    if (!grouped) return { rows, groups: [{ key: '__all', label: null, rows }] };
     const map = new Map();
-    for (const it of filtered) {
-      const k = it.mandorId || '__none';
-      if (!map.has(k)) map.set(k, []);
-      map.get(k).push(it);
-    }
-    return [...map.entries()].map(([k, rows]) => ({ key: k, label: mandorName(k), rows }));
-  }, [filtered, grouped, db.mandors]);
+    for (const r of rows) { const k = r.fields.mandorId || '__none'; if (!map.has(k)) map.set(k, []); map.get(k).push(r); }
+    return { rows, groups: [...map.entries()].map(([k, rs]) => ({ key: k, label: mandorName(k), rows: rs })) };
+  }, [db.boqItems, db.boqStaged, db.materials, db.mandors, currentProjectId, q, mandorFilter, grouped]);
 
   if (draft) {
     return (
@@ -111,101 +122,169 @@ export default function BoqPage() {
       <div className="page-head" style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
         <div>
           <h1>Bill of Quantities</h1>
-          <p className="sub">{project.name} · the material plan — quantity, mandor, and needed day (order day is auto-computed)</p>
+          <p className="sub">{project.name} · the material plan — edits are staged, then committed together</p>
         </div>
-        <button className="btn primary" onClick={() => setEditItem(null)}>+ Add BoQ item</button>
+        {!showHistory && <button className="btn primary" onClick={() => setEditItem(null)}>+ Add BoQ item</button>}
       </div>
 
-      <FilterBar shown={filtered.length} total={items.length} unit="items">
-        <ProjectBar embedded />
-        <FilterSearch value={q} onChange={setQ} placeholder="Search material or description…" />
-        <FilterSelect value={mandorFilter} onChange={setMandorFilter} allLabel="All mandors"
-          options={db.mandors.map((m) => ({ value: m.id, label: m.name }))} />
-        <label className="toggle" style={{ whiteSpace: 'nowrap' }}>
-          <input type="checkbox" checked={grouped} onChange={(e) => setGrouped(e.target.checked)} />
-          Group by mandor
-        </label>
-      </FilterBar>
-
-      <div className="card">
-        <div className="card-body flush">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Material</th><th>Description</th>
-                <th className="num">Qty</th><th>Unit</th><th className="num">Exp. unit cost</th>
-                <th className="num">Needed</th><th className="num">Order by</th><th>Status</th><th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {groups.map((g) => (
-                <Group key={g.key} g={g} db={db} grouped={grouped} start={start}
-                  onEdit={setEditItem} onRaisePr={setPrFor} />
-              ))}
-              {filtered.length === 0 && (
-                <tr><td colSpan={9}><div className="empty">{items.length === 0 ? 'No BoQ items yet. Add the first line item to begin.' : 'No items match these filters.'}</div></td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+      <div className="seg" style={{ marginBottom: 14 }}>
+        <button className={!showHistory ? 'active' : ''} onClick={() => setShowHistory(false)}>Items</button>
+        <button className={showHistory ? 'active' : ''} onClick={() => setShowHistory(true)}>Edit history{projectEdits.length ? ` (${projectEdits.length})` : ''}</button>
       </div>
+
+      {showHistory ? (
+        <HistoryView edits={projectEdits} db={db} />
+      ) : (
+        <>
+          <FilterBar shown={work.rows.length} total={boqDisplayRows(db, currentProjectId).length} unit="items">
+            <ProjectBar embedded />
+            <FilterSearch value={q} onChange={setQ} placeholder="Search material or description…" />
+            <FilterSelect value={mandorFilter} onChange={setMandorFilter} allLabel="All mandors"
+              options={db.mandors.map((m) => ({ value: m.id, label: m.name }))} />
+            <label className="toggle" style={{ whiteSpace: 'nowrap' }}>
+              <input type="checkbox" checked={grouped} onChange={(e) => setGrouped(e.target.checked)} />
+              Group by mandor
+            </label>
+          </FilterBar>
+
+          {staged.length > 0 && (
+            <div className="banner" style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', color: '#1E40AF', borderRadius: 10, padding: '10px 14px', marginBottom: 14, fontSize: 13.3, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <b>{staged.length} uncommitted change{staged.length > 1 ? 's' : ''}</b>
+              <span style={{ opacity: 0.85 }}>— staged on the plan, not yet committed.</span>
+              <span style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
+                {discardArmed ? (
+                  <>
+                    <span style={{ color: 'var(--risk)' }}>Discard all?</span>
+                    <button className="btn sm danger" onClick={() => { discardBoqStaged(currentProjectId); setDiscardArmed(false); }}>Confirm discard</button>
+                    <button className="btn sm ghost" onClick={() => setDiscardArmed(false)}>Keep</button>
+                  </>
+                ) : (
+                  <>
+                    <button className="btn sm ghost" onClick={() => setDiscardArmed(true)}>Discard</button>
+                    <button className="btn sm primary" onClick={() => setCommitting(true)}>Review &amp; commit</button>
+                  </>
+                )}
+              </span>
+            </div>
+          )}
+
+          <div className="card">
+            <div className="card-body flush">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Material</th><th>Description</th>
+                    <th className="num">Qty</th><th>Unit</th><th className="num">Exp. unit cost</th>
+                    <th className="num">Needed</th><th className="num">Order by</th><th>Status</th><th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {work.groups.map((g) => (
+                    <Group key={g.key} g={g} db={db} grouped={grouped} start={start}
+                      onEdit={(r) => setEditItem({ ...r.fields, __ref: r.ref, __isAdd: !!r.isStagedAdd })}
+                      onRaisePr={(r) => setPrFor(db.boqItems.find((b) => b.id === r.id))}
+                      onUndo={(r) => unstageBoq(currentProjectId, r.ref)} />
+                  ))}
+                  {work.rows.length === 0 && (
+                    <tr><td colSpan={9}><div className="empty">{items.length === 0 && staged.length === 0 ? 'No BoQ items yet. Add the first line item to begin.' : 'No items match these filters.'}</div></td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
 
       {editItem !== undefined && <BoqModal item={editItem} onClose={() => setEditItem(undefined)} />}
       {prFor && <PrModal boqItem={prFor} onClose={() => setPrFor(null)} />}
+      {committing && <CommitModal db={db} staged={staged} projectId={currentProjectId}
+        onCommit={(msg) => { commitBoqStaged(currentProjectId, msg); setCommitting(false); }}
+        onClose={() => setCommitting(false)} />}
     </>
   );
 }
 
-function Group({ g, db, grouped, start, onEdit, onRaisePr }) {
+function Group({ g, db, grouped, start, onEdit, onRaisePr, onUndo }) {
   return (
     <>
       {grouped && g.label && (
         <tr className="group-row"><td colSpan={9}>Mandor · {g.label} ({g.rows.length})</td></tr>
       )}
-      {g.rows.map((b) => {
-        const status = boqLineStatus(db, b.id);
-        const matLead = leadTimeFor(db, b.materialId);
-        const lead = b.leadTimeDays != null ? b.leadTimeDays : matLead;
-        const needed = b.neededDayOffset;
-        const neededDate = (start && needed != null) ? addDays(start, needed) : null;
-        const orderDate = (neededDate && lead != null) ? addBusinessDays(neededDate, -lead) : null;
-        const orderDay = dnum(start, orderDate);
-        return (
-          <tr key={b.id}>
-            <td className="mat-link">{materialName(db, b.materialId)}</td>
-            <td>{b.description}</td>
-            <td className="num">{num(b.quantity)}</td>
-            <td>{b.unit}</td>
-            <td className="num">{idr(b.expectedUnitCost)}</td>
-            <td className="num">
-              {needed != null ? <>Day {needed}{neededDate && <div className="muted" style={{ fontSize: 11 }}>{fmtDate(neededDate)}</div>}</> : '—'}
-            </td>
-            <td className="num">
-              {orderDay != null
-                ? <>Day {orderDay}<div className="muted" style={{ fontSize: 11 }}>{lead}d lead{b.leadTimeDays != null ? '*' : ''}</div></>
-                : <span className="muted">set lead time</span>}
-            </td>
-            <td>
-              {status === 'complete'
-                ? <span className="pill" style={{ background: '#F0FDF4', color: '#15803D', border: '1px solid #D1FAE5' }}>Complete</span>
-                : status === 'ordered'
-                  ? <span className="pill info">Ordered</span>
-                  : <span className="pill gray">Not ordered</span>}
-            </td>
-            <td className="num" style={{ whiteSpace: 'nowrap' }}>
-              <button className="btn sm ghost" onClick={() => onEdit(b)}>Edit</button>{' '}
-              <button className="btn sm" onClick={() => onRaisePr(b)}>Raise PR</button>
-            </td>
-          </tr>
-        );
-      })}
+      {g.rows.map((r) => <Row key={r.key} r={r} db={db} start={start} onEdit={onEdit} onRaisePr={onRaisePr} onUndo={onUndo} />)}
     </>
   );
 }
 
+const TINT = { background: '#FFFBEB' }; // changed-cell highlight
+
+function Row({ r, db, start, onEdit, onRaisePr, onUndo }) {
+  const f = r.fields, base = r.base;
+  const deleted = r.status === 'deleted';
+  const changed = (k) => r.status === 'modified' && r.changedKeys.includes(k);
+  const lead = f.leadTimeDays != null ? f.leadTimeDays : leadTimeFor(db, f.materialId);
+  const needed = f.neededDayOffset;
+  const neededDate = (start && needed != null) ? addDays(start, needed) : null;
+  const orderDate = (neededDate && lead != null) ? addBusinessDays(neededDate, -lead) : null;
+  const orderDay = dnum(start, orderDate);
+  const rowStyle = r.status === 'added' ? { background: '#F0FDF4' } : deleted ? { opacity: 0.55 } : undefined;
+  const strike = deleted ? { textDecoration: 'line-through' } : undefined;
+  const wasNum = (k, prev) => changed(k) && base && (base[k] ?? null) !== (f[k] ?? null)
+    ? <div className="muted" style={{ fontSize: 11, textDecoration: 'line-through' }}>{prev}</div> : null;
+  const tag = r.status === 'added' ? <span className="pill" style={{ background: '#ECFDF5', color: '#15803D', border: '1px solid #D1FAE5', marginRight: 6, fontSize: 11 }}>New</span>
+    : r.status === 'modified' ? <span className="pill" style={{ background: '#FEF3C7', color: '#92660C', border: '1px solid #FDE68A', marginRight: 6, fontSize: 11 }}>Edited</span>
+      : deleted ? <span className="pill" style={{ background: '#FEF2F2', color: '#B91C1C', border: '1px solid #FECACA', marginRight: 6, fontSize: 11 }}>Removing</span>
+        : null;
+
+  return (
+    <tr style={rowStyle}>
+      <td className="mat-link"><span style={strike}>{tag}{materialName(db, f.materialId)}</span></td>
+      <td style={{ ...(changed('description') ? TINT : {}), ...strike }}>{f.description}</td>
+      <td className="num" style={changed('quantity') ? TINT : undefined}><span style={strike}>{num(f.quantity)}</span>{wasNum('quantity', base?.quantity)}</td>
+      <td style={{ ...(changed('unit') ? TINT : {}), ...strike }}>{f.unit}</td>
+      <td className="num" style={changed('expectedUnitCost') ? TINT : undefined}><span style={strike}>{idr(f.expectedUnitCost)}</span>{changed('expectedUnitCost') && base ? <div className="muted" style={{ fontSize: 11, textDecoration: 'line-through' }}>{idr(base.expectedUnitCost)}</div> : null}</td>
+      <td className="num" style={changed('neededDayOffset') ? TINT : undefined}>
+        <span style={strike}>{needed != null ? <>Day {needed}{neededDate && <div className="muted" style={{ fontSize: 11 }}>{fmtDate(neededDate)}</div>}</> : '—'}</span>
+        {wasNum('neededDayOffset', base?.neededDayOffset)}
+      </td>
+      <td className="num" style={strike}>
+        {orderDay != null
+          ? <>Day {orderDay}<div className="muted" style={{ fontSize: 11 }}>{lead}d lead{f.leadTimeDays != null ? '*' : ''}</div></>
+          : <span className="muted">set lead time</span>}
+      </td>
+      <td>
+        {(r.status === 'added' || deleted)
+          ? <span className="muted" style={{ fontSize: 12 }}>—</span>
+          : boqLineStatus(db, r.id) === 'complete'
+            ? <span className="pill" style={{ background: '#F0FDF4', color: '#15803D', border: '1px solid #D1FAE5' }}>Complete</span>
+            : boqLineStatus(db, r.id) === 'ordered'
+              ? <span className="pill info">Ordered</span>
+              : <span className="pill gray">Not ordered</span>}
+      </td>
+      <td className="num" style={{ whiteSpace: 'nowrap' }}>
+        {deleted ? (
+          <button className="btn sm ghost" onClick={() => onUndo(r)}>Undo</button>
+        ) : r.status === 'added' ? (
+          <>
+            <button className="btn sm ghost" onClick={() => onEdit(r)}>Edit</button>{' '}
+            <button className="btn sm ghost" style={{ color: 'var(--risk)' }} onClick={() => onUndo(r)}>Remove</button>
+          </>
+        ) : (
+          <>
+            <button className="btn sm ghost" onClick={() => onEdit(r)}>Edit</button>{' '}
+            <button className="btn sm" onClick={() => onRaisePr(r)}>Raise PR</button>
+          </>
+        )}
+      </td>
+    </tr>
+  );
+}
+
 function BoqModal({ item, onClose }) {
-  const { db, currentProjectId, addBoqItem, updateBoqItem, addMaterial, addMandor } = useStore();
+  const { db, currentProjectId, addMaterial, addMandor, stageBoqAdd, stageBoqModify, editStagedAdd, stageBoqDelete, unstageBoq } = useStore();
   const editing = !!item;
+  const isAdd = !!item?.__isAdd;
+  const linkedPrs = (editing && !isAdd) ? prsForBoqItem(db, item.id) : [];
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const start = projectStart(db, currentProjectId);
 
   const existingMat = item ? db.materials.find((m) => m.id === item.materialId) : null;
@@ -270,17 +349,43 @@ function BoqModal({ item, onClose }) {
       leadTimeDays: leadOverride === '' ? null : Number(leadOverride),
       mandorId,
     };
-    if (editing) updateBoqItem(item.id, patch, 'edited line item');
-    else addBoqItem(patch);
+    if (editing) {
+      if (isAdd) editStagedAdd(currentProjectId, item.id, patch);
+      else stageBoqModify(currentProjectId, item.id, patch);
+    } else {
+      stageBoqAdd(currentProjectId, patch);
+    }
     onClose();
   }
 
   return (
-    <Modal title={editing ? 'Edit BoQ item' : 'Add BoQ item'} onClose={onClose} wide
-      footer={<>
-        <button className="btn ghost" onClick={onClose}>Cancel</button>
-        <button className="btn primary" onClick={save}>{editing ? 'Save changes' : 'Add item'}</button>
-      </>}>
+    <Modal title={editing ? (isAdd ? 'Edit new row' : 'Edit BoQ item') : 'Add BoQ item'} onClose={onClose} wide
+      footer={editing ? (
+        confirmingDelete ? (
+          <>
+            <span style={{ marginRight: 'auto', color: 'var(--risk)', fontSize: 13 }}>
+              {isAdd ? 'Discard this new row?' : linkedPrs.length ? `Remove this line and its ${linkedPrs.length} linked PR${linkedPrs.length > 1 ? 's' : ''}?` : 'Stage this line for removal?'}
+            </span>
+            <button className="btn ghost" onClick={() => setConfirmingDelete(false)}>Keep</button>
+            <button className="btn danger" onClick={() => {
+              if (isAdd) unstageBoq(currentProjectId, { tempId: item.id });
+              else stageBoqDelete(currentProjectId, item.id);
+              onClose();
+            }}>{isAdd ? 'Discard row' : 'Stage removal'}</button>
+          </>
+        ) : (
+          <>
+            <button className="btn ghost" style={{ marginRight: 'auto', color: 'var(--risk)' }} onClick={() => setConfirmingDelete(true)}>{isAdd ? 'Discard…' : 'Delete…'}</button>
+            <button className="btn ghost" onClick={onClose}>Cancel</button>
+            <button className="btn primary" onClick={save}>Save changes</button>
+          </>
+        )
+      ) : (
+        <>
+          <button className="btn ghost" onClick={onClose}>Cancel</button>
+          <button className="btn primary" onClick={save}>Add item</button>
+        </>
+      )}>
       <div className="form-grid">
         <div className="full">
           <label className="lbl">Material <span className="req">*</span></label>
@@ -423,5 +528,142 @@ function DraftRow({ b, db, start, onPatch, onDelete }) {
       <td className="num">{orderDay != null ? <>Day {orderDay}</> : <span className="muted">—</span>}</td>
       <td className="num"><button className="btn sm ghost" style={{ color: 'var(--risk)' }} title="Delete row" onClick={() => onDelete(b.id)}>✕</button></td>
     </tr>
+  );
+}
+
+// Render a BoQ field value by kind (shared by the commit modal + history view).
+function fmtVal(db, kind, v) {
+  if (v == null || v === '') return <span className="muted">—</span>;
+  if (kind === 'material') return materialName(db, v);
+  if (kind === 'mandor') return db.mandors.find((m) => m.id === v)?.name || 'Unassigned';
+  if (kind === 'money') return idr(v);
+  if (kind === 'day') return `Day ${v}`;
+  return String(v);
+}
+
+function CommitModal({ db, staged, projectId, onCommit, onClose }) {
+  const [message, setMessage] = useState('');
+  const byId = Object.fromEntries(db.boqItems.map((b) => [b.id, b]));
+  const fieldMap = Object.fromEntries(BOQ_FIELDS.map((f) => [f.key, f]));
+  const adds = staged.filter((s) => s.type === 'add');
+  const mods = staged.filter((s) => s.type === 'modify');
+  const dels = staged.filter((s) => s.type === 'delete');
+
+  return (
+    <Modal title={`Commit ${staged.length} change${staged.length > 1 ? 's' : ''}`} onClose={onClose} wide
+      footer={<>
+        <button className="btn ghost" onClick={onClose}>Cancel</button>
+        <button className="btn primary" onClick={() => onCommit(message)}>Commit changes</button>
+      </>}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {mods.length > 0 && (
+          <div>
+            <div className="lbl" style={{ marginBottom: 6 }}>Modified ({mods.length})</div>
+            {mods.map((s) => { const b = byId[s.boqItemId]; return (
+              <div key={s.boqItemId} className="chip" style={{ display: 'block', padding: '8px 10px', marginBottom: 6 }}>
+                <b>{materialName(db, b?.materialId)}</b>
+                <div style={{ marginTop: 4, fontSize: 13, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  {Object.keys(s.patch).filter((k) => fieldMap[k]).map((k) => (
+                    <div key={k} style={{ display: 'flex', gap: 6, alignItems: 'baseline' }}>
+                      <span className="muted" style={{ minWidth: 112 }}>{fieldMap[k].label}</span>
+                      <span style={{ textDecoration: 'line-through', opacity: 0.6 }}>{fmtVal(db, fieldMap[k].kind, b?.[k])}</span>
+                      <span>→</span>
+                      <b>{fmtVal(db, fieldMap[k].kind, s.patch[k])}</b>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ); })}
+          </div>
+        )}
+        {adds.length > 0 && (
+          <div>
+            <div className="lbl" style={{ marginBottom: 6 }}>Added ({adds.length})</div>
+            {adds.map((s) => (
+              <div key={s.tempId} className="chip" style={{ display: 'block', padding: '8px 10px', marginBottom: 6 }}>
+                <b>{materialName(db, s.fields.materialId)}</b>
+                <span className="muted" style={{ marginLeft: 8, fontSize: 13 }}>
+                  {num(s.fields.quantity)} {s.fields.unit} · {idr(s.fields.expectedUnitCost)} · needed day {s.fields.neededDayOffset ?? '—'}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+        {dels.length > 0 && (
+          <div>
+            <div className="lbl" style={{ marginBottom: 6 }}>Removed ({dels.length})</div>
+            {dels.map((s) => { const b = byId[s.boqItemId]; const prs = prsForBoqItem(db, s.boqItemId); return (
+              <div key={s.boqItemId} className="chip" style={{ display: 'block', padding: '8px 10px', marginBottom: 6 }}>
+                <b style={{ textDecoration: 'line-through' }}>{materialName(db, b?.materialId)}</b>
+                {prs.length > 0 && <span style={{ marginLeft: 8, color: 'var(--risk)', fontSize: 13 }}>⚠ also removes {prs.length} linked PR{prs.length > 1 ? 's' : ''}</span>}
+              </div>
+            ); })}
+          </div>
+        )}
+        <div>
+          <label className="lbl">Commit message <span className="muted">(optional)</span></label>
+          <input type="text" value={message} onChange={(e) => setMessage(e.target.value)} placeholder="e.g. Revised quantities after site survey" />
+          <div className="help">Saved to the edit history, attributed to {db.currentUser?.name}.</div>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+function HistoryView({ edits, db }) {
+  const [open, setOpen] = useState(null);
+  if (edits.length === 0) {
+    return <div className="card"><div className="card-body"><div className="empty">No edits committed yet. Changes you stage and commit will appear here.</div></div></div>;
+  }
+  return (
+    <div className="card">
+      <div className="card-body flush">
+        <table className="table">
+          <thead><tr><th>When</th><th>By</th><th>Summary</th><th className="num">Changes</th><th></th></tr></thead>
+          <tbody>
+            {edits.map((e) => {
+              const isOpen = open === e.id;
+              const counts = { add: 0, modify: 0, delete: 0 };
+              for (const c of e.changes) counts[c.type]++;
+              const summary = [counts.add && `${counts.add} added`, counts.modify && `${counts.modify} modified`, counts.delete && `${counts.delete} removed`].filter(Boolean).join(' · ');
+              return (
+                <Fragment key={e.id}>
+                  <tr className="clickable" onClick={() => setOpen(isOpen ? null : e.id)}>
+                    <td style={{ whiteSpace: 'nowrap' }}>{fmtDate(new Date(e.at))}<div className="muted" style={{ fontSize: 11 }}>{new Date(e.at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</div></td>
+                    <td>{e.author?.name || '—'}</td>
+                    <td>{e.message ? e.message : <span className="muted">{summary || 'No message'}</span>}</td>
+                    <td className="num">{e.changes.length}</td>
+                    <td className="num">{isOpen ? '▾' : '▸'}</td>
+                  </tr>
+                  {isOpen && (
+                    <tr><td colSpan={5} style={{ background: '#F8FAFC' }}>
+                      <div style={{ padding: '4px 6px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {e.message && <div className="muted" style={{ fontSize: 12 }}>{summary}</div>}
+                        {e.changes.map((c, i) => (
+                          <div key={i} style={{ fontSize: 13 }}>
+                            <span className="pill" style={{ marginRight: 8, fontSize: 11, ...(c.type === 'add' ? { background: '#ECFDF5', color: '#15803D' } : c.type === 'delete' ? { background: '#FEF2F2', color: '#B91C1C' } : { background: '#FEF3C7', color: '#92660C' }) }}>{c.type}</span>
+                            <b>{materialName(db, (c.after || c.before)?.materialId)}</b>
+                            {c.type === 'modify' && (
+                              <span style={{ marginLeft: 8 }}>
+                                {changeFields(c).map((f) => (
+                                  <span key={f.key} style={{ marginRight: 10 }}>
+                                    {f.label}: <span style={{ textDecoration: 'line-through', opacity: 0.6 }}>{fmtVal(db, f.kind, f.before)}</span> → <b>{fmtVal(db, f.kind, f.after)}</b>
+                                  </span>
+                                ))}
+                              </span>
+                            )}
+                            {c.type === 'add' && <span className="muted" style={{ marginLeft: 8 }}>{num(c.after.quantity)} {c.after.unit} · {idr(c.after.expectedUnitCost)}</span>}
+                          </div>
+                        ))}
+                      </div>
+                    </td></tr>
+                  )}
+                </Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }

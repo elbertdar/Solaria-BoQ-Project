@@ -8,13 +8,23 @@ import { nowISO } from '../engine/format.js';
 const KEY = 'solaria_boq_db_v10';
 const StoreCtx = createContext(null);
 
+function normalize(d) {
+  if (!Array.isArray(d.boqStaged)) d.boqStaged = [];
+  if (!Array.isArray(d.boqEdits)) d.boqEdits = [];
+  if (Array.isArray(d.projects)) for (const p of d.projects) if (!p.boqStatus) p.boqStatus = 'draft';
+  return d;
+}
 function load() {
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) return normalize(JSON.parse(raw));
   } catch (e) { /* fall through to seed */ }
-  return structuredClone(seed);
+  return normalize(structuredClone(seed));
 }
+
+// BoQ "definition" fields tracked in staged edits + the commit history diff.
+const BOQ_FIELD_KEYS = ['materialId', 'description', 'mandorId', 'quantity', 'unit', 'expectedUnitCost', 'neededDayOffset', 'leadTimeDays'];
+const pickFields = (o, keys) => { const r = {}; for (const k of keys) r[k] = o?.[k] ?? null; return r; };
 
 let _uid = 0;
 const uid = (p) => `${p}-${Date.now().toString(36)}-${(_uid++).toString(36)}`;
@@ -84,6 +94,89 @@ export function StoreProvider({ children }) {
   // Finalize a project's BoQ: draft → working (one-way). Enables deliberate edits + ordering.
   const finalizeBoq = useCallback((projectId) => {
     setDb((d) => ({ ...d, projects: d.projects.map((pj) => pj.id === projectId ? { ...pj, boqStatus: 'working' } : pj) }));
+  }, []);
+
+  // ---- Phase 2: staged BoQ edits (working phase) + commit to append-only history ----
+  const stageBoqModify = useCallback((projectId, boqItemId, patch) => {
+    setDb((d) => {
+      const base = d.boqItems.find((b) => b.id === boqItemId);
+      if (!base) return d;
+      const existing = d.boqStaged.find((s) => s.projectId === projectId && s.type === 'modify' && s.boqItemId === boqItemId);
+      const merged = { ...(existing?.patch || {}), ...patch };
+      const net = {};
+      for (const k of Object.keys(merged)) if ((base[k] ?? null) !== (merged[k] ?? null)) net[k] = merged[k];
+      const others = d.boqStaged.filter((s) => !(s.projectId === projectId && s.type === 'modify' && s.boqItemId === boqItemId));
+      const deleted = d.boqStaged.some((s) => s.projectId === projectId && s.type === 'delete' && s.boqItemId === boqItemId);
+      if (deleted || Object.keys(net).length === 0) return { ...d, boqStaged: others };
+      return { ...d, boqStaged: [...others, { projectId, type: 'modify', boqItemId, patch: net }] };
+    });
+  }, []);
+
+  const stageBoqAdd = useCallback((projectId, fields) => {
+    const tempId = uid('stg');
+    setDb((d) => ({ ...d, boqStaged: [...d.boqStaged, { projectId, type: 'add', tempId, fields: pickFields(fields, BOQ_FIELD_KEYS) }] }));
+    return tempId;
+  }, []);
+
+  const editStagedAdd = useCallback((projectId, tempId, patch) => {
+    setDb((d) => ({ ...d, boqStaged: d.boqStaged.map((s) =>
+      (s.projectId === projectId && s.type === 'add' && s.tempId === tempId) ? { ...s, fields: { ...s.fields, ...patch } } : s) }));
+  }, []);
+
+  const stageBoqDelete = useCallback((projectId, boqItemId) => {
+    setDb((d) => {
+      const others = d.boqStaged.filter((s) => !(s.projectId === projectId && s.boqItemId === boqItemId && (s.type === 'modify' || s.type === 'delete')));
+      return { ...d, boqStaged: [...others, { projectId, type: 'delete', boqItemId }] };
+    });
+  }, []);
+
+  const unstageBoq = useCallback((projectId, ref) => {
+    setDb((d) => ({ ...d, boqStaged: d.boqStaged.filter((s) => {
+      if (s.projectId !== projectId) return true;
+      if (ref.tempId) return s.tempId !== ref.tempId;
+      return !(s.type === ref.type && s.boqItemId === ref.boqItemId);
+    }) }));
+  }, []);
+
+  const discardBoqStaged = useCallback((projectId) => {
+    setDb((d) => ({ ...d, boqStaged: d.boqStaged.filter((s) => s.projectId !== projectId) }));
+  }, []);
+
+  const commitBoqStaged = useCallback((projectId, message) => {
+    setDb((d) => {
+      const staged = d.boqStaged.filter((s) => s.projectId === projectId);
+      if (staged.length === 0) return d;
+      const byId = Object.fromEntries(d.boqItems.map((b) => [b.id, b]));
+      const changes = [];
+      let boqItems = [...d.boqItems];
+      let prs = d.prs;
+      for (const sg of staged) {
+        if (sg.type === 'add') {
+          const id = uid('b');
+          const fields = pickFields(sg.fields, BOQ_FIELD_KEYS);
+          boqItems = [...boqItems, { id, projectId, ...fields, audit: [{ at: nowISO(), change: 'added' }] }];
+          changes.push({ type: 'add', boqItemId: id, after: fields });
+        } else if (sg.type === 'modify') {
+          const base = byId[sg.boqItemId];
+          if (!base) continue;
+          const before = {}, after = {};
+          for (const k of Object.keys(sg.patch)) { before[k] = base[k] ?? null; after[k] = sg.patch[k] ?? null; }
+          boqItems = boqItems.map((b) => b.id === sg.boqItemId ? { ...b, ...sg.patch } : b);
+          changes.push({ type: 'modify', boqItemId: sg.boqItemId, before, after });
+        } else if (sg.type === 'delete') {
+          const base = byId[sg.boqItemId];
+          boqItems = boqItems.filter((b) => b.id !== sg.boqItemId);
+          prs = prs.filter((p) => p.boqItemId !== sg.boqItemId);
+          changes.push({ type: 'delete', boqItemId: sg.boqItemId, before: pickFields(base || {}, BOQ_FIELD_KEYS) });
+        }
+      }
+      const entry = {
+        id: uid('edit'), projectId, at: nowISO(),
+        author: { id: d.currentUser?.id, name: d.currentUser?.name },
+        message: (message || '').trim(), changes,
+      };
+      return { ...d, boqItems, prs, boqStaged: d.boqStaged.filter((s) => s.projectId !== projectId), boqEdits: [...d.boqEdits, entry] };
+    });
   }, []);
 
   // ---- Suppliers (Feature 5.3) ----
@@ -237,6 +330,7 @@ export function StoreProvider({ children }) {
     db, currentProjectId, setCurrentProjectId,
     addMaterial, updateMaterial, addAlias, removeAlias,
     addBoqItem, updateBoqItem, patchBoqItem, deleteBoqItem, finalizeBoq,
+    stageBoqModify, stageBoqAdd, editStagedAdd, stageBoqDelete, unstageBoq, discardBoqStaged, commitBoqStaged,
     addSupplier,
     addMaterialType, updateMaterialType,
     addProject, updateProject, addMandor, updateMandor, deleteMandor,
@@ -245,7 +339,8 @@ export function StoreProvider({ children }) {
     importData,
     resetDb,
   }), [db, currentProjectId, addMaterial, updateMaterial, addAlias, removeAlias,
-    addBoqItem, updateBoqItem, patchBoqItem, deleteBoqItem, finalizeBoq, addSupplier, addMaterialType, updateMaterialType, addProject, updateProject, addMandor, updateMandor, deleteMandor,
+    addBoqItem, updateBoqItem, patchBoqItem, deleteBoqItem, finalizeBoq,
+    stageBoqModify, stageBoqAdd, editStagedAdd, stageBoqDelete, unstageBoq, discardBoqStaged, commitBoqStaged, addSupplier, addMaterialType, updateMaterialType, addProject, updateProject, addMandor, updateMandor, deleteMandor,
     addUser, updateUser, deleteUser,
     addPr, updatePr, setPrStatus, deletePr, importData, resetDb]);
 

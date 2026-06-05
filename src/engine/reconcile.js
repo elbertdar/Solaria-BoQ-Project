@@ -167,3 +167,50 @@ export function projectTotals(db, projectId) {
     totalPrs: prs.filter((p) => p.status !== 'cancelled').length,
   };
 }
+
+// ---- Phase 2: working-phase staged edits + commit history ----
+export const BOQ_FIELDS = [
+  { key: 'materialId', label: 'Material', kind: 'material' },
+  { key: 'description', label: 'Description', kind: 'text' },
+  { key: 'mandorId', label: 'Mandor', kind: 'mandor' },
+  { key: 'quantity', label: 'Qty', kind: 'num' },
+  { key: 'unit', label: 'Unit', kind: 'text' },
+  { key: 'expectedUnitCost', label: 'Exp. unit cost', kind: 'money' },
+  { key: 'neededDayOffset', label: 'Needed day', kind: 'day' },
+  { key: 'leadTimeDays', label: 'Lead override', kind: 'num' },
+];
+
+export function stagedForProject(db, projectId) {
+  return (db.boqStaged || []).filter((s) => s.projectId === projectId);
+}
+export function stagedCount(db, projectId) {
+  return stagedForProject(db, projectId).length;
+}
+
+// Committed BoQ rows with any staged changes overlaid, for the working table.
+export function boqDisplayRows(db, projectId) {
+  const staged = stagedForProject(db, projectId);
+  const modifyOf = (id) => staged.find((s) => s.type === 'modify' && s.boqItemId === id);
+  const deleteOf = (id) => staged.find((s) => s.type === 'delete' && s.boqItemId === id);
+  const committed = boqForProject(db, projectId).map((b) => {
+    if (deleteOf(b.id)) return { key: b.id, id: b.id, status: 'deleted', fields: b, base: b, changedKeys: [], ref: { type: 'delete', boqItemId: b.id } };
+    const mod = modifyOf(b.id);
+    if (mod) return { key: b.id, id: b.id, status: 'modified', fields: { ...b, ...mod.patch }, base: b, changedKeys: Object.keys(mod.patch), ref: { type: 'modify', boqItemId: b.id } };
+    return { key: b.id, id: b.id, status: 'unchanged', fields: b, base: b, changedKeys: [], ref: null };
+  });
+  const added = staged.filter((s) => s.type === 'add').map((s) => ({
+    key: s.tempId, id: s.tempId, status: 'added', fields: { ...s.fields, id: s.tempId, projectId }, base: null, changedKeys: [], ref: { tempId: s.tempId }, isStagedAdd: true,
+  }));
+  return [...committed, ...added];
+}
+
+// Field-level old→new diff for one committed change (commit modal + history view).
+export function changeFields(change) {
+  const map = Object.fromEntries(BOQ_FIELDS.map((f) => [f.key, f]));
+  const keys = change.type === 'delete' ? Object.keys(change.before || {}) : Object.keys(change.after || {});
+  return keys.filter((k) => map[k]).map((k) => ({
+    ...map[k],
+    before: change.before ? change.before[k] : null,
+    after: change.after ? change.after[k] : null,
+  }));
+}
