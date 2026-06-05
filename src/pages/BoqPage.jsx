@@ -285,6 +285,7 @@ function BoqModal({ item, onClose }) {
   const isAdd = !!item?.__isAdd;
   const linkedPrs = (editing && !isAdd) ? prsForBoqItem(db, item.id) : [];
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleteLinkedPrs, setDeleteLinkedPrs] = useState(false);
   const start = projectStart(db, currentProjectId);
 
   const existingMat = item ? db.materials.find((m) => m.id === item.materialId) : null;
@@ -363,13 +364,19 @@ function BoqModal({ item, onClose }) {
       footer={editing ? (
         confirmingDelete ? (
           <>
-            <span style={{ marginRight: 'auto', color: 'var(--risk)', fontSize: 13 }}>
-              {isAdd ? 'Discard this new row?' : linkedPrs.length ? `Remove this line and its ${linkedPrs.length} linked PR${linkedPrs.length > 1 ? 's' : ''}?` : 'Stage this line for removal?'}
+            <span style={{ marginRight: 'auto', color: 'var(--risk)', fontSize: 13, display: 'inline-flex', flexDirection: 'column', gap: 4 }}>
+              <span>{isAdd ? 'Discard this new row?' : 'Stage this line for removal?'}</span>
+              {!isAdd && linkedPrs.length > 0 && (
+                <label className="toggle" style={{ color: 'var(--ink)', fontWeight: 400 }}>
+                  <input type="checkbox" checked={deleteLinkedPrs} onChange={(e) => setDeleteLinkedPrs(e.target.checked)} />
+                  Also delete its {linkedPrs.length} linked PR{linkedPrs.length > 1 ? 's' : ''} (otherwise kept as extra)
+                </label>
+              )}
             </span>
             <button className="btn ghost" onClick={() => setConfirmingDelete(false)}>Keep</button>
             <button className="btn danger" onClick={() => {
               if (isAdd) unstageBoq(currentProjectId, { tempId: item.id });
-              else stageBoqDelete(currentProjectId, item.id);
+              else stageBoqDelete(currentProjectId, item.id, { deletePrs: deleteLinkedPrs });
               onClose();
             }}>{isAdd ? 'Discard row' : 'Stage removal'}</button>
           </>
@@ -595,7 +602,9 @@ function CommitModal({ db, staged, projectId, onCommit, onClose }) {
             {dels.map((s) => { const b = byId[s.boqItemId]; const prs = prsForBoqItem(db, s.boqItemId); return (
               <div key={s.boqItemId} className="chip" style={{ display: 'block', padding: '8px 10px', marginBottom: 6 }}>
                 <b style={{ textDecoration: 'line-through' }}>{materialName(db, b?.materialId)}</b>
-                {prs.length > 0 && <span style={{ marginLeft: 8, color: 'var(--risk)', fontSize: 13 }}>⚠ also removes {prs.length} linked PR{prs.length > 1 ? 's' : ''}</span>}
+                {prs.length > 0 && (s.deletePrs
+                  ? <span style={{ marginLeft: 8, color: 'var(--risk)', fontSize: 13 }}>⚠ also removes {prs.length} linked PR{prs.length > 1 ? 's' : ''}</span>
+                  : <span className="muted" style={{ marginLeft: 8, fontSize: 13 }}>{prs.length} linked PR{prs.length > 1 ? 's' : ''} kept as extra</span>)}
               </div>
             ); })}
           </div>

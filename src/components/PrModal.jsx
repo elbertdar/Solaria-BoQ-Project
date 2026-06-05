@@ -8,15 +8,16 @@ import { idr, today } from '../engine/format.js';
 export default function PrModal({ pr = null, boqItem = null, onClose }) {
   const { db, currentProjectId, addPr, updatePr, deletePr } = useStore();
   const editing = !!pr;
-  // "Raise PR" (from a BoQ row) passes a boqItem and pre-fills from that line.
-  // "New PR" (from the PR page) passes nothing — it starts blank; the user picks the BoQ item.
   const raising = !editing && !!boqItem;
+  const editingExtra = editing && !db.boqItems.some((b) => b.id === pr.boqItemId); // editing a PR with no live line
 
   const projectBoq = boqForProject(db, currentProjectId);
-  const initialBoqId = pr?.boqItemId || boqItem?.id || '';
+  const initialBoqId = editingExtra ? '__extra' : (pr?.boqItemId || boqItem?.id || '');
   const initialBoqItem = db.boqItems.find((b) => b.id === initialBoqId);
 
   const [boqItemId, setBoqItemId] = useState(initialBoqId);
+  const [extraMatId, setExtraMatId] = useState(editingExtra ? pr.materialId : '');
+  const [extraUnit, setExtraUnit] = useState(editingExtra ? (pr.unit || '') : '');
   const [quantity, setQuantity] = useState(
     editing ? (pr.quantity ?? '') : (raising ? String(remainingQty(db, initialBoqId)) : ''));
   const [unitCost, setUnitCost] = useState(
@@ -31,12 +32,15 @@ export default function PrModal({ pr = null, boqItem = null, onClose }) {
   const [ackOver, setAckOver] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
-  const selectedBoq = db.boqItems.find((b) => b.id === boqItemId);
-  const matName = selectedBoq ? materialName(db, selectedBoq.materialId) : '—';
-  const unit = selectedBoq?.unit || '';
+  const extra = boqItemId === '__extra';
+  const selectedBoq = extra ? null : db.boqItems.find((b) => b.id === boqItemId);
+  const effMatId = extra ? extraMatId : selectedBoq?.materialId;
+  const effUnit = extra ? extraUnit : (selectedBoq?.unit || '');
+  const matName = effMatId ? materialName(db, effMatId) : '—';
+  const unit = effUnit;
 
-  // Recommend suppliers whose category tags match the linked material's type (BR-style nicety).
-  const matTypeId = selectedBoq ? db.materials.find((m) => m.id === selectedBoq.materialId)?.materialTypeId : null;
+  // Recommend suppliers whose category tags match the material's type (BR-style nicety).
+  const matTypeId = effMatId ? db.materials.find((m) => m.id === effMatId)?.materialTypeId : null;
   const recTypeLabel = matTypeId ? (db.materialTypes.find((t) => t.id === matTypeId)?.name || '') : '';
   const recommendedSuppliers = matTypeId ? db.suppliers.filter((s) => (s.materialTypeIds || []).includes(matTypeId)) : [];
   const recIds = new Set(recommendedSuppliers.map((s) => s.id));
@@ -58,12 +62,18 @@ export default function PrModal({ pr = null, boqItem = null, onClose }) {
 
   function save() {
     setError('');
-    if (!selectedBoq) { setError('Select a BoQ item — a PR must link to one (BR-3).'); return; }
+    if (!extra && !selectedBoq) { setError('Select a BoQ item, or choose “No BoQ line (extra purchase)” for an unplanned order.'); return; }
+    if (extra && !effMatId) { setError('Pick a material for this extra purchase.'); return; }
+    if (extra && !effUnit) { setError('Set a unit.'); return; }
     if (quantity === '' || Number(quantity) <= 0) { setError('Enter a quantity.'); return; }
     if (status === 'received' && !receiptDate) { setError('Received PRs need a receipt date (BR-4).'); return; }
 
     const payload = {
-      boqItemId, quantity, unitCost,
+      boqItemId: extra ? null : boqItemId,
+      projectId: currentProjectId,
+      materialId: effMatId,
+      unit: effUnit,
+      quantity, unitCost,
       supplierPrimaryId: supplierPrimaryId || null,
       supplierSecondaryId: supplierSecondaryId || null,
       picId: picId || null,
@@ -104,20 +114,20 @@ export default function PrModal({ pr = null, boqItem = null, onClose }) {
     >
       <p className="help" style={{ marginTop: 0 }}>
         Layout mirrors the outgoing PO so contents can be copy-pasted (BR-5).
-        Material and unit are inherited from the BoQ item and can't be retyped.
+        Material and unit are inherited from the BoQ item, or entered directly for an extra purchase.
       </p>
 
       <div className="form-grid">
         <div className="full">
-          <label className="lbl">Linked BoQ item <span className="req">*</span></label>
+          <label className="lbl">BoQ item</label>
           {editing ? (
-            <div className="readonly-val">{matName} — {selectedBoq?.description}</div>
+            <div className="readonly-val">{extra ? 'Extra — no BoQ line' : `${matName} — ${selectedBoq?.description || ''}`}</div>
           ) : (
             <select className="input" value={boqItemId} onChange={(e) => {
               const id = e.target.value;
               setBoqItemId(id);
               setAckOver(false);
-              if (raising && id) {            // only Raise PR auto-fills qty + cost from the line
+              if (raising && id && id !== '__extra') {   // Raise PR auto-fills qty + cost from the line
                 const nb = db.boqItems.find((b) => b.id === id);
                 setQuantity(String(remainingQty(db, id)));
                 setUnitCost(nb?.expectedUnitCost ?? '');
@@ -129,17 +139,34 @@ export default function PrModal({ pr = null, boqItem = null, onClose }) {
                   {materialName(db, b.materialId)} — {b.description} ({b.quantity} {b.unit})
                 </option>
               ))}
+              <option value="__extra">— No BoQ line (extra purchase) —</option>
             </select>
           )}
+          {extra && <div className="help" style={{ color: '#92660C' }}>Extra purchase — not in the BoQ plan. Shows as “Extra” in the PR list and Balance.</div>}
         </div>
 
         <div>
-          <label className="lbl">Material (inherited)</label>
-          <div className="readonly-val">{matName}</div>
+          <label className="lbl">Material{extra ? <span className="req"> *</span> : ' (inherited)'}</label>
+          {extra ? (
+            <select className="input" value={extraMatId} onChange={(e) => {
+              const mid = e.target.value; setExtraMatId(mid);
+              const m = db.materials.find((x) => x.id === mid);
+              if (m && !extraUnit) setExtraUnit(m.defaultUnit);
+            }}>
+              <option value="">Select a material…</option>
+              {db.materials.map((m) => <option key={m.id} value={m.id}>{m.canonicalName}</option>)}
+            </select>
+          ) : (
+            <div className="readonly-val">{matName}</div>
+          )}
         </div>
         <div>
-          <label className="lbl">Unit (inherited)</label>
-          <div className="readonly-val">{unit || '—'}</div>
+          <label className="lbl">Unit{extra ? <span className="req"> *</span> : ' (inherited)'}</label>
+          {extra ? (
+            <input type="text" value={extraUnit} onChange={(e) => setExtraUnit(e.target.value)} placeholder="lembar, m2, sak…" />
+          ) : (
+            <div className="readonly-val">{unit || '—'}</div>
+          )}
         </div>
 
         <div>

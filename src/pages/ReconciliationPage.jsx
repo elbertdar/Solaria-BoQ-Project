@@ -63,10 +63,10 @@ export default function ReconciliationPage() {
             </thead>
             <tbody>
               {filtered.map((r) => {
-                const isOpen = open === r.materialId;
+                const isOpen = open === r.key;
                 return (
-                  <RowGroup key={r.materialId} r={r} isOpen={isOpen}
-                    onToggle={() => setOpen(isOpen ? null : r.materialId)} db={db} />
+                  <RowGroup key={r.key} r={r} isOpen={isOpen}
+                    onToggle={() => setOpen(isOpen ? null : r.key)} db={db} />
                 );
               })}
               {filtered.length === 0 && (
@@ -82,6 +82,7 @@ export default function ReconciliationPage() {
         committed orders (ordered + received) at their PR unit cost — once an order is placed, its cost is
         treated as actual, so the budget impact (Δ Cost) appears at order time rather than after delivery.
         Balance and the over-budget banner both fire on committed quantity, catching over-ordering before it arrives.
+        Rows tagged <b>Extra</b> are purchases with no BoQ line (a standalone PR, or one kept from a deleted line) — they sit outside the budgeted plan, so their balance is 0 − committed and Δ Cost is 0 − actual (negative, since nothing was budgeted for them).
       </p>
     </>
   );
@@ -91,18 +92,18 @@ function RowGroup({ r, isOpen, onToggle, db }) {
   return (
     <>
       <tr className="clickable" onClick={onToggle}>
-        <td className="mat-link">{r.materialName}</td>
+        <td className="mat-link">{r.materialName}{r.extra && <span className="pill" style={{ background: '#FEF3C7', color: '#92660C', border: '1px solid #FDE68A', marginLeft: 6, fontSize: 11 }}>Extra</span>}</td>
         <td>{r.unit}</td>
-        <td className="num">{num(r.budgetQty)}</td>
+        <td className="num">{r.extra ? num(0) : num(r.budgetQty)}</td>
         <td className="num">{num(r.committedQty)}</td>
         <td className="num">{num(r.receivedQty)}</td>
-        <td className={'num ' + (r.committedBalanceQty > 0 ? 'val-risk' : '')}>
-          {r.committedBalanceQty > 0 ? '+' : ''}{num(r.committedBalanceQty)}
+        <td className={'num ' + (r.extra ? '' : (r.committedBalanceQty > 0 ? 'val-risk' : ''))} style={r.extra ? { color: '#92660C' } : undefined}>
+          {r.extra ? num(-r.committedQty) : (r.committedBalanceQty > 0 ? '+' : '') + num(r.committedBalanceQty)}
         </td>
-        <td className="num">{idr(r.budgetCost)}</td>
+        <td className="num">{r.extra ? idr(0) : idr(r.budgetCost)}</td>
         <td className="num">{idr(r.actualCost)}</td>
-        <td className={'num ' + (r.costDelta > 0 ? 'val-risk' : r.costDelta < 0 ? 'val-ok' : '')}>
-          {r.costDelta > 0 ? '+' : ''}{idr(r.costDelta)}
+        <td className={'num ' + (r.extra ? '' : (r.costDelta > 0 ? 'val-risk' : r.costDelta < 0 ? 'val-ok' : ''))} style={r.extra ? { color: '#92660C' } : undefined}>
+          {r.extra ? idr(-r.actualCost) : (r.costDelta > 0 ? '+' : '') + idr(r.costDelta)}
         </td>
         <td className="num muted">{isOpen ? '▾' : '▸'}</td>
       </tr>
@@ -110,21 +111,27 @@ function RowGroup({ r, isOpen, onToggle, db }) {
         <tr className="drill">
           <td colSpan={10}>
             <div className="drill-inner">
-              <h4>BoQ entries (plan)</h4>
-              <table className="table">
-                <thead><tr><th>Description</th><th className="num">Qty</th><th>Unit</th><th className="num">Expected unit cost</th><th>Purchase by</th></tr></thead>
-                <tbody>
-                  {r.boqItems.map((b) => (
-                    <tr key={b.id}>
-                      <td>{b.description}</td>
-                      <td className="num">{num(b.quantity)}</td>
-                      <td>{b.unit}</td>
-                      <td className="num">{idr(b.expectedUnitCost)}</td>
-                      <td>{fmtDate(b.schedulePurchaseDate)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              {r.boqItems.length > 0 ? (
+                <>
+                  <h4>BoQ entries (plan)</h4>
+                  <table className="table">
+                    <thead><tr><th>Description</th><th className="num">Qty</th><th>Unit</th><th className="num">Expected unit cost</th><th>Purchase by</th></tr></thead>
+                    <tbody>
+                      {r.boqItems.map((b) => (
+                        <tr key={b.id}>
+                          <td>{b.description}</td>
+                          <td className="num">{num(b.quantity)}</td>
+                          <td>{b.unit}</td>
+                          <td className="num">{idr(b.expectedUnitCost)}</td>
+                          <td>{fmtDate(b.schedulePurchaseDate)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </>
+              ) : (
+                <p className="help" style={{ paddingLeft: 0 }}>Not in the BoQ plan — these are extra purchases, outside the budgeted scope.</p>
+              )}
 
               <h4>Purchase requests (actual)</h4>
               {r.prs.length === 0 ? (

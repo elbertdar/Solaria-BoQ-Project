@@ -22,7 +22,12 @@ export function boqForProject(db, projectId) {
 }
 export function prsForProject(db, projectId) {
   const ids = new Set(boqForProject(db, projectId).map((b) => b.id));
-  return db.prs.filter((p) => ids.has(p.boqItemId));
+  return db.prs.filter((p) => p.projectId === projectId || (p.boqItemId && ids.has(p.boqItemId)));
+}
+// A PR is "extra" (not in the BoQ plan) when it has no BoQ line — either created standalone
+// or its line was deleted and the PR kept.
+export function isExtraPr(db, pr) {
+  return !pr.boqItemId || !db.boqItems.some((b) => b.id === pr.boqItemId);
 }
 export function prsForBoqItem(db, boqItemId) {
   return db.prs.filter((p) => p.boqItemId === boqItemId && p.status !== 'cancelled');
@@ -60,50 +65,47 @@ export function boqLineStatus(db, boqItemId) {
 // One reconciliation row per canonical material that appears in this project.
 export function summarizeProject(db, projectId) {
   const boq = boqForProject(db, projectId);
-  const prs = prsForProject(db, projectId);
+  const all = prsForProject(db, projectId);
+  const linked = all.filter((p) => !isExtraPr(db, p));
+  const extra = all.filter((p) => isExtraPr(db, p));
 
-  const materialIds = new Set([
-    ...boq.map((b) => b.materialId),
-    ...prs.map((p) => p.materialId),
-  ]);
-
-  const rows = [...materialIds].map((mid) => {
-    const bItems = boq.filter((b) => b.materialId === mid);
-    const pItems = prs.filter((p) => p.materialId === mid);
-
+  const mkRow = (mid, bItems, pItems, isExtra) => {
     const committed = pItems.filter((p) => COMMITTED_STATUSES.includes(p.status));
     const received = pItems.filter((p) => RECEIVED_STATUSES.includes(p.status));
-
     const budgetQty = sum(bItems, (b) => b.quantity);
     const committedQty = sum(committed, (p) => p.quantity);
     const receivedQty = sum(received, (p) => p.quantity);
-
     const budgetCost = sum(bItems, (b) => b.quantity * (b.expectedUnitCost || 0));
-    // Actual cost is recognized at commit time: once a PR is ordered, its cost counts
-    // (committed = ordered + received), rather than waiting for physical receipt.
+    // Actual cost is recognized at commit time (committed = ordered + received), not at receipt.
     const actualCost = sum(committed, (p) => p.quantity * (p.unitCost || 0));
-
-    const balanceQty = receivedQty - budgetQty;          // + = over (received basis)
-    const committedBalanceQty = committedQty - budgetQty; // + = over (commitment basis)
-    const costDelta = actualCost - budgetCost;
-
     return {
+      key: isExtra ? mid + '::extra' : mid,
       materialId: mid,
       materialName: materialName(db, mid),
-      unit: bItems[0]?.unit || materialUnit(db, mid),
+      unit: bItems[0]?.unit || pItems[0]?.unit || materialUnit(db, mid),
+      extra: isExtra,
       budgetQty, committedQty, receivedQty,
-      balanceQty, committedBalanceQty,
-      budgetCost, actualCost, costDelta,
-      isOver: receivedQty > budgetQty,
-      isOverCommitted: committedQty > budgetQty,
+      balanceQty: receivedQty - budgetQty,
+      committedBalanceQty: committedQty - budgetQty,
+      budgetCost, actualCost, costDelta: actualCost - budgetCost,
+      // "Over budget" applies only to planned materials; extra rows carry their own indicator.
+      isOver: !isExtra && receivedQty > budgetQty,
+      isOverCommitted: !isExtra && committedQty > budgetQty,
       boqItems: bItems,
       prs: pItems,
     };
-  });
+  };
 
-  rows.sort((a, b) => Number(b.isOverCommitted) - Number(a.isOverCommitted)
-    || b.budgetCost - a.budgetCost);
-  return rows;
+  // Plan rows: one per BoQ material, counting only its LINKED PRs (avoids double-counting extras).
+  const planRows = [...new Set(boq.map((b) => b.materialId))].map((mid) =>
+    mkRow(mid, boq.filter((b) => b.materialId === mid), linked.filter((p) => p.materialId === mid), false));
+  // Extra rows: one per material that appears only via extra PRs (not in the plan).
+  const extraRows = [...new Set(extra.map((p) => p.materialId))].map((mid) =>
+    mkRow(mid, [], extra.filter((p) => p.materialId === mid), true));
+
+  planRows.sort((a, b) => Number(b.isOverCommitted) - Number(a.isOverCommitted) || b.budgetCost - a.budgetCost);
+  extraRows.sort((a, b) => b.actualCost - a.actualCost);
+  return [...planRows, ...extraRows]; // plan first, extras listed after
 }
 
 // Project-level over-quantity warnings (BR-7). Fires on the commitment basis so

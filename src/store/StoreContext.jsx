@@ -12,6 +12,10 @@ function normalize(d) {
   if (!Array.isArray(d.boqStaged)) d.boqStaged = [];
   if (!Array.isArray(d.boqEdits)) d.boqEdits = [];
   if (Array.isArray(d.projects)) for (const p of d.projects) if (!p.boqStatus) p.boqStatus = 'draft';
+  if (Array.isArray(d.prs) && Array.isArray(d.boqItems)) {
+    const projOf = Object.fromEntries(d.boqItems.map((b) => [b.id, b.projectId]));
+    for (const p of d.prs) if (p.projectId == null && p.boqItemId) p.projectId = projOf[p.boqItemId] || null;
+  }
   return d;
 }
 function load() {
@@ -123,10 +127,10 @@ export function StoreProvider({ children }) {
       (s.projectId === projectId && s.type === 'add' && s.tempId === tempId) ? { ...s, fields: { ...s.fields, ...patch } } : s) }));
   }, []);
 
-  const stageBoqDelete = useCallback((projectId, boqItemId) => {
+  const stageBoqDelete = useCallback((projectId, boqItemId, { deletePrs = false } = {}) => {
     setDb((d) => {
       const others = d.boqStaged.filter((s) => !(s.projectId === projectId && s.boqItemId === boqItemId && (s.type === 'modify' || s.type === 'delete')));
-      return { ...d, boqStaged: [...others, { projectId, type: 'delete', boqItemId }] };
+      return { ...d, boqStaged: [...others, { projectId, type: 'delete', boqItemId, deletePrs }] };
     });
   }, []);
 
@@ -166,8 +170,14 @@ export function StoreProvider({ children }) {
         } else if (sg.type === 'delete') {
           const base = byId[sg.boqItemId];
           boqItems = boqItems.filter((b) => b.id !== sg.boqItemId);
-          prs = prs.filter((p) => p.boqItemId !== sg.boqItemId);
-          changes.push({ type: 'delete', boqItemId: sg.boqItemId, before: pickFields(base || {}, BOQ_FIELD_KEYS) });
+          if (sg.deletePrs) {
+            prs = prs.filter((p) => p.boqItemId !== sg.boqItemId);     // remove its orders too
+          } else {
+            prs = prs.map((p) => p.boqItemId === sg.boqItemId
+              ? { ...p, boqItemId: null, projectId: p.projectId || projectId }  // keep, now extra
+              : p);
+          }
+          changes.push({ type: 'delete', boqItemId: sg.boqItemId, before: pickFields(base || {}, BOQ_FIELD_KEYS), keptPrs: !sg.deletePrs });
         }
       }
       const entry = {
@@ -244,13 +254,16 @@ export function StoreProvider({ children }) {
   const addPr = useCallback((pr) => {
     const id = uid('pr');
     setDb((d) => {
-      const boqItem = d.boqItems.find((b) => b.id === pr.boqItemId);
-      if (!boqItem) return d; // BR-3 guard
+      const boqItem = pr.boqItemId ? d.boqItems.find((b) => b.id === pr.boqItemId) : null;
+      if (pr.boqItemId && !boqItem) return d;        // a linked PR must point to a real line
+      const projectId = boqItem ? boqItem.projectId : pr.projectId;
+      if (!projectId) return d;                       // every PR belongs to a project
       const rec = {
         id,
-        boqItemId: pr.boqItemId,
-        materialId: boqItem.materialId,   // inherited
-        unit: boqItem.unit,               // inherited
+        projectId,
+        boqItemId: pr.boqItemId || null,              // null = extra (not in the BoQ plan)
+        materialId: boqItem ? boqItem.materialId : pr.materialId,  // inherited if linked, else explicit
+        unit: boqItem ? boqItem.unit : (pr.unit || ''),
         quantity: Number(pr.quantity) || 0,
         supplierPrimaryId: pr.supplierPrimaryId || null,
         supplierSecondaryId: pr.supplierSecondaryId || null,
