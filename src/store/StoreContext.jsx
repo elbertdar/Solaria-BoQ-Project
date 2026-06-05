@@ -12,6 +12,10 @@ function normalize(d) {
   if (!Array.isArray(d.boqStaged)) d.boqStaged = [];
   if (!Array.isArray(d.boqEdits)) d.boqEdits = [];
   if (Array.isArray(d.projects)) for (const p of d.projects) if (!p.boqStatus) p.boqStatus = 'draft';
+  if (Array.isArray(d.boqItems)) for (const b of d.boqItems) {
+    if (!b.budgetBasis) b.budgetBasis = 'quantity';
+    if (b.allowanceAmount == null) b.allowanceAmount = 0;
+  }
   if (Array.isArray(d.prs) && Array.isArray(d.boqItems)) {
     const projOf = Object.fromEntries(d.boqItems.map((b) => [b.id, b.projectId]));
     for (const p of d.prs) if (p.projectId == null && p.boqItemId) p.projectId = projOf[p.boqItemId] || null;
@@ -27,7 +31,7 @@ function load() {
 }
 
 // BoQ "definition" fields tracked in staged edits + the commit history diff.
-const BOQ_FIELD_KEYS = ['materialId', 'description', 'mandorId', 'quantity', 'unit', 'expectedUnitCost', 'neededDayOffset', 'leadTimeDays'];
+const BOQ_FIELD_KEYS = ['materialId', 'description', 'mandorId', 'budgetBasis', 'quantity', 'unit', 'expectedUnitCost', 'allowanceAmount', 'neededDayOffset', 'leadTimeDays'];
 const pickFields = (o, keys) => { const r = {}; for (const k of keys) r[k] = o?.[k] ?? null; return r; };
 
 let _uid = 0;

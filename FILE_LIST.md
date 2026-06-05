@@ -2,17 +2,49 @@
 
 The source of truth for what files exist and where. **Updated every time we change something.**
 
-- **Last updated:** 2 Jun 2026
-- **Latest build:** Day-offset planning (lead times + needed-day input, order day auto-derived)
+- **Last updated:** 5 Jun 2026
+- **Latest build:** Allowance (lump-sum) BoQ lines + reconciliation cleanup
 - **Run:** `npm run dev` from the project root · details + assumptions in `README.md`
 - **Total app files:** 22 under `src/` + `README.md`
 
 ---
 
-## ⚠ Files touched in the latest build (Day-offset planning)
+## ⚠ Files touched in the latest build (Allowance lines)
 
-If your local copy is missing any of these, the schedule math will be wrong or the app breaks.
-Schema changed, so the storage key is now **v3** (auto-reseeds on first load).
+Consumables you reorder (nails, sealant, sandpaper…) where a fixed quantity is meaningless can now
+be budgeted as an **allowance**: a lump-sum cost you track *spend* against, instead of a quantity.
+Set it per line via a **Budget basis** toggle (By quantity | Allowance) in the BoQ modal, or the
+**+ Add allowance** button in the draft grid.
+
+Behaviour of an allowance line:
+- Budgeted by a lump sum, not qty × rate. Balance reconciles **committed spend vs the allowance**;
+  the quantity columns show "—". Over-budget fires when spend exceeds the allowance (leave the
+  amount at 0 for an untracked bucket that just keeps spend visible).
+- Never shows "Complete" (no qty target) — only Not ordered / Ordered.
+- Kept **off the order timeline** (a reorder cadence is a separate axis, deferred) — so it won't
+  appear on the Schedule or in This Week.
+- PRs raised against it inherit the unit but don't prefill or police a quantity.
+
+Also cleaned up `summarizeProject` into one kind-driven row builder (`quantity` | `allowance` |
+`extra`) so the three Balance row types share one code path.
+
+**Storage:** still **v10** — `budgetBasis`/`allowanceAmount` are backfilled by `normalize()` on load,
+so existing data is preserved (no reseed, nothing wiped).
+
+**Changed (7) — no new files:**
+- `src/engine/reconcile.js` — kind-driven `summarizeProject`; allowance-aware `boqLineStatus`; `BOQ_FIELDS` gains Allowance + Budget basis
+- `src/engine/schedule.js` — allowance lines excluded from `scheduleForProject` + `portfolioWorklist`
+- `src/store/StoreContext.jsx` — `normalize()` backfills `budgetBasis`/`allowanceAmount`; `BOQ_FIELD_KEYS` carries both
+- `src/pages/ReconciliationPage.jsx` — Balance rows render quantity / allowance / extra; Allowance pill; drill-down + footnote
+- `src/pages/BoqPage.jsx` — working table + modal Budget-basis toggle/allowance field; draft grid "+ Add allowance" + allowance rows
+- `src/components/PrModal.jsx` — allowance lines skip qty prefill + the over-budget check
+- `FILE_LIST.md` — this entry
+
+---
+
+## Previous build (Day-offset planning)
+
+Schema changed then, so the storage key moved to **v3** (auto-reseeded on first load at the time).
 
 **Changed (6) — no new files:**
 - `src/engine/schedule.js` — reworked around day-offsets, lead time, project start

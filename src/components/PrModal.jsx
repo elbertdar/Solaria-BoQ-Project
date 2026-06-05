@@ -19,7 +19,7 @@ export default function PrModal({ pr = null, boqItem = null, onClose }) {
   const [extraMatId, setExtraMatId] = useState(editingExtra ? pr.materialId : '');
   const [extraUnit, setExtraUnit] = useState(editingExtra ? (pr.unit || '') : '');
   const [quantity, setQuantity] = useState(
-    editing ? (pr.quantity ?? '') : (raising ? String(remainingQty(db, initialBoqId)) : ''));
+    editing ? (pr.quantity ?? '') : (raising && initialBoqItem?.budgetBasis !== 'allowance' ? String(remainingQty(db, initialBoqId)) : ''));
   const [unitCost, setUnitCost] = useState(
     editing ? (pr.unitCost ?? '') : (raising ? (initialBoqItem?.expectedUnitCost ?? '') : ''));
   const [supplierPrimaryId, setSup1] = useState(pr?.supplierPrimaryId ?? '');
@@ -48,7 +48,7 @@ export default function PrModal({ pr = null, boqItem = null, onClose }) {
 
   // Live reconciliation check as quantity changes (BR-7 / Feature 5.6).
   const check = useMemo(() => {
-    if (!selectedBoq || quantity === '' ) return { ok: true };
+    if (!selectedBoq || quantity === '' || selectedBoq.budgetBasis === 'allowance') return { ok: true };
     return checkProspectivePr(db, {
       boqItemId,
       quantity: Number(quantity),
@@ -129,8 +129,8 @@ export default function PrModal({ pr = null, boqItem = null, onClose }) {
               setAckOver(false);
               if (raising && id && id !== '__extra') {   // Raise PR auto-fills qty + cost from the line
                 const nb = db.boqItems.find((b) => b.id === id);
-                setQuantity(String(remainingQty(db, id)));
-                setUnitCost(nb?.expectedUnitCost ?? '');
+                setQuantity(nb?.budgetBasis === 'allowance' ? '' : String(remainingQty(db, id)));
+                setUnitCost(nb?.budgetBasis === 'allowance' ? '' : (nb?.expectedUnitCost ?? ''));
               }
             }}>
               <option value="">Select a BoQ item…</option>

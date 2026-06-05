@@ -132,7 +132,7 @@ export function computeLine(db, b, today = todayLocal()) {
 
 // ---- per-project schedule (timeline + agenda) ----
 export function scheduleForProject(db, projectId, today = todayLocal()) {
-  const items = db.boqItems.filter((b) => b.projectId === projectId);
+  const items = db.boqItems.filter((b) => b.projectId === projectId && b.budgetBasis !== 'allowance');
   const lines = items.map((b) => computeLine(db, b, today));
   lines.sort((a, b) => a.urgency - b.urgency ||
     ((a.nextMilestoneDate?.getTime() ?? Infinity) - (b.nextMilestoneDate?.getTime() ?? Infinity)));
@@ -160,6 +160,7 @@ export function dayColOf(date, baseDay, span) {
 export function portfolioWorklist(db, today = todayLocal()) {
   const proj = (id) => db.projects.find((p) => p.id === id);
   const lines = db.boqItems
+    .filter((b) => b.budgetBasis !== 'allowance')   // allowances reorder on cadence, not a single order-by date
     .map((b) => ({ ...computeLine(db, b, today), project: proj(b.projectId) }))
     .filter((l) => l.project && l.project.boqStatus === 'working'); // draft BoQs aren't in procurement yet
 

@@ -99,8 +99,9 @@ export default function BoqPage() {
           </div>
         </div>
 
-        <div style={{ marginTop: 12 }}>
-          <button className="btn" onClick={() => addBoqItem({ projectId: currentProjectId, materialId: '', description: '', quantity: 0, unit: '', expectedUnitCost: 0, neededDayOffset: 0, mandorId: '' })}>+ Add row</button>
+        <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
+          <button className="btn" onClick={() => addBoqItem({ projectId: currentProjectId, budgetBasis: 'quantity', materialId: '', description: '', quantity: 0, unit: '', expectedUnitCost: 0, neededDayOffset: 0, mandorId: '' })}>+ Add row</button>
+          <button className="btn ghost" onClick={() => addBoqItem({ projectId: currentProjectId, budgetBasis: 'allowance', materialId: '', description: '', quantity: 0, unit: '', expectedUnitCost: 0, allowanceAmount: 0, neededDayOffset: null, mandorId: '' })}>+ Add allowance</button>
         </div>
 
         {confirmingFinalize && (
@@ -219,6 +220,7 @@ const TINT = { background: '#FFFBEB' }; // changed-cell highlight
 
 function Row({ r, db, start, onEdit, onRaisePr, onUndo }) {
   const f = r.fields, base = r.base;
+  const allow = f.budgetBasis === 'allowance';
   const deleted = r.status === 'deleted';
   const changed = (k) => r.status === 'modified' && r.changedKeys.includes(k);
   const lead = f.leadTimeDays != null ? f.leadTimeDays : leadTimeFor(db, f.materialId);
@@ -237,17 +239,23 @@ function Row({ r, db, start, onEdit, onRaisePr, onUndo }) {
 
   return (
     <tr style={rowStyle}>
-      <td className="mat-link"><span style={strike}>{tag}{materialName(db, f.materialId)}</span></td>
+      <td className="mat-link"><span style={strike}>{tag}{materialName(db, f.materialId)}{allow && <span className="pill info" style={{ marginLeft: 6, fontSize: 11 }}>Allowance</span>}</span></td>
       <td style={{ ...(changed('description') ? TINT : {}), ...strike }}>{f.description}</td>
-      <td className="num" style={changed('quantity') ? TINT : undefined}><span style={strike}>{num(f.quantity)}</span>{wasNum('quantity', base?.quantity)}</td>
+      <td className="num" style={changed('quantity') ? TINT : undefined}>{allow ? <span className="muted">—</span> : <><span style={strike}>{num(f.quantity)}</span>{wasNum('quantity', base?.quantity)}</>}</td>
       <td style={{ ...(changed('unit') ? TINT : {}), ...strike }}>{f.unit}</td>
-      <td className="num" style={changed('expectedUnitCost') ? TINT : undefined}><span style={strike}>{idr(f.expectedUnitCost)}</span>{changed('expectedUnitCost') && base ? <div className="muted" style={{ fontSize: 11, textDecoration: 'line-through' }}>{idr(base.expectedUnitCost)}</div> : null}</td>
+      <td className="num" style={changed('expectedUnitCost') || changed('allowanceAmount') ? TINT : undefined}>
+        {allow
+          ? <><span style={strike}>{idr(f.allowanceAmount)}</span><div className="muted" style={{ fontSize: 11 }}>allowance</div></>
+          : <><span style={strike}>{idr(f.expectedUnitCost)}</span>{changed('expectedUnitCost') && base ? <div className="muted" style={{ fontSize: 11, textDecoration: 'line-through' }}>{idr(base.expectedUnitCost)}</div> : null}</>}
+      </td>
       <td className="num" style={changed('neededDayOffset') ? TINT : undefined}>
-        <span style={strike}>{needed != null ? <>Day {needed}{neededDate && <div className="muted" style={{ fontSize: 11 }}>{fmtDate(neededDate)}</div>}</> : '—'}</span>
-        {wasNum('neededDayOffset', base?.neededDayOffset)}
+        {allow ? <span className="muted">—</span> : <>
+          <span style={strike}>{needed != null ? <>Day {needed}{neededDate && <div className="muted" style={{ fontSize: 11 }}>{fmtDate(neededDate)}</div>}</> : '—'}</span>
+          {wasNum('neededDayOffset', base?.neededDayOffset)}
+        </>}
       </td>
       <td className="num" style={strike}>
-        {orderDay != null
+        {allow ? <span className="muted">—</span> : orderDay != null
           ? <>Day {orderDay}<div className="muted" style={{ fontSize: 11 }}>{lead}d lead{f.leadTimeDays != null ? '*' : ''}</div></>
           : <span className="muted">set lead time</span>}
       </td>
@@ -297,6 +305,9 @@ function BoqModal({ item, onClose }) {
   const [expectedUnitCost, setCost] = useState(item?.expectedUnitCost ?? '');
   const [neededDayOffset, setNeeded] = useState(item?.neededDayOffset ?? '');
   const [leadOverride, setLeadOverride] = useState(item?.leadTimeDays ?? '');
+  const [budgetBasis, setBudgetBasis] = useState(item?.budgetBasis ?? 'quantity');
+  const [allowanceAmount, setAllowanceAmount] = useState(item?.allowanceAmount ?? '');
+  const allowance = budgetBasis === 'allowance';
   const [mandorId, setMandor] = useState(item?.mandorId ?? db.mandors[0]?.id ?? '');
   const [addingMandor, setAddingMandor] = useState(false);
   const [newMandor, setNewMandor] = useState('');
@@ -339,16 +350,20 @@ function BoqModal({ item, onClose }) {
     if (!mid && exactResolve) mid = exactResolve.id;
     if (!mid) { setError('Pick an existing material or create a new canonical entry — BoQ items can’t use free-text names (BR-1).'); return; }
     if (!description.trim()) { setError('Add a short description.'); return; }
-    if (quantity === '' || Number(quantity) <= 0) { setError('Enter a quantity.'); return; }
     if (!unit) { setError('Set a unit.'); return; }
-    if (neededDayOffset === '' || Number(neededDayOffset) < 0) { setError('Enter the needed day (days after project start, 0 or more).'); return; }
+    if (!allowance) {
+      if (quantity === '' || Number(quantity) <= 0) { setError('Enter a quantity.'); return; }
+      if (neededDayOffset === '' || Number(neededDayOffset) < 0) { setError('Enter the needed day (days after project start, 0 or more).'); return; }
+    }
 
     const patch = {
       projectId: currentProjectId, materialId: mid, description: description.trim(),
-      quantity: Number(quantity), unit, expectedUnitCost: Number(expectedUnitCost) || 0,
-      neededDayOffset: Number(neededDayOffset),
-      leadTimeDays: leadOverride === '' ? null : Number(leadOverride),
-      mandorId,
+      mandorId, unit, budgetBasis,
+      quantity: allowance ? 0 : Number(quantity),
+      expectedUnitCost: allowance ? 0 : (Number(expectedUnitCost) || 0),
+      allowanceAmount: allowance ? (Number(allowanceAmount) || 0) : 0,
+      neededDayOffset: allowance ? null : Number(neededDayOffset),
+      leadTimeDays: allowance ? null : (leadOverride === '' ? null : Number(leadOverride)),
     };
     if (editing) {
       if (isAdd) editStagedAdd(currentProjectId, item.id, patch);
@@ -429,19 +444,38 @@ function BoqModal({ item, onClose }) {
           <input type="text" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Free-text spec notes (Ket.)" />
         </div>
 
-        <div>
-          <label className="lbl">Quantity <span className="req">*</span></label>
-          <input type="number" min="0" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
+        <div className="full">
+          <label className="lbl">Budget basis</label>
+          <div className="seg">
+            <button type="button" className={!allowance ? 'active' : ''} onClick={() => setBudgetBasis('quantity')}>By quantity</button>
+            <button type="button" className={allowance ? 'active' : ''} onClick={() => setBudgetBasis('allowance')}>Allowance (lump sum)</button>
+          </div>
+          {allowance && <div className="help">Tracked by spend against a lump sum — no quantity target, and kept off the order timeline. Use for consumables you reorder (nails, sealant, sandpaper…).</div>}
         </div>
+
+        {!allowance && (
+          <div>
+            <label className="lbl">Quantity <span className="req">*</span></label>
+            <input type="number" min="0" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
+          </div>
+        )}
         <div>
           <label className="lbl">Unit <span className="req">*</span></label>
           <input type="text" value={unit} onChange={(e) => setUnit(e.target.value)} placeholder="lembar, m2, sak…" />
         </div>
 
-        <div>
-          <label className="lbl">Expected unit cost (IDR)</label>
-          <input type="number" min="0" value={expectedUnitCost} onChange={(e) => setCost(e.target.value)} />
-        </div>
+        {allowance ? (
+          <div>
+            <label className="lbl">Allowance (IDR)</label>
+            <input type="number" min="0" value={allowanceAmount} onChange={(e) => setAllowanceAmount(e.target.value)} placeholder="e.g. 5000000" />
+            <div className="help">Leave 0 for an untracked bucket (just keeps the spend visible).</div>
+          </div>
+        ) : (
+          <div>
+            <label className="lbl">Expected unit cost (IDR)</label>
+            <input type="number" min="0" value={expectedUnitCost} onChange={(e) => setCost(e.target.value)} />
+          </div>
+        )}
         <div>
           <label className="lbl">Mandor</label>
           {!addingMandor ? (
@@ -461,34 +495,40 @@ function BoqModal({ item, onClose }) {
           )}
         </div>
 
-        <div>
-          <label className="lbl">Needed — days after start <span className="req">*</span></label>
-          <input type="number" min="0" value={neededDayOffset} onChange={(e) => setNeeded(e.target.value)} placeholder="e.g. 45" />
-        </div>
-        <div>
-          <label className="lbl">Custom lead time (days)</label>
-          <input type="number" min="0" value={leadOverride} onChange={(e) => setLeadOverride(e.target.value)}
-            placeholder={matLead != null ? `${matLead} (material default)` : 'optional'} />
-          <div className="help">Blank = use the material’s default. Set to override for this line only.</div>
-        </div>
-
-        <div className="full">
-          <div className="help" style={{ marginTop: 2 }}>
-            {orderDay != null ? (
-              <span style={orderDate && start && orderDate < start ? { color: 'var(--risk)' } : {}}>
-                → <b>Order by day {orderDay}</b> · {lead}d lead{leadOverride !== '' ? ' (custom)' : ''}, business days
-                {start && <> · needed ≈ {fmtDate(neededDate)}, order ≈ {fmtDate(orderDate)}</>}
-                {orderDate && start && orderDate < start && <> — ⚠ order falls before project start; shorten lead or push the needed day.</>}
-              </span>
-            ) : (
-              <span className="muted">
-                {materialId && lead == null
-                  ? 'No lead time yet — set a custom one above or add it to the material in the Catalogue.'
-                  : 'Order day is computed from the needed day minus the lead time, counted in business days.'}
-              </span>
-            )}
+        {!allowance && (
+          <div>
+            <label className="lbl">Needed — days after start <span className="req">*</span></label>
+            <input type="number" min="0" value={neededDayOffset} onChange={(e) => setNeeded(e.target.value)} placeholder="e.g. 45" />
           </div>
-        </div>
+        )}
+        {!allowance && (
+          <div>
+            <label className="lbl">Custom lead time (days)</label>
+            <input type="number" min="0" value={leadOverride} onChange={(e) => setLeadOverride(e.target.value)}
+              placeholder={matLead != null ? `${matLead} (material default)` : 'optional'} />
+            <div className="help">Blank = use the material’s default. Set to override for this line only.</div>
+          </div>
+        )}
+
+        {!allowance && (
+          <div className="full">
+            <div className="help" style={{ marginTop: 2 }}>
+              {orderDay != null ? (
+                <span style={orderDate && start && orderDate < start ? { color: 'var(--risk)' } : {}}>
+                  → <b>Order by day {orderDay}</b> · {lead}d lead{leadOverride !== '' ? ' (custom)' : ''}, business days
+                  {start && <> · needed ≈ {fmtDate(neededDate)}, order ≈ {fmtDate(orderDate)}</>}
+                  {orderDate && start && orderDate < start && <> — ⚠ order falls before project start; shorten lead or push the needed day.</>}
+                </span>
+              ) : (
+                <span className="muted">
+                  {materialId && lead == null
+                    ? 'No lead time yet — set a custom one above or add it to the material in the Catalogue.'
+                    : 'Order day is computed from the needed day minus the lead time, counted in business days.'}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {error && <div className="inline-warn"><span>•</span><div>{error}</div></div>}
@@ -499,18 +539,21 @@ function BoqModal({ item, onClose }) {
 const CELL = { width: '100%', boxSizing: 'border-box', padding: '5px 8px', border: '1px solid #E5E7EB', borderRadius: 7, font: 'inherit', fontSize: 13 };
 
 function DraftRow({ b, db, start, onPatch, onDelete }) {
+  const allow = b.budgetBasis === 'allowance';
   const lead = b.leadTimeDays != null ? b.leadTimeDays : leadTimeFor(db, b.materialId);
   const neededDate = (start && b.neededDayOffset != null) ? addDays(start, b.neededDayOffset) : null;
   const orderDate = (neededDate && lead != null) ? addBusinessDays(neededDate, -lead) : null;
   const orderDay = dnum(start, orderDate);
   const numOrNull = (v) => (v === '' ? null : Number(v));
+  const dash = <span className="muted">—</span>;
   return (
     <tr>
       <td>
+        {allow && <div className="pill info" style={{ fontSize: 10, marginBottom: 4, display: 'inline-block' }}>Allowance</div>}
         <select className="input" style={{ minWidth: 150 }} value={b.materialId || ''} onChange={(e) => {
           const mid = e.target.value;
           const m = db.materials.find((x) => x.id === mid);
-          onPatch(b.id, { materialId: mid, ...(m ? { unit: m.defaultUnit, expectedUnitCost: m.estUnitCost } : {}) });
+          onPatch(b.id, { materialId: mid, ...(m ? { unit: m.defaultUnit, ...(allow ? {} : { expectedUnitCost: m.estUnitCost }) } : {}) });
         }}>
           <option value="">— select —</option>
           {db.materials.map((m) => <option key={m.id} value={m.id}>{m.canonicalName}</option>)}
@@ -524,15 +567,18 @@ function DraftRow({ b, db, start, onPatch, onDelete }) {
           {db.mandors.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
         </select>
       </td>
-      <td className="num"><input type="number" style={{ ...CELL, width: 72, textAlign: 'right' }} value={b.quantity ?? ''}
-        onChange={(e) => onPatch(b.id, { quantity: numOrNull(e.target.value) ?? 0 })} /></td>
+      <td className="num">{allow ? dash : <input type="number" style={{ ...CELL, width: 72, textAlign: 'right' }} value={b.quantity ?? ''}
+        onChange={(e) => onPatch(b.id, { quantity: numOrNull(e.target.value) ?? 0 })} />}</td>
       <td><input style={{ ...CELL, width: 84 }} value={b.unit || ''} placeholder="unit"
         onChange={(e) => onPatch(b.id, { unit: e.target.value })} /></td>
-      <td className="num"><input type="number" style={{ ...CELL, width: 112, textAlign: 'right' }} value={b.expectedUnitCost ?? ''}
-        onChange={(e) => onPatch(b.id, { expectedUnitCost: numOrNull(e.target.value) ?? 0 })} /></td>
-      <td className="num"><input type="number" style={{ ...CELL, width: 72, textAlign: 'right' }} value={b.neededDayOffset ?? ''}
-        onChange={(e) => onPatch(b.id, { neededDayOffset: numOrNull(e.target.value) })} /></td>
-      <td className="num">{orderDay != null ? <>Day {orderDay}</> : <span className="muted">—</span>}</td>
+      <td className="num">{allow
+        ? <input type="number" style={{ ...CELL, width: 112, textAlign: 'right' }} value={b.allowanceAmount ?? ''} placeholder="lump sum"
+            onChange={(e) => onPatch(b.id, { allowanceAmount: numOrNull(e.target.value) ?? 0 })} />
+        : <input type="number" style={{ ...CELL, width: 112, textAlign: 'right' }} value={b.expectedUnitCost ?? ''}
+            onChange={(e) => onPatch(b.id, { expectedUnitCost: numOrNull(e.target.value) ?? 0 })} />}</td>
+      <td className="num">{allow ? dash : <input type="number" style={{ ...CELL, width: 72, textAlign: 'right' }} value={b.neededDayOffset ?? ''}
+        onChange={(e) => onPatch(b.id, { neededDayOffset: numOrNull(e.target.value) })} />}</td>
+      <td className="num">{allow ? dash : orderDay != null ? <>Day {orderDay}</> : <span className="muted">—</span>}</td>
       <td className="num"><button className="btn sm ghost" style={{ color: 'var(--risk)' }} title="Delete row" onClick={() => onDelete(b.id)}>✕</button></td>
     </tr>
   );

@@ -54,6 +54,9 @@ export function boqLineStatus(db, boqItemId) {
   const prs = prsForBoqItem(db, boqItemId);
   if (prs.length === 0) return 'none';
   const b = db.boqItems.find((x) => x.id === boqItemId);
+  if (b?.budgetBasis === 'allowance') {
+    return prs.some((p) => COMMITTED_STATUSES.includes(p.status)) ? 'ordered' : 'none';
+  }
   const budget = b?.quantity || 0;
   const received = prs
     .filter((p) => RECEIVED_STATUSES.includes(p.status))
@@ -69,39 +72,55 @@ export function summarizeProject(db, projectId) {
   const linked = all.filter((p) => !isExtraPr(db, p));
   const extra = all.filter((p) => isExtraPr(db, p));
 
-  const mkRow = (mid, bItems, pItems, isExtra) => {
+  const qtyOf = (prs) => sum(prs, (p) => p.quantity);
+  const costOf = (prs) => sum(prs, (p) => p.quantity * (p.unitCost || 0));
+
+  // One row builder for all three kinds:
+  //   'quantity'  — committed qty vs budgeted qty (the default)
+  //   'allowance' — committed spend vs a lump-sum budget (qty is meaningless)
+  //   'extra'     — unbudgeted purchase (no BoQ line); 0 minus what was spent
+  const mkRow = (mid, kind, bItems, pItems) => {
+    const allowance = kind === 'allowance';
+    const isExtra = kind === 'extra';
     const committed = pItems.filter((p) => COMMITTED_STATUSES.includes(p.status));
     const received = pItems.filter((p) => RECEIVED_STATUSES.includes(p.status));
-    const budgetQty = sum(bItems, (b) => b.quantity);
-    const committedQty = sum(committed, (p) => p.quantity);
-    const receivedQty = sum(received, (p) => p.quantity);
-    const budgetCost = sum(bItems, (b) => b.quantity * (b.expectedUnitCost || 0));
+
+    const budgetQty = (allowance || isExtra) ? 0 : sum(bItems, (b) => b.quantity);
+    const committedQty = qtyOf(committed);
+    const receivedQty = qtyOf(received);
+    const budgetCost = isExtra ? 0
+      : allowance ? sum(bItems, (b) => b.allowanceAmount || 0)
+      : sum(bItems, (b) => b.quantity * (b.expectedUnitCost || 0));
     // Actual cost is recognized at commit time (committed = ordered + received), not at receipt.
-    const actualCost = sum(committed, (p) => p.quantity * (p.unitCost || 0));
+    const actualCost = costOf(committed);
+
     return {
       key: isExtra ? mid + '::extra' : mid,
-      materialId: mid,
-      materialName: materialName(db, mid),
+      kind, extra: isExtra, allowance,
+      materialId: mid, materialName: materialName(db, mid),
       unit: bItems[0]?.unit || pItems[0]?.unit || materialUnit(db, mid),
-      extra: isExtra,
       budgetQty, committedQty, receivedQty,
       balanceQty: receivedQty - budgetQty,
       committedBalanceQty: committedQty - budgetQty,
       budgetCost, actualCost, costDelta: actualCost - budgetCost,
-      // "Over budget" applies only to planned materials; extra rows carry their own indicator.
-      isOver: !isExtra && receivedQty > budgetQty,
-      isOverCommitted: !isExtra && committedQty > budgetQty,
-      boqItems: bItems,
-      prs: pItems,
+      // Over-budget basis: quantity rows on committed qty, allowance rows on committed spend,
+      // extra rows never (they carry their own indicator).
+      isOverCommitted: allowance ? actualCost > budgetCost : (!isExtra && committedQty > budgetQty),
+      isOver: allowance ? actualCost > budgetCost : (!isExtra && receivedQty > budgetQty),
+      boqItems: bItems, prs: pItems,
     };
   };
 
-  // Plan rows: one per BoQ material, counting only its LINKED PRs (avoids double-counting extras).
-  const planRows = [...new Set(boq.map((b) => b.materialId))].map((mid) =>
-    mkRow(mid, boq.filter((b) => b.materialId === mid), linked.filter((p) => p.materialId === mid), false));
-  // Extra rows: one per material that appears only via extra PRs (not in the plan).
+  // Plan rows: one per BoQ material (counting only LINKED PRs). A material whose lines include an
+  // allowance line is reconciled by cost, not quantity.
+  const planRows = [...new Set(boq.map((b) => b.materialId))].map((mid) => {
+    const bItems = boq.filter((b) => b.materialId === mid);
+    const kind = bItems.some((b) => b.budgetBasis === 'allowance') ? 'allowance' : 'quantity';
+    return mkRow(mid, kind, bItems, linked.filter((p) => p.materialId === mid));
+  });
+  // Extra rows: materials that appear only via extra (unlinked) PRs.
   const extraRows = [...new Set(extra.map((p) => p.materialId))].map((mid) =>
-    mkRow(mid, [], extra.filter((p) => p.materialId === mid), true));
+    mkRow(mid, 'extra', [], extra.filter((p) => p.materialId === mid)));
 
   planRows.sort((a, b) => Number(b.isOverCommitted) - Number(a.isOverCommitted) || b.budgetCost - a.budgetCost);
   extraRows.sort((a, b) => b.actualCost - a.actualCost);
@@ -178,6 +197,8 @@ export const BOQ_FIELDS = [
   { key: 'quantity', label: 'Qty', kind: 'num' },
   { key: 'unit', label: 'Unit', kind: 'text' },
   { key: 'expectedUnitCost', label: 'Exp. unit cost', kind: 'money' },
+  { key: 'allowanceAmount', label: 'Allowance', kind: 'money' },
+  { key: 'budgetBasis', label: 'Budget basis', kind: 'text' },
   { key: 'neededDayOffset', label: 'Needed day', kind: 'day' },
   { key: 'leadTimeDays', label: 'Lead override', kind: 'num' },
 ];

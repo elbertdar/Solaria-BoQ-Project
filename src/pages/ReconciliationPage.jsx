@@ -81,7 +81,8 @@ export default function ReconciliationPage() {
         Balance is quantity-based: committed − budget (positive means over). <em>Actual cost</em> counts
         committed orders (ordered + received) at their PR unit cost — once an order is placed, its cost is
         treated as actual, so the budget impact (Δ Cost) appears at order time rather than after delivery.
-        Balance and the over-budget banner both fire on committed quantity, catching over-ordering before it arrives.
+        Balance and the over-budget banner fire on committed quantity — or, for allowance lines, on committed spend — catching overruns before delivery.
+        Rows tagged <b>Allowance</b> are budgeted by a lump sum rather than a quantity: they reconcile on cost (Actual vs Budget cost), with the quantity columns shown as “—”.
         Rows tagged <b>Extra</b> are purchases with no BoQ line (a standalone PR, or one kept from a deleted line) — they sit outside the budgeted plan, so their balance is 0 − committed and Δ Cost is 0 − actual (negative, since nothing was budgeted for them).
       </p>
     </>
@@ -89,16 +90,22 @@ export default function ReconciliationPage() {
 }
 
 function RowGroup({ r, isOpen, onToggle, db }) {
+  const dash = <span className="muted">—</span>;
+  const pill = r.extra
+    ? <span className="pill" style={{ background: '#FEF3C7', color: '#92660C', border: '1px solid #FDE68A', marginLeft: 6, fontSize: 11 }}>Extra</span>
+    : r.allowance
+      ? <span className="pill info" style={{ marginLeft: 6, fontSize: 11 }}>Allowance</span>
+      : null;
   return (
     <>
       <tr className="clickable" onClick={onToggle}>
-        <td className="mat-link">{r.materialName}{r.extra && <span className="pill" style={{ background: '#FEF3C7', color: '#92660C', border: '1px solid #FDE68A', marginLeft: 6, fontSize: 11 }}>Extra</span>}</td>
+        <td className="mat-link">{r.materialName}{pill}</td>
         <td>{r.unit}</td>
-        <td className="num">{r.extra ? num(0) : num(r.budgetQty)}</td>
-        <td className="num">{num(r.committedQty)}</td>
-        <td className="num">{num(r.receivedQty)}</td>
-        <td className={'num ' + (r.extra ? '' : (r.committedBalanceQty > 0 ? 'val-risk' : ''))} style={r.extra ? { color: '#92660C' } : undefined}>
-          {r.extra ? num(-r.committedQty) : (r.committedBalanceQty > 0 ? '+' : '') + num(r.committedBalanceQty)}
+        <td className="num">{r.allowance ? dash : r.extra ? num(0) : num(r.budgetQty)}</td>
+        <td className="num">{r.allowance ? dash : num(r.committedQty)}</td>
+        <td className="num">{r.allowance ? dash : num(r.receivedQty)}</td>
+        <td className={'num ' + (!r.allowance && !r.extra && r.committedBalanceQty > 0 ? 'val-risk' : '')} style={r.extra ? { color: '#92660C' } : undefined}>
+          {r.allowance ? dash : r.extra ? num(-r.committedQty) : (r.committedBalanceQty > 0 ? '+' : '') + num(r.committedBalanceQty)}
         </td>
         <td className="num">{r.extra ? idr(0) : idr(r.budgetCost)}</td>
         <td className="num">{idr(r.actualCost)}</td>
@@ -111,7 +118,12 @@ function RowGroup({ r, isOpen, onToggle, db }) {
         <tr className="drill">
           <td colSpan={10}>
             <div className="drill-inner">
-              {r.boqItems.length > 0 ? (
+              {r.allowance ? (
+                <>
+                  <h4>Allowance (lump-sum budget)</h4>
+                  <p className="help" style={{ paddingLeft: 0 }}>Budgeted {idr(r.budgetCost)} — tracked by spend, not quantity{r.boqItems.some((b) => b.description) ? '. ' + r.boqItems.map((b) => b.description).filter(Boolean).join('; ') : ''}.</p>
+                </>
+              ) : r.boqItems.length > 0 ? (
                 <>
                   <h4>BoQ entries (plan)</h4>
                   <table className="table">
