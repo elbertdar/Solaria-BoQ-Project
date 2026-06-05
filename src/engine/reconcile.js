@@ -17,6 +17,27 @@ export function materialUnit(db, materialId) {
   return m ? m.defaultUnit : '';
 }
 
+export function brandsForMaterial(db, materialId) {
+  return (db.brands || []).filter((b) => b.materialId === materialId);
+}
+export function brandName(db, brandId) {
+  if (!brandId) return '';
+  const b = (db.brands || []).find((x) => x.id === brandId);
+  return b ? b.name : '(unknown brand)';
+}
+// Group a row's PRs by brand → [{ brandId, name, qty, cost }], for the Balance breakdown.
+export function brandBreakdown(db, prs) {
+  const by = new Map();
+  for (const p of prs) {
+    const key = p.brandId || '__none';
+    if (!by.has(key)) by.set(key, { brandId: p.brandId || null, name: p.brandId ? brandName(db, p.brandId) : 'Unspecified', qty: 0, cost: 0 });
+    const e = by.get(key);
+    e.qty += p.quantity || 0;
+    e.cost += (p.quantity || 0) * (p.unitCost || 0);
+  }
+  return [...by.values()].sort((a, b) => b.qty - a.qty);
+}
+
 export function boqForProject(db, projectId) {
   return db.boqItems.filter((b) => b.projectId === projectId);
 }

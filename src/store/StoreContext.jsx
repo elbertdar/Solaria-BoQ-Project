@@ -11,6 +11,7 @@ const StoreCtx = createContext(null);
 function normalize(d) {
   if (!Array.isArray(d.boqStaged)) d.boqStaged = [];
   if (!Array.isArray(d.boqEdits)) d.boqEdits = [];
+  if (!Array.isArray(d.brands)) d.brands = [];
   if (Array.isArray(d.projects)) for (const p of d.projects) if (!p.boqStatus) p.boqStatus = 'draft';
   if (Array.isArray(d.boqItems)) for (const b of d.boqItems) {
     if (!b.budgetBasis) b.budgetBasis = 'quantity';
@@ -200,6 +201,23 @@ export function StoreProvider({ children }) {
     return id;
   }, []);
 
+  // ---- Brands (per-material; one row each — never a list jammed in a cell) ----
+  const addBrand = useCallback((b) => {
+    const id = uid('br');
+    setDb((d) => ({ ...d, brands: [...(d.brands || []), { id, materialId: b.materialId, name: b.name }] }));
+    return id;
+  }, []);
+  const updateBrand = useCallback((id, patch) => {
+    setDb((d) => ({ ...d, brands: (d.brands || []).map((b) => b.id === id ? { ...b, ...patch } : b) }));
+  }, []);
+  const deleteBrand = useCallback((id) => {
+    setDb((d) => ({
+      ...d,
+      brands: (d.brands || []).filter((b) => b.id !== id),
+      prs: d.prs.map((p) => p.brandId === id ? { ...p, brandId: null } : p), // don't orphan PRs
+    }));
+  }, []);
+
   // ---- Material types (source of truth for every type dropdown / filter) ----
   const addMaterialType = useCallback((t) => {
     const id = uid('mt');
@@ -266,6 +284,7 @@ export function StoreProvider({ children }) {
         id,
         projectId,
         boqItemId: pr.boqItemId || null,              // null = extra (not in the BoQ plan)
+        brandId: pr.brandId || null,                  // which brand was actually bought (optional)
         materialId: boqItem ? boqItem.materialId : pr.materialId,  // inherited if linked, else explicit
         unit: boqItem ? boqItem.unit : (pr.unit || ''),
         quantity: Number(pr.quantity) || 0,
@@ -349,6 +368,7 @@ export function StoreProvider({ children }) {
     addBoqItem, updateBoqItem, patchBoqItem, deleteBoqItem, finalizeBoq,
     stageBoqModify, stageBoqAdd, editStagedAdd, stageBoqDelete, unstageBoq, discardBoqStaged, commitBoqStaged,
     addSupplier,
+    addBrand, updateBrand, deleteBrand,
     addMaterialType, updateMaterialType,
     addProject, updateProject, addMandor, updateMandor, deleteMandor,
     addUser, updateUser, deleteUser,
@@ -357,7 +377,7 @@ export function StoreProvider({ children }) {
     resetDb,
   }), [db, currentProjectId, addMaterial, updateMaterial, addAlias, removeAlias,
     addBoqItem, updateBoqItem, patchBoqItem, deleteBoqItem, finalizeBoq,
-    stageBoqModify, stageBoqAdd, editStagedAdd, stageBoqDelete, unstageBoq, discardBoqStaged, commitBoqStaged, addSupplier, addMaterialType, updateMaterialType, addProject, updateProject, addMandor, updateMandor, deleteMandor,
+    stageBoqModify, stageBoqAdd, editStagedAdd, stageBoqDelete, unstageBoq, discardBoqStaged, commitBoqStaged, addSupplier, addBrand, updateBrand, deleteBrand, addMaterialType, updateMaterialType, addProject, updateProject, addMandor, updateMandor, deleteMandor,
     addUser, updateUser, deleteUser,
     addPr, updatePr, setPrStatus, deletePr, importData, resetDb]);
 

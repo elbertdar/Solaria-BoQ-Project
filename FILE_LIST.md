@@ -3,13 +3,50 @@
 The source of truth for what files exist and where. **Updated every time we change something.**
 
 - **Last updated:** 5 Jun 2026
-- **Latest build:** Allowance (lump-sum) BoQ lines + reconciliation cleanup
+- **Latest build:** Brands (per-material variants on purchases)
 - **Run:** `npm run dev` from the project root · details + assumptions in `README.md`
 - **Total app files:** 22 under `src/` + `README.md`
 
 ---
 
-## ⚠ Files touched in the latest build (Allowance lines)
+## ⚠ Files touched in the latest build (Brands)
+
+Brands are variants of a material you actually buy (Gypsum → Jayaboard / Knauf / Aplus). They're
+**separate from suppliers** (who you buy from) and **separate from the BoQ budget** (which stays
+generic at the material level). A purchase records one brand; the project total still rolls up
+across all brands of that material — so a line budgeted 100 sheets can arrive as 60 Jayaboard +
+40 Knauf and still reconcile to 100.
+
+Storage stays clean / first-normal-form — no lists in a cell:
+- New `brands` collection: `{ id, materialId, name }`, **one row per brand**.
+- PR gains a scalar `brandId` (nullable FK) — exactly like `supplierPrimaryId`.
+- The "60 Jayaboard, 40 Knauf" view in Balance is **computed at render** (`brandBreakdown`),
+  never stored. Maps straight onto the Supabase plan (a `brands` table + `brand_id` FK).
+
+Where it shows:
+- **Material Catalogue** — a Brands column + **+ Brand** per material to manage the list.
+- **New/Edit PR** — a Brand dropdown filtered to the line's material, with inline "➕ Add a brand".
+- **Balance** drill-down — a "By brand (committed)" line + a Brand column on the PR table.
+- **Purchase Requests** — brand shown under the material name.
+
+Cost variance comes for free: a pricier brand's higher PR unit cost simply shows as a positive
+Δ Cost against the material's budget. (No per-brand price table — same scope cut as supplier pricing.)
+
+**Storage:** still **v10** — `normalize()` adds an empty `brands` array on load; existing data is
+untouched (no reseed). Deleting a brand nulls `brandId` on any PRs that used it (never orphaned).
+
+**Changed (7) — no new files:**
+- `src/engine/reconcile.js` — `brandsForMaterial`, `brandName`, `brandBreakdown`
+- `src/store/StoreContext.jsx` — `brands` collection; `addBrand`/`updateBrand`/`deleteBrand` (delete unlinks PRs); `addPr` carries `brandId`; `normalize` backfill
+- `src/data/seed.js` — demo brands for gypsum / cat / semen (fresh installs only)
+- `src/pages/CataloguePage.jsx` — Brands column + manage-brands modal
+- `src/components/PrModal.jsx` — brand picker filtered by material, inline add, resets on material change
+- `src/pages/ReconciliationPage.jsx` — by-brand breakdown + Brand column in the drill-down
+- `src/pages/PurchaseRequestsPage.jsx` — brand shown under the material
+
+---
+
+## Previous build (Allowance lines)
 
 Consumables you reorder (nails, sealant, sandpaper…) where a fixed quantity is meaningless can now
 be budgeted as an **allowance**: a lump-sum cost you track *spend* against, instead of a quantity.

@@ -125,3 +125,12 @@ export const seed = {
 for (const p of seed.projects) p.boqStatus = 'draft';
 seed.boqStaged = []; // Phase 2: uncommitted working-phase row changes
 seed.boqEdits = [];  // Phase 2: committed edit history (append-only)
+seed.brands = [      // per-material brand variants (one row each); brand is chosen at PR time
+  { id: 'br-gyp-jaya', materialId: 'mat-gypsum', name: 'Jayaboard' },
+  { id: 'br-gyp-knauf', materialId: 'mat-gypsum', name: 'Knauf' },
+  { id: 'br-gyp-aplus', materialId: 'mat-gypsum', name: 'Aplus' },
+  { id: 'br-cat-dulux', materialId: 'mat-cat', name: 'Dulux' },
+  { id: 'br-cat-jotun', materialId: 'mat-cat', name: 'Jotun' },
+  { id: 'br-semen-tigaroda', materialId: 'mat-semen', name: 'Tiga Roda' },
+  { id: 'br-semen-gresik', materialId: 'mat-semen', name: 'Gresik' },
+];

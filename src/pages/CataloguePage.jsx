@@ -6,10 +6,11 @@ import Modal from '../components/Modal.jsx';
 import { FilterBar, FilterSearch, FilterSelect } from '../components/ui.jsx';
 
 export default function CataloguePage() {
-  const { db, addMaterial, updateMaterial, addAlias, removeAlias } = useStore();
+  const { db, addMaterial, updateMaterial, addAlias, removeAlias, addBrand, deleteBrand } = useStore();
   const [adding, setAdding] = useState(false);
   const [editMat, setEditMat] = useState(null);
   const [aliasFor, setAliasFor] = useState(null);
+  const [brandFor, setBrandFor] = useState(null);
   const [q, setQ] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
 
@@ -44,7 +45,7 @@ export default function CataloguePage() {
         <div className="card-body flush">
           <table className="table">
             <thead>
-              <tr><th>Canonical name</th><th>Type</th><th>Default unit</th><th className="num">Est. unit cost</th><th className="num">Lead time</th><th>Aliases</th><th></th></tr>
+              <tr><th>Canonical name</th><th>Type</th><th>Default unit</th><th className="num">Est. unit cost</th><th className="num">Lead time</th><th>Aliases</th><th>Brands</th><th></th></tr>
             </thead>
             <tbody>
               {filtered.map((m) => (
@@ -65,14 +66,28 @@ export default function CataloguePage() {
                       </span>
                     ))}
                   </td>
+                  <td>
+                    {(() => {
+                      const bs = db.brands.filter((b) => b.materialId === m.id);
+                      return bs.length === 0
+                        ? <span className="muted">—</span>
+                        : bs.map((b) => (
+                          <span className="chip alias" key={b.id}>
+                            {b.name}
+                            <span style={{ cursor: 'pointer', marginLeft: 6, opacity: .6 }} onClick={() => deleteBrand(b.id)}>×</span>
+                          </span>
+                        ));
+                    })()}
+                  </td>
                   <td className="num" style={{ whiteSpace: 'nowrap' }}>
                     <button className="btn sm ghost" onClick={() => setEditMat(m)}>Edit</button>{' '}
-                    <button className="btn sm ghost" onClick={() => setAliasFor(m)}>+ Alias</button>
+                    <button className="btn sm ghost" onClick={() => setAliasFor(m)}>+ Alias</button>{' '}
+                    <button className="btn sm ghost" onClick={() => setBrandFor(m)}>+ Brand</button>
                   </td>
                 </tr>
               ))}
               {filtered.length === 0 && (
-                <tr><td colSpan={7}><div className="empty">{db.materials.length === 0 ? 'No materials yet.' : 'No materials match these filters.'}</div></td></tr>
+                <tr><td colSpan={8}><div className="empty">{db.materials.length === 0 ? 'No materials yet.' : 'No materials match these filters.'}</div></td></tr>
               )}
             </tbody>
           </table>
@@ -85,7 +100,37 @@ export default function CataloguePage() {
         onSave={(vals) => { updateMaterial(editMat.id, vals); setEditMat(null); }} types={db.materialTypes} materials={db.materials} />}
       {aliasFor && <AddAlias material={aliasFor} onClose={() => setAliasFor(null)}
         onAdd={(a) => { addAlias(aliasFor.id, a); setAliasFor(null); }} />}
+      {brandFor && <ManageBrands material={brandFor} brands={db.brands.filter((b) => b.materialId === brandFor.id)}
+        onClose={() => setBrandFor(null)} onAdd={(name) => addBrand({ materialId: brandFor.id, name })} onDelete={deleteBrand} />}
     </>
+  );
+}
+
+function ManageBrands({ material, brands, onClose, onAdd, onDelete }) {
+  const [name, setName] = useState('');
+  const add = () => { const n = name.trim(); if (n) { onAdd(n); setName(''); } };
+  return (
+    <Modal title={`Brands · ${material.canonicalName}`} onClose={onClose}
+      footer={<button className="btn primary" onClick={onClose}>Done</button>}>
+      <p className="help" style={{ marginTop: 0 }}>
+        Variants of <b>{material.canonicalName}</b> you actually buy (e.g. Jayaboard, Knauf). Pick one per purchase request — the project total still rolls up across all brands.
+      </p>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, margin: '8px 0 14px' }}>
+        {brands.length === 0 && <span className="muted">No brands yet.</span>}
+        {brands.map((b) => (
+          <span className="chip alias" key={b.id}>
+            {b.name}
+            <span style={{ cursor: 'pointer', marginLeft: 6, opacity: .6 }} onClick={() => onDelete(b.id)}>×</span>
+          </span>
+        ))}
+      </div>
+      <label className="lbl">Add a brand</label>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <input type="text" value={name} autoFocus placeholder="e.g. Jayaboard"
+          onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') add(); }} />
+        <button className="btn" onClick={add}>Add</button>
+      </div>
+    </Modal>
   );
 }
 

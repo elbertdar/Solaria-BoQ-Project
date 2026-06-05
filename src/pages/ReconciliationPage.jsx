@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useStore, useProject } from '../store/StoreContext.jsx';
-import { summarizeProject } from '../engine/reconcile.js';
+import { summarizeProject, brandName, brandBreakdown } from '../engine/reconcile.js';
 import { ProjectBar, AlertBanner, StatusPill, FilterBar, FilterSearch, FilterSelect } from '../components/ui.jsx';
 import { idr, num, fmtDate } from '../engine/format.js';
+import { COMMITTED_STATUSES } from '../theme.js';
 
 export default function ReconciliationPage() {
   const { db, currentProjectId } = useStore();
@@ -146,17 +147,28 @@ function RowGroup({ r, isOpen, onToggle, db }) {
               )}
 
               <h4>Purchase requests (actual)</h4>
+              {(() => {
+                const bd = brandBreakdown(db, r.prs.filter((p) => COMMITTED_STATUSES.includes(p.status)));
+                const show = bd.length > 1 || (bd.length === 1 && bd[0].brandId);
+                if (!show) return null;
+                return (
+                  <p className="help" style={{ paddingLeft: 0, marginTop: 0 }}>
+                    <b>By brand (committed):</b> {bd.map((e) => `${e.name} — ${num(e.qty)}${r.unit ? ' ' + r.unit : ''} (${idr(e.cost)})`).join(',  ')}
+                  </p>
+                );
+              })()}
               {r.prs.length === 0 ? (
                 <p className="help" style={{ paddingLeft: 0 }}>No PRs raised for this material yet.</p>
               ) : (
                 <table className="table">
-                  <thead><tr><th>Status</th><th className="num">Qty</th><th>Unit</th><th className="num">Unit cost</th><th>Supplier</th><th>Receipt</th></tr></thead>
+                  <thead><tr><th>Status</th><th className="num">Qty</th><th>Unit</th><th>Brand</th><th className="num">Unit cost</th><th>Supplier</th><th>Receipt</th></tr></thead>
                   <tbody>
                     {r.prs.map((p) => (
                       <tr key={p.id}>
                         <td><StatusPill status={p.status} /></td>
                         <td className="num">{num(p.quantity)}</td>
                         <td>{p.unit}</td>
+                        <td>{p.brandId ? brandName(db, p.brandId) : <span className="muted">—</span>}</td>
                         <td className="num">{idr(p.unitCost)}</td>
                         <td>{db.suppliers.find((s) => s.id === p.supplierPrimaryId)?.name || '—'}</td>
                         <td>{fmtDate(p.receiptDate)}</td>

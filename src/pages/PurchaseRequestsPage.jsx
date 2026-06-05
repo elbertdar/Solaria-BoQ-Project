@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useStore, useProject } from '../store/StoreContext.jsx';
-import { prsForProject, materialName, isExtraPr } from '../engine/reconcile.js';
+import { prsForProject, materialName, isExtraPr, brandName } from '../engine/reconcile.js';
 import { ProjectBar, StatusPill, FilterBar, FilterSearch, FilterSelect } from '../components/ui.jsx';
 import PrModal from '../components/PrModal.jsx';
 import Modal from '../components/Modal.jsx';
@@ -77,7 +77,7 @@ export default function PurchaseRequestsPage() {
             <tbody>
               {filtered.map((p) => (
                 <tr key={p.id}>
-                  <td className="mat-link">{materialName(db, p.materialId)}{isExtraPr(db, p) && <span className="pill" style={{ background: '#FEF3C7', color: '#92660C', border: '1px solid #FDE68A', marginLeft: 6, fontSize: 11 }}>Extra</span>}</td>
+                  <td className="mat-link">{materialName(db, p.materialId)}{isExtraPr(db, p) && <span className="pill" style={{ background: '#FEF3C7', color: '#92660C', border: '1px solid #FDE68A', marginLeft: 6, fontSize: 11 }}>Extra</span>}{p.brandId && <div className="muted" style={{ fontSize: 11 }}>{brandName(db, p.brandId)}</div>}</td>
                   <td><StatusPill status={p.status} /></td>
                   <td className="num">{num(p.quantity)}</td>
                   <td>{p.unit}</td>

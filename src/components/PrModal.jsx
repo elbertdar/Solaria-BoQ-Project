@@ -1,12 +1,12 @@
 import { useMemo, useState } from 'react';
 import Modal from './Modal.jsx';
 import { useStore } from '../store/StoreContext.jsx';
-import { checkProspectivePr, materialName, boqForProject, remainingQty } from '../engine/reconcile.js';
+import { checkProspectivePr, materialName, boqForProject, remainingQty, brandsForMaterial } from '../engine/reconcile.js';
 import { PR_FLOW, PR_STATUS } from '../theme.js';
 import { idr, today } from '../engine/format.js';
 
 export default function PrModal({ pr = null, boqItem = null, onClose }) {
-  const { db, currentProjectId, addPr, updatePr, deletePr } = useStore();
+  const { db, currentProjectId, addPr, updatePr, deletePr, addBrand } = useStore();
   const editing = !!pr;
   const raising = !editing && !!boqItem;
   const editingExtra = editing && !db.boqItems.some((b) => b.id === pr.boqItemId); // editing a PR with no live line
@@ -18,6 +18,9 @@ export default function PrModal({ pr = null, boqItem = null, onClose }) {
   const [boqItemId, setBoqItemId] = useState(initialBoqId);
   const [extraMatId, setExtraMatId] = useState(editingExtra ? pr.materialId : '');
   const [extraUnit, setExtraUnit] = useState(editingExtra ? (pr.unit || '') : '');
+  const [brandId, setBrandId] = useState(pr?.brandId ?? '');
+  const [addingBrand, setAddingBrand] = useState(false);
+  const [newBrand, setNewBrand] = useState('');
   const [quantity, setQuantity] = useState(
     editing ? (pr.quantity ?? '') : (raising && initialBoqItem?.budgetBasis !== 'allowance' ? String(remainingQty(db, initialBoqId)) : ''));
   const [unitCost, setUnitCost] = useState(
@@ -38,6 +41,7 @@ export default function PrModal({ pr = null, boqItem = null, onClose }) {
   const effUnit = extra ? extraUnit : (selectedBoq?.unit || '');
   const matName = effMatId ? materialName(db, effMatId) : '—';
   const unit = effUnit;
+  const matBrands = effMatId ? brandsForMaterial(db, effMatId) : [];
 
   // Recommend suppliers whose category tags match the material's type (BR-style nicety).
   const matTypeId = effMatId ? db.materials.find((m) => m.id === effMatId)?.materialTypeId : null;
@@ -73,6 +77,7 @@ export default function PrModal({ pr = null, boqItem = null, onClose }) {
       projectId: currentProjectId,
       materialId: effMatId,
       unit: effUnit,
+      brandId: brandId || null,
       quantity, unitCost,
       supplierPrimaryId: supplierPrimaryId || null,
       supplierSecondaryId: supplierSecondaryId || null,
@@ -127,6 +132,7 @@ export default function PrModal({ pr = null, boqItem = null, onClose }) {
               const id = e.target.value;
               setBoqItemId(id);
               setAckOver(false);
+              setBrandId('');
               if (raising && id && id !== '__extra') {   // Raise PR auto-fills qty + cost from the line
                 const nb = db.boqItems.find((b) => b.id === id);
                 setQuantity(nb?.budgetBasis === 'allowance' ? '' : String(remainingQty(db, id)));
@@ -149,7 +155,7 @@ export default function PrModal({ pr = null, boqItem = null, onClose }) {
           <label className="lbl">Material{extra ? <span className="req"> *</span> : ' (inherited)'}</label>
           {extra ? (
             <select className="input" value={extraMatId} onChange={(e) => {
-              const mid = e.target.value; setExtraMatId(mid);
+              const mid = e.target.value; setExtraMatId(mid); setBrandId('');
               const m = db.materials.find((x) => x.id === mid);
               if (m && !extraUnit) setExtraUnit(m.defaultUnit);
             }}>
@@ -167,6 +173,27 @@ export default function PrModal({ pr = null, boqItem = null, onClose }) {
           ) : (
             <div className="readonly-val">{unit || '—'}</div>
           )}
+        </div>
+
+        <div>
+          <label className="lbl">Brand</label>
+          {addingBrand ? (
+            <div style={{ display: 'flex', gap: 6 }}>
+              <input type="text" value={newBrand} autoFocus placeholder="Brand name"
+                onChange={(e) => setNewBrand(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { const n = newBrand.trim(); if (n && effMatId) { setBrandId(addBrand({ materialId: effMatId, name: n })); setNewBrand(''); setAddingBrand(false); } } }} />
+              <button className="btn sm" onClick={() => { const n = newBrand.trim(); if (n && effMatId) { setBrandId(addBrand({ materialId: effMatId, name: n })); setNewBrand(''); setAddingBrand(false); } }}>Add</button>
+              <button className="btn sm ghost" onClick={() => { setAddingBrand(false); setNewBrand(''); }}>✕</button>
+            </div>
+          ) : (
+            <select className="input" value={brandId} disabled={!effMatId}
+              onChange={(e) => { if (e.target.value === '__new') { if (effMatId) setAddingBrand(true); } else setBrandId(e.target.value); }}>
+              <option value="">— Unspecified —</option>
+              {matBrands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+              {effMatId && <option value="__new">➕ Add a brand…</option>}
+            </select>
+          )}
+          {!effMatId && <div className="help">Pick a material first to choose a brand.</div>}
         </div>
 
         <div>
