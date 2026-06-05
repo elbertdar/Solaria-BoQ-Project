@@ -3,13 +3,35 @@
 The source of truth for what files exist and where. **Updated every time we change something.**
 
 - **Last updated:** 5 Jun 2026
-- **Latest build:** Brands (per-material variants on purchases)
+- **Latest build:** This Week → Worklist / Timeline toggle (portfolio Gantt by region)
 - **Run:** `npm run dev` from the project root · details + assumptions in `README.md`
-- **Total app files:** 22 under `src/` + `README.md`
+- **Total app files:** 23 under `src/` + `README.md`
 
 ---
 
-## ⚠ Files touched in the latest build (Brands)
+## ⚠ Files touched in the latest build (Portfolio timeline)
+
+**This Week** now has a **Worklist | Timeline** toggle (top-right, under the KPIs). Worklist is the
+existing bucketed view (order now / overdue / late / next week). **Timeline** is a new portfolio
+Gantt: one bar per project, **grouped by region** (the project's location).
+
+A project's bar runs from its **first planned order date** to its **last planned order + lead time**
+(i.e. the final planned delivery), computed from the schedule engine — needed-by day minus lead, in
+business days. **Projects whose BoQ isn't confirmed (still draft) don't appear**, and neither do
+projects with no schedulable lines (e.g. only allowance lines, which have no order-by date). Bars
+are clickable → open the project's Overview. A red line marks today; each region gets its own hue.
+
+No schema change — this is a pure read over existing data. **Storage stays v10.**
+
+**Changed (3) + 1 new file:**
+- `src/engine/schedule.js` — new `portfolioGantt(db, today)`: per-project window (min order → max delivery), grouped + sorted by region, draft/unschedulable excluded
+- `src/components/PortfolioGantt.jsx` — **NEW** — month-axis Gantt, region groups, today marker, click-to-open
+- `src/pages/DashboardPage.jsx` — Worklist/Timeline `.seg` toggle; renders the Gantt card
+- `src/index.css` — `.pg-*` gantt styles
+
+---
+
+## Previous build (Brands)
 
 Brands are variants of a material you actually buy (Gypsum → Jayaboard / Knauf / Aplus). They're
 **separate from suppliers** (who you buy from) and **separate from the BoQ budget** (which stays

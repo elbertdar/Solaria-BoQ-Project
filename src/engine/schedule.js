@@ -224,3 +224,39 @@ export function agendaBuckets(lines, today = todayLocal()) {
   }
   return buckets;
 }
+
+// ---- portfolio Gantt: project procurement windows, grouped by region ----
+// Each working project becomes a bar from its FIRST planned order date to its LAST
+// planned order + lead time (i.e. the final planned delivery). Draft BoQs are excluded.
+export function portfolioGantt(db, today = todayLocal()) {
+  const projects = [];
+  for (const p of db.projects.filter((x) => x.boqStatus === 'working')) {
+    const { lines } = scheduleForProject(db, p.id, today);
+    const orders = lines.map((l) => l.orderDate).filter(Boolean);
+    const arrivals = lines.map((l) => l.neededDate).filter(Boolean);
+    if (orders.length === 0 || arrivals.length === 0) continue; // no schedulable window → not shown
+    const start = new Date(Math.min(...orders.map((d) => d.getTime())));
+    const end = new Date(Math.max(...arrivals.map((d) => d.getTime())));
+    projects.push({
+      id: p.id, name: p.name, code: p.code || p.name,
+      region: p.location || 'Unspecified',
+      start, end,
+      durationDays: Math.max(1, Math.round((end - start) / 86400000)),
+      lineCount: lines.length,
+      active: start <= today && today <= end,
+    });
+  }
+  if (projects.length === 0) return { regions: [], min: null, max: null, today };
+
+  const min = new Date(Math.min(...projects.map((p) => p.start.getTime())));
+  const max = new Date(Math.max(...projects.map((p) => p.end.getTime())));
+  const byRegion = new Map();
+  for (const p of projects) {
+    if (!byRegion.has(p.region)) byRegion.set(p.region, []);
+    byRegion.get(p.region).push(p);
+  }
+  const regions = [...byRegion.entries()]
+    .map(([region, projs]) => ({ region, projects: projs.sort((a, b) => a.start - b.start) }))
+    .sort((a, b) => a.region.localeCompare(b.region));
+  return { regions, min, max, today, count: projects.length };
+}

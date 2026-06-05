@@ -5,8 +5,9 @@ import { KpiCard } from '../components/ui.jsx';
 import Modal from '../components/Modal.jsx';
 import ReceiveModal from '../components/ReceiveModal.jsx';
 import NewProjectModal from '../components/NewProjectModal.jsx';
-import { portfolioWorklist, todayLocal, addDays, toISO, computeLine } from '../engine/schedule.js';
+import { portfolioWorklist, todayLocal, addDays, toISO, computeLine, portfolioGantt } from '../engine/schedule.js';
 import { fmtDate, today as todayISO } from '../engine/format.js';
+import PortfolioGantt from '../components/PortfolioGantt.jsx';
 
 const TONE = { overdue: '#E11D48', late: '#8B5CF6', orderNow: '#EAB308', awaiting: '#0EA5E9', done: '#16A34A', neutral: '#94A3B8' };
 const BORDER = '#E5E7EB';
@@ -22,6 +23,8 @@ export default function DashboardPage() {
   const [pushFor, setPushFor] = useState(null);
   const [snoozeFor, setSnoozeFor] = useState(null);
   const [newProject, setNewProject] = useState(false);
+  const [view, setView] = useState('worklist');
+  const gantt = portfolioGantt(db, today);
 
   const openProject = (projectId, route = '/boq') => { setCurrentProjectId(projectId); nav(route); };
 
@@ -64,6 +67,28 @@ export default function DashboardPage() {
         <KpiCard label="Snoozed" value={wl.health.snoozed} sub="late items you’re tracking" />
       </div>
 
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 14 }}>
+        <div className="seg">
+          <button className={view === 'worklist' ? 'active' : ''} onClick={() => setView('worklist')}>Worklist</button>
+          <button className={view === 'timeline' ? 'active' : ''} onClick={() => setView('timeline')}>Timeline</button>
+        </div>
+      </div>
+
+      {view === 'timeline' && (
+        <div className="card">
+          <div className="card-head">
+            <h2>Project timeline</h2>
+            <span className="muted" style={{ fontSize: 12.5 }}>· procurement window per project, grouped by region — first order → last delivery</span>
+            <div className="spacer" style={{ flex: 1 }} />
+            <span className="pill gray">{gantt.count || 0}</span>
+          </div>
+          <div className="card-body" style={{ overflowX: 'auto' }}>
+            <PortfolioGantt gantt={gantt} onOpen={(id) => openProject(id, '/overview')} />
+          </div>
+        </div>
+      )}
+
+      {view === 'worklist' && (<>
       {/* action lists */}
       <Bucket
         title="Order this week" tone="orderNow"
@@ -107,6 +132,7 @@ export default function DashboardPage() {
           action={() => null} onOpen={openProject} db={db}
         />
       )}
+      </>)}
 
       {receiveFor && (
         <ReceiveModal title={`Mark received · ${receiveFor.materialName}`} onClose={() => setReceiveFor(null)}
