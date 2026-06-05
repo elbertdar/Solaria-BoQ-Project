@@ -152,7 +152,9 @@ function ActiveTable({ rows, onOpen }) {
                     {received}/{items}
                     <div className="muted" style={{ fontSize: 12 }}>received</div>
                   </td>
-                  <td>{attention > 0 ? pill(`⚠ ${attention} to act on`, 'risk') : pill('On track', 'ok')}</td>
+                  <td>{p.boqStatus !== 'working'
+                    ? <span className="pill gray">Draft</span>
+                    : attention > 0 ? pill(`⚠ ${attention} to act on`, 'risk') : pill('On track', 'ok')}</td>
                 </tr>
               );
             })}

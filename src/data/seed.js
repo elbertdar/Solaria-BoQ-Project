@@ -117,16 +117,9 @@ export const seed = {
 
   // Purchase Requests (Feature 5.4). Material inherited from BoQ item (BR-1).
   // Triplek is deliberately over budget (committed 120 vs budget 100) → warning.
-  prs: [
-    { id: 'pr-1', boqItemId: 'b-3', materialId: 'mat-triplek', quantity: 70, unit: 'lembar', supplierPrimaryId: 's-1', supplierSecondaryId: 's-2', picId: 'u-pic-1', unitCost: 122000, status: 'received', orderDate: '2026-05-20', receiptDate: '2026-05-28', createdAt: '2026-05-19T03:00:00.000Z' },
-    { id: 'pr-2', boqItemId: 'b-3', materialId: 'mat-triplek', quantity: 50, unit: 'lembar', supplierPrimaryId: 's-1', supplierSecondaryId: null, picId: 'u-pic-1', unitCost: 125000, status: 'ordered', orderDate: '2026-05-30', receiptDate: null, createdAt: '2026-05-29T04:00:00.000Z' },
-    { id: 'pr-3', boqItemId: 'b-8', materialId: 'mat-besi', quantity: 120, unit: 'batang', supplierPrimaryId: 's-4', supplierSecondaryId: null, picId: 'u-pic-2', unitCost: 93000, status: 'received', orderDate: '2026-05-12', receiptDate: '2026-05-22', createdAt: '2026-05-11T02:00:00.000Z' },
-    { id: 'pr-4', boqItemId: 'b-9', materialId: 'mat-semen', quantity: 150, unit: 'sak', supplierPrimaryId: 's-4', supplierSecondaryId: 's-1', picId: 'u-pic-2', unitCost: 61500, status: 'received', orderDate: '2026-05-13', receiptDate: '2026-05-21', createdAt: '2026-05-12T02:10:00.000Z' },
-    { id: 'pr-5', boqItemId: 'b-6', materialId: 'mat-kabel', quantity: 18, unit: 'roll', supplierPrimaryId: 's-3', supplierSecondaryId: null, picId: 'u-pic-1', unitCost: 1480000, status: 'ordered', orderDate: '2026-05-22', receiptDate: null, createdAt: '2026-05-21T06:00:00.000Z' },
-    { id: 'pr-6', boqItemId: 'b-1', materialId: 'mat-gypsum', quantity: 100, unit: 'lembar', supplierPrimaryId: 's-2', supplierSecondaryId: 's-1', picId: 'u-pic-1', unitCost: 64000, status: 'quoted', orderDate: null, receiptDate: null, createdAt: '2026-05-28T08:00:00.000Z' },
-    { id: 'pr-7', boqItemId: 'b-19', materialId: 'mat-semen', quantity: 60, unit: 'sak', supplierPrimaryId: 's-4', supplierSecondaryId: null, picId: 'u-pic-1', unitCost: 61500, status: 'received', orderDate: daysAgoISO(28), receiptDate: daysAgoISO(18), createdAt: daysAgoISO(29) + 'T02:00:00.000Z' },
-    { id: 'pr-8', boqItemId: 'b-20', materialId: 'mat-besi', quantity: 40, unit: 'batang', supplierPrimaryId: 's-1', supplierSecondaryId: 's-2', picId: 'u-pic-2', unitCost: 94000, status: 'received', orderDate: daysAgoISO(26), receiptDate: daysAgoISO(16), createdAt: daysAgoISO(27) + 'T02:00:00.000Z' },
-    { id: 'pr-9', boqItemId: 'b-21', materialId: 'mat-gypsum', quantity: 90, unit: 'lembar', supplierPrimaryId: 's-2', supplierSecondaryId: null, picId: 'u-pic-1', unitCost: 64500, status: 'received', orderDate: daysAgoISO(45), receiptDate: daysAgoISO(35), createdAt: daysAgoISO(46) + 'T02:00:00.000Z' },
-    { id: 'pr-10', boqItemId: 'b-22', materialId: 'mat-keramik', quantity: 55, unit: 'm2', supplierPrimaryId: 's-5', supplierSecondaryId: 's-1', picId: 'u-pic-2', unitCost: 148000, status: 'received', orderDate: daysAgoISO(42), receiptDate: daysAgoISO(30), createdAt: daysAgoISO(43) + 'T02:00:00.000Z' },
-  ],
+  prs: [],
 };
+
+// Phase 1 posture: the BoQ is filled in but starts as a DRAFT on every project, and there
+// are no purchase requests yet — the user finalizes a BoQ and raises PRs from there.
+for (const p of seed.projects) p.boqStatus = 'draft';

@@ -78,10 +78,10 @@ export default function ReconciliationPage() {
       </div>
 
       <p className="help">
-        Balance is quantity-based: received − budget (positive means over). <em>Actual cost</em> counts
+        Balance is quantity-based: committed − budget (positive means over). <em>Actual cost</em> counts
         committed orders (ordered + received) at their PR unit cost — once an order is placed, its cost is
         treated as actual, so the budget impact (Δ Cost) appears at order time rather than after delivery.
-        The over-budget banner fires on committed quantity, catching over-ordering before it arrives.
+        Balance and the over-budget banner both fire on committed quantity, catching over-ordering before it arrives.
       </p>
     </>
   );
@@ -96,8 +96,8 @@ function RowGroup({ r, isOpen, onToggle, db }) {
         <td className="num">{num(r.budgetQty)}</td>
         <td className="num">{num(r.committedQty)}</td>
         <td className="num">{num(r.receivedQty)}</td>
-        <td className={'num ' + (r.balanceQty > 0 ? 'val-risk' : '')}>
-          {r.balanceQty > 0 ? '+' : ''}{num(r.balanceQty)}
+        <td className={'num ' + (r.committedBalanceQty > 0 ? 'val-risk' : '')}>
+          {r.committedBalanceQty > 0 ? '+' : ''}{num(r.committedBalanceQty)}
         </td>
         <td className="num">{idr(r.budgetCost)}</td>
         <td className="num">{idr(r.actualCost)}</td>

@@ -10,6 +10,7 @@ import { PR_FLOW, PR_STATUS } from '../theme.js';
 export default function PurchaseRequestsPage() {
   const { db, currentProjectId, setPrStatus } = useStore();
   const project = useProject();
+  const draft = project?.boqStatus !== 'working';
   const prs = [...prsForProject(db, currentProjectId)]
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
@@ -46,7 +47,7 @@ export default function PurchaseRequestsPage() {
           <h1>Purchase Requests</h1>
           <p className="sub">{project.name} · the realized counterpart to the BoQ — what’s actually been ordered</p>
         </div>
-        <button className="btn primary" onClick={() => setModal(null)}>+ New PR</button>
+        <button className="btn primary" disabled={draft} onClick={() => setModal(null)}>+ New PR</button>
       </div>
 
       <FilterBar shown={filtered.length} total={prs.length} unit="PRs">
@@ -56,6 +57,12 @@ export default function PurchaseRequestsPage() {
         <FilterSelect value={supplierFilter} onChange={setSupplierFilter} allLabel="All suppliers" width={200}
           options={db.suppliers.map((s) => ({ value: s.id, label: s.name }))} />
       </FilterBar>
+
+      {draft && (
+        <div className="banner" style={{ background: '#FFFBEB', border: '1px solid #FDE9C8', color: '#92660C', borderRadius: 10, padding: '11px 14px', marginBottom: 14, fontSize: 13.3 }}>
+          <b>{project.name}’s BoQ is still a draft.</b> Finalize it on the Bill of Quantities page to start raising purchase requests.
+        </div>
+      )}
 
       <div className="card">
         <div className="card-body flush">

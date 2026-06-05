@@ -159,7 +159,9 @@ export function dayColOf(date, baseDay, span) {
 // ---- portfolio worklist (the dashboard) ----
 export function portfolioWorklist(db, today = todayLocal()) {
   const proj = (id) => db.projects.find((p) => p.id === id);
-  const lines = db.boqItems.map((b) => ({ ...computeLine(db, b, today), project: proj(b.projectId) }));
+  const lines = db.boqItems
+    .map((b) => ({ ...computeLine(db, b, today), project: proj(b.projectId) }))
+    .filter((l) => l.project && l.project.boqStatus === 'working'); // draft BoQs aren't in procurement yet
 
   const byOrder = (a, b) => (a.orderDate?.getTime() ?? Infinity) - (b.orderDate?.getTime() ?? Infinity);
   const byArrival = (a, b) => (a.effectiveArrival?.getTime() ?? Infinity) - (b.effectiveArrival?.getTime() ?? Infinity);
@@ -176,7 +178,7 @@ export function portfolioWorklist(db, today = todayLocal()) {
       lateDelivery: lateDelivery.length, orderNextWeek: orderNextWeek.length,
     },
     health: {
-      activeProjects: db.projects.length,
+      activeProjects: db.projects.filter((p) => p.boqStatus === 'working').length,
       overBudget: lines.filter((l) => l.overBudget).length,
       openPos: db.prs.filter((p) => p.status === 'ordered').length,
       snoozed: lines.filter((l) => l.snoozedActive && l.state === 'awaiting').length,

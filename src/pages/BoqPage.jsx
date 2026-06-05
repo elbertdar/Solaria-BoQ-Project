@@ -11,8 +11,9 @@ import { idr, fmtDate, num } from '../engine/format.js';
 const dnum = (start, date) => (start && date ? Math.round((date - start) / 86400000) : null);
 
 export default function BoqPage() {
-  const { db, currentProjectId } = useStore();
+  const { db, currentProjectId, patchBoqItem, addBoqItem, deleteBoqItem, finalizeBoq } = useStore();
   const project = useProject();
+  const draft = project?.boqStatus !== 'working';
   const items = boqForProject(db, currentProjectId);
   const start = projectStart(db, currentProjectId);
 
@@ -21,6 +22,7 @@ export default function BoqPage() {
   const [prFor, setPrFor] = useState(null);
   const [q, setQ] = useState('');
   const [mandorFilter, setMandorFilter] = useState('');
+  const [confirmingFinalize, setConfirmingFinalize] = useState(false);
 
   const mandorName = (id) => db.mandors.find((m) => m.id === id)?.name || 'Unassigned';
 
@@ -43,6 +45,66 @@ export default function BoqPage() {
     }
     return [...map.entries()].map(([k, rows]) => ({ key: k, label: mandorName(k), rows }));
   }, [filtered, grouped, db.mandors]);
+
+  if (draft) {
+    return (
+      <>
+        <div className="page-head" style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+          <div>
+            <h1>Bill of Quantities</h1>
+            <p className="sub">{project.name} · Draft — shape the plan like a spreadsheet, then finalize</p>
+          </div>
+          <button className="btn primary" onClick={() => setConfirmingFinalize(true)}>Finalize BoQ</button>
+        </div>
+
+        <FilterBar shown={filtered.length} total={items.length} unit="items">
+          <ProjectBar embedded />
+          <FilterSearch value={q} onChange={setQ} placeholder="Search material or description…" />
+        </FilterBar>
+
+        <div className="banner" style={{ background: '#FFFBEB', border: '1px solid #FDE9C8', color: '#92660C', borderRadius: 10, padding: '11px 14px', marginBottom: 14, fontSize: 13.3 }}>
+          <b>Draft.</b> Add, edit, and delete rows freely — changes apply as you type. Finalize to lock this as the project’s BoQ and begin raising purchase orders. Ordering stays disabled until then.
+        </div>
+
+        <div className="card">
+          <div className="card-body flush">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Material</th><th>Description</th><th>Mandor</th>
+                  <th className="num">Qty</th><th>Unit</th><th className="num">Exp. unit cost</th>
+                  <th className="num">Needed (day)</th><th className="num">Order by</th><th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((b) => (
+                  <DraftRow key={b.id} b={b} db={db} start={start} onPatch={patchBoqItem} onDelete={deleteBoqItem} />
+                ))}
+                {filtered.length === 0 && (
+                  <tr><td colSpan={9}><div className="empty">{items.length === 0 ? 'Empty BoQ — add the first row.' : 'No rows match your search.'}</div></td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div style={{ marginTop: 12 }}>
+          <button className="btn" onClick={() => addBoqItem({ projectId: currentProjectId, materialId: '', description: '', quantity: 0, unit: '', expectedUnitCost: 0, neededDayOffset: 0, mandorId: '' })}>+ Add row</button>
+        </div>
+
+        {confirmingFinalize && (
+          <Modal title="Finalize BoQ" onClose={() => setConfirmingFinalize(false)}
+            footer={<>
+              <button className="btn ghost" onClick={() => setConfirmingFinalize(false)}>Cancel</button>
+              <button className="btn primary" onClick={() => { finalizeBoq(currentProjectId); setConfirmingFinalize(false); }}>Finalize</button>
+            </>}>
+            <p style={{ marginTop: 0 }}>Lock <b>{project.name}</b>’s BoQ as the working plan?</p>
+            <p className="help" style={{ marginBottom: 0 }}>After finalizing, editing becomes deliberate (via the Edit button) and you can start raising purchase orders against these lines. You can’t return to draft.</p>
+          </Modal>
+        )}
+      </>
+    );
+  }
 
   return (
     <>
@@ -319,5 +381,47 @@ function BoqModal({ item, onClose }) {
 
       {error && <div className="inline-warn"><span>•</span><div>{error}</div></div>}
     </Modal>
+  );
+}
+
+const CELL = { width: '100%', boxSizing: 'border-box', padding: '5px 8px', border: '1px solid #E5E7EB', borderRadius: 7, font: 'inherit', fontSize: 13 };
+
+function DraftRow({ b, db, start, onPatch, onDelete }) {
+  const lead = b.leadTimeDays != null ? b.leadTimeDays : leadTimeFor(db, b.materialId);
+  const neededDate = (start && b.neededDayOffset != null) ? addDays(start, b.neededDayOffset) : null;
+  const orderDate = (neededDate && lead != null) ? addBusinessDays(neededDate, -lead) : null;
+  const orderDay = dnum(start, orderDate);
+  const numOrNull = (v) => (v === '' ? null : Number(v));
+  return (
+    <tr>
+      <td>
+        <select className="input" style={{ minWidth: 150 }} value={b.materialId || ''} onChange={(e) => {
+          const mid = e.target.value;
+          const m = db.materials.find((x) => x.id === mid);
+          onPatch(b.id, { materialId: mid, ...(m ? { unit: m.defaultUnit, expectedUnitCost: m.estUnitCost } : {}) });
+        }}>
+          <option value="">— select —</option>
+          {db.materials.map((m) => <option key={m.id} value={m.id}>{m.canonicalName}</option>)}
+        </select>
+      </td>
+      <td><input style={CELL} value={b.description || ''} placeholder="description"
+        onChange={(e) => onPatch(b.id, { description: e.target.value })} /></td>
+      <td>
+        <select className="input" style={{ minWidth: 120 }} value={b.mandorId || ''} onChange={(e) => onPatch(b.id, { mandorId: e.target.value })}>
+          <option value="">Unassigned</option>
+          {db.mandors.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+        </select>
+      </td>
+      <td className="num"><input type="number" style={{ ...CELL, width: 72, textAlign: 'right' }} value={b.quantity ?? ''}
+        onChange={(e) => onPatch(b.id, { quantity: numOrNull(e.target.value) ?? 0 })} /></td>
+      <td><input style={{ ...CELL, width: 84 }} value={b.unit || ''} placeholder="unit"
+        onChange={(e) => onPatch(b.id, { unit: e.target.value })} /></td>
+      <td className="num"><input type="number" style={{ ...CELL, width: 112, textAlign: 'right' }} value={b.expectedUnitCost ?? ''}
+        onChange={(e) => onPatch(b.id, { expectedUnitCost: numOrNull(e.target.value) ?? 0 })} /></td>
+      <td className="num"><input type="number" style={{ ...CELL, width: 72, textAlign: 'right' }} value={b.neededDayOffset ?? ''}
+        onChange={(e) => onPatch(b.id, { neededDayOffset: numOrNull(e.target.value) })} /></td>
+      <td className="num">{orderDay != null ? <>Day {orderDay}</> : <span className="muted">—</span>}</td>
+      <td className="num"><button className="btn sm ghost" style={{ color: 'var(--risk)' }} title="Delete row" onClick={() => onDelete(b.id)}>✕</button></td>
+    </tr>
   );
 }

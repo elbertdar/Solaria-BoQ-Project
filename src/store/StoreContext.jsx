@@ -5,7 +5,7 @@ import { createContext, useContext, useEffect, useMemo, useState, useCallback } 
 import { seed } from '../data/seed.js';
 import { nowISO } from '../engine/format.js';
 
-const KEY = 'solaria_boq_db_v9';
+const KEY = 'solaria_boq_db_v10';
 const StoreCtx = createContext(null);
 
 function load() {
@@ -68,6 +68,22 @@ export function StoreProvider({ children }) {
         ? { ...b, ...patch, audit: [...(b.audit || []), { at: nowISO(), change: note || 'edited' }] }
         : b),
     }));
+  }, []);
+
+  // Draft-phase edit: applies a patch with no audit entry (draft changes aren't tracked).
+  const patchBoqItem = useCallback((id, patch) => {
+    setDb((d) => ({ ...d, boqItems: d.boqItems.map((b) => b.id === id ? { ...b, ...patch } : b) }));
+  }, []);
+  const deleteBoqItem = useCallback((id) => {
+    setDb((d) => ({
+      ...d,
+      boqItems: d.boqItems.filter((b) => b.id !== id),
+      prs: d.prs.filter((pr) => pr.boqItemId !== id), // drop any orders tied to the removed line
+    }));
+  }, []);
+  // Finalize a project's BoQ: draft → working (one-way). Enables deliberate edits + ordering.
+  const finalizeBoq = useCallback((projectId) => {
+    setDb((d) => ({ ...d, projects: d.projects.map((pj) => pj.id === projectId ? { ...pj, boqStatus: 'working' } : pj) }));
   }, []);
 
   // ---- Suppliers (Feature 5.3) ----
@@ -220,7 +236,7 @@ export function StoreProvider({ children }) {
   const value = useMemo(() => ({
     db, currentProjectId, setCurrentProjectId,
     addMaterial, updateMaterial, addAlias, removeAlias,
-    addBoqItem, updateBoqItem,
+    addBoqItem, updateBoqItem, patchBoqItem, deleteBoqItem, finalizeBoq,
     addSupplier,
     addMaterialType, updateMaterialType,
     addProject, updateProject, addMandor, updateMandor, deleteMandor,
@@ -229,7 +245,7 @@ export function StoreProvider({ children }) {
     importData,
     resetDb,
   }), [db, currentProjectId, addMaterial, updateMaterial, addAlias, removeAlias,
-    addBoqItem, updateBoqItem, addSupplier, addMaterialType, updateMaterialType, addProject, updateProject, addMandor, updateMandor, deleteMandor,
+    addBoqItem, updateBoqItem, patchBoqItem, deleteBoqItem, finalizeBoq, addSupplier, addMaterialType, updateMaterialType, addProject, updateProject, addMandor, updateMandor, deleteMandor,
     addUser, updateUser, deleteUser,
     addPr, updatePr, setPrStatus, deletePr, importData, resetDb]);
 

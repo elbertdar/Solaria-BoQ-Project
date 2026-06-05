@@ -7,6 +7,7 @@ import { idrShort, idr, fmtDate } from '../engine/format.js';
 export default function Overview() {
   const { db, currentProjectId } = useStore();
   const project = useProject();
+  const draft = project?.boqStatus !== 'working';
   const nav = useNavigate();
 
   const t = projectTotals(db, currentProjectId);
@@ -37,6 +38,13 @@ export default function Overview() {
               {' '}(+{w.overBy} {w.unit}).
             </AlertBanner>
           ))}
+        </div>
+      )}
+
+      {draft && (
+        <div className="banner" style={{ background: '#FFFBEB', border: '1px solid #FDE9C8', color: '#92660C', borderRadius: 10, padding: '11px 14px', marginBottom: 14, fontSize: 13.3, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <span><b>Draft BoQ.</b> This project’s plan isn’t finalized — ordering and reconciliation begin once you finalize it.</span>
+          <button className="btn sm" onClick={() => nav('/boq')} style={{ marginLeft: 'auto' }}>Open BoQ</button>
         </div>
       )}
 
