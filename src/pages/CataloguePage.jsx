@@ -45,13 +45,26 @@ export default function CataloguePage() {
         <div className="card-body flush">
           <table className="table">
             <thead>
-              <tr><th>Canonical name</th><th>Type</th><th>Default unit</th><th className="num">Est. unit cost</th><th className="num">Lead time</th><th>Aliases</th><th>Brands</th><th></th></tr>
+              <tr><th>Canonical name</th><th>Type</th><th>Brands</th><th>Default unit</th><th className="num">Est. unit cost</th><th className="num">Lead time</th><th>Aliases</th><th></th></tr>
             </thead>
             <tbody>
               {filtered.map((m) => (
                 <tr key={m.id}>
                   <td><b>{m.canonicalName}</b></td>
                   <td className="muted">{typeName(m.materialTypeId)}</td>
+                  <td>
+                    {(() => {
+                      const bs = db.brands.filter((b) => b.materialId === m.id);
+                      return bs.length === 0
+                        ? <span className="muted">—</span>
+                        : bs.map((b) => (
+                          <span className="chip alias" key={b.id}>
+                            {b.name}
+                            <span style={{ cursor: 'pointer', marginLeft: 6, opacity: .6 }} onClick={() => deleteBrand(b.id)}>×</span>
+                          </span>
+                        ));
+                    })()}
+                  </td>
                   <td>{m.defaultUnit}</td>
                   <td className="num">{m.estUnitCost != null ? idr(m.estUnitCost) : <span className="muted">—</span>}</td>
                   <td className="num">
@@ -65,19 +78,6 @@ export default function CataloguePage() {
                         <span style={{ cursor: 'pointer', marginLeft: 6, opacity: .6 }} onClick={() => removeAlias(m.id, a)}>×</span>
                       </span>
                     ))}
-                  </td>
-                  <td>
-                    {(() => {
-                      const bs = db.brands.filter((b) => b.materialId === m.id);
-                      return bs.length === 0
-                        ? <span className="muted">—</span>
-                        : bs.map((b) => (
-                          <span className="chip alias" key={b.id}>
-                            {b.name}
-                            <span style={{ cursor: 'pointer', marginLeft: 6, opacity: .6 }} onClick={() => deleteBrand(b.id)}>×</span>
-                          </span>
-                        ));
-                    })()}
                   </td>
                   <td className="num" style={{ whiteSpace: 'nowrap' }}>
                     <button className="btn sm ghost" onClick={() => setEditMat(m)}>Edit</button>{' '}

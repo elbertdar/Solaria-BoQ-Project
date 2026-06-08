@@ -58,7 +58,7 @@ export default function ReconciliationPage() {
                 <th className="num">Balance</th>
                 <th className="num">Budget cost</th>
                 <th className="num">Actual cost</th>
-                <th className="num">Δ Cost</th>
+                <th className="num">Cost balance</th>
                 <th></th>
               </tr>
             </thead>
@@ -82,9 +82,9 @@ export default function ReconciliationPage() {
         Balance is quantity-based: committed − budget (positive means over). <em>Actual cost</em> counts
         committed orders (ordered + received) at their PR unit cost — once an order is placed, its cost is
         treated as actual, so the budget impact (Δ Cost) appears at order time rather than after delivery.
-        Balance and the over-budget banner fire on committed quantity — or, for allowance lines, on committed spend — catching overruns before delivery.
+        Balance is budget − committed and Cost balance is budget − actual: <b>positive (green) = still under budget / left to order</b>, <b>negative (red) = over</b>. Both fire the over-budget banner on committed quantity — or, for allowance lines, on committed spend — catching overruns before delivery.
         Rows tagged <b>Allowance</b> are budgeted by a lump sum rather than a quantity: they reconcile on cost (Actual vs Budget cost), with the quantity columns shown as “—”.
-        Rows tagged <b>Extra</b> are purchases with no BoQ line (a standalone PR, or one kept from a deleted line) — they sit outside the budgeted plan, so their balance is 0 − committed and Δ Cost is 0 − actual (negative, since nothing was budgeted for them).
+        Rows tagged <b>Extra</b> are purchases with no BoQ line (a standalone PR, or one kept from a deleted line) — nothing was budgeted for them, so they're always negative (0 − committed, 0 − actual): pure overspend.
       </p>
     </>
   );
@@ -97,6 +97,10 @@ function RowGroup({ r, isOpen, onToggle, db }) {
     : r.allowance
       ? <span className="pill info" style={{ marginLeft: 6, fontSize: 11 }}>Allowance</span>
       : null;
+  // "Balance remaining" convention everywhere: budget − committed. + = under/left, − = over.
+  // (Extras have budget 0, so they read as −committed / −actual: pure overspend.)
+  const remQty = -r.committedBalanceQty;
+  const remCost = -r.costDelta;
   return (
     <>
       <tr className="clickable" onClick={onToggle}>
@@ -105,13 +109,13 @@ function RowGroup({ r, isOpen, onToggle, db }) {
         <td className="num">{r.allowance ? dash : r.extra ? num(0) : num(r.budgetQty)}</td>
         <td className="num">{r.allowance ? dash : num(r.committedQty)}</td>
         <td className="num">{r.allowance ? dash : num(r.receivedQty)}</td>
-        <td className={'num ' + (!r.allowance && !r.extra && r.committedBalanceQty > 0 ? 'val-risk' : '')} style={r.extra ? { color: '#92660C' } : undefined}>
-          {r.allowance ? dash : r.extra ? num(-r.committedQty) : (r.committedBalanceQty > 0 ? '+' : '') + num(r.committedBalanceQty)}
+        <td className={'num ' + (r.extra ? '' : (remQty < 0 ? 'val-risk' : remQty > 0 ? 'val-ok' : ''))} style={r.extra ? { color: '#92660C' } : undefined}>
+          {r.allowance ? dash : (remQty > 0 ? '+' : '') + num(remQty)}
         </td>
         <td className="num">{r.extra ? idr(0) : idr(r.budgetCost)}</td>
         <td className="num">{idr(r.actualCost)}</td>
-        <td className={'num ' + (r.extra ? '' : (r.costDelta > 0 ? 'val-risk' : r.costDelta < 0 ? 'val-ok' : ''))} style={r.extra ? { color: '#92660C' } : undefined}>
-          {r.extra ? idr(-r.actualCost) : (r.costDelta > 0 ? '+' : '') + idr(r.costDelta)}
+        <td className={'num ' + (r.extra ? '' : (remCost < 0 ? 'val-risk' : remCost > 0 ? 'val-ok' : ''))} style={r.extra ? { color: '#92660C' } : undefined}>
+          {(remCost > 0 ? '+' : '') + idr(remCost)}
         </td>
         <td className="num muted">{isOpen ? '▾' : '▸'}</td>
       </tr>

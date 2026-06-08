@@ -8,7 +8,7 @@ import {
 } from '../engine/schedule.js';
 import { fmtDate } from '../engine/format.js';
 
-const TONE = { overdue: '#E11D48', late: '#8B5CF6', orderNow: '#EAB308', awaiting: '#0EA5E9', done: '#16A34A', neutral: '#94A3B8' };
+const TONE = { overdue: '#E11D48', late: '#8B5CF6', lateArrival: '#EA580C', orderNow: '#EAB308', awaiting: '#0EA5E9', done: '#16A34A', neutral: '#94A3B8' };
 const BORDER = '#E5E7EB';
 const WEEKEND = 'rgba(100,116,139,0.07)';
 const TODAYBG = 'rgba(245,158,11,0.14)';
@@ -17,6 +17,7 @@ const BUCKETS = [
   { key: 'orderNow', label: 'Order this week', sub: 'routine', color: '#EAB308' },
   { key: 'overdue', label: 'Overdue', sub: 'late order — order now', color: '#E11D48' },
   { key: 'late', label: 'Late', sub: 'delivery overdue — chase supplier', color: '#8B5CF6' },
+  { key: 'lateArrival', label: 'Late arrival', sub: 'ordered late — will arrive after the planned date', color: '#EA580C' },
   { key: 'thisWeek', label: 'Arriving this week', sub: 'ordered & waiting', color: '#0EA5E9' },
   { key: 'nextWeek', label: 'Next week', color: '#94A3B8' },
   { key: 'later', label: 'Later', color: '#94A3B8' },
@@ -166,23 +167,27 @@ function Timeline({ dayAxis, lines, db, ActionButton }) {
 }
 
 function Row({ l, N, cols, baseDay, weekendCols, todayCol, ActionButton }) {
-  const ow = dayColOf(l.orderDate, baseDay, N);
-  const dw = dayColOf(l.neededDate, baseDay, N);
-  const present = [ow, dw].filter((x) => x != null);
-  const lo = present.length ? Math.min(...present) : null;
-  const hi = present.length ? Math.max(...present) : null;
+  const poc = dayColOf(l.orderDate, baseDay, N);   // planned order
+  const pnc = dayColOf(l.neededDate, baseDay, N);  // planned delivery (needed)
+  const ordered = l.state === 'awaiting' || l.state === 'received';
+  const arrivalDate = l.state === 'received' ? l.actualReceiptDate : l.effectiveArrival;
+  const aoc = ordered ? dayColOf(l.actualOrderDate, baseDay, N) : null;  // actual order
+  const aec = ordered ? dayColOf(arrivalDate, baseDay, N) : null;        // actual / expected arrival
   const color = TONE[l.tone];
+  const PLANNED = '#CBD5E1';
 
   const tip = [
-    l.orderOffset != null ? `Order by day ${l.orderOffset}` : null,
-    l.neededOffset != null ? `Needed day ${l.neededOffset}` : null,
-    l.hasLead ? `Lead ${l.lead}d${l.leadSource === 'line' ? ' (custom)' : ''}` : 'No lead time',
-    l.orderDate ? `order ≈ ${fmtDate(l.orderDate)}` : null,
-    l.neededDate ? `needed ≈ ${fmtDate(l.neededDate)}` : null,
-    l.actualReceiptDate ? `received ${fmtDate(l.actualReceiptDate)}` : null,
+    l.orderOffset != null ? `Plan: order day ${l.orderOffset}` : null,
+    l.neededOffset != null ? `needed day ${l.neededOffset}` : null,
+    l.hasLead ? `lead ${l.lead}d${l.leadSource === 'line' ? ' (custom)' : ''}` : 'no lead time',
+    l.actualOrderDate ? `ordered ${fmtDate(l.actualOrderDate)}` : null,
+    ordered && arrivalDate ? `${l.state === 'received' ? 'received' : 'expected'} ${fmtDate(arrivalDate)}` : null,
+    (l.forecastLate && !l.deliveryOverdue) ? `→ +${l.slipDays}d vs plan` : null,
+    l.promisedDate ? `supplier promised ${fmtDate(l.promisedDate)}` : null,
   ].filter(Boolean).join('  ·  ');
 
-  const mk = { gridRow: 1, alignSelf: 'center', justifySelf: 'center', zIndex: 3, width: 12, height: 12, border: '2px solid #fff', boxShadow: '0 0 0 1px rgba(15,23,42,0.2)' };
+  const dot = { gridRow: 1, alignSelf: 'center', justifySelf: 'center', zIndex: 3, width: 12, height: 12, border: '2px solid #fff', boxShadow: '0 0 0 1px rgba(15,23,42,0.2)' };
+  const colspan = (a, b) => `${2 + Math.min(a, b)} / ${2 + Math.max(a, b) + 1}`;
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: cols, alignItems: 'center', minHeight: 46, borderBottom: '1px solid ' + BORDER }} title={tip}>
@@ -196,9 +201,19 @@ function Row({ l, N, cols, baseDay, weekendCols, todayCol, ActionButton }) {
       {weekendCols.map((ci) => <span key={'w' + ci} style={{ gridColumn: 2 + ci, gridRow: 1, alignSelf: 'stretch', background: WEEKEND, zIndex: 0 }} />)}
       {todayCol >= 0 && <span style={{ gridColumn: 2 + todayCol, gridRow: 1, alignSelf: 'stretch', background: TODAYBG, zIndex: 0 }} />}
 
-      {lo != null && <span style={{ gridColumn: `${2 + lo} / ${2 + hi + 1}`, gridRow: 1, alignSelf: 'center', height: 7, borderRadius: 999, margin: '0 3px', background: color, zIndex: 1 }} />}
-      {ow != null && <span style={{ ...mk, gridColumn: 2 + ow, borderRadius: '50%', background: color }} />}
-      {dw != null && <span style={{ ...mk, gridColumn: 2 + dw, borderRadius: 3, transform: 'rotate(45deg)', background: color }} />}
+      {/* planned layer — faded baseline (order → needed) */}
+      {poc != null && pnc != null && (
+        <span style={{ gridColumn: colspan(poc, pnc), gridRow: 1, alignSelf: 'center', height: 6, borderRadius: 999, margin: '0 3px', background: PLANNED, opacity: 0.7, zIndex: 1 }} />
+      )}
+      {pnc != null && <span style={{ ...dot, gridColumn: 2 + pnc, borderRadius: 3, transform: 'rotate(45deg)', background: PLANNED, opacity: ordered ? 0.8 : 1 }} />}
+      {poc != null && <span style={{ ...dot, gridColumn: 2 + poc, borderRadius: '50%', background: ordered ? PLANNED : color, opacity: ordered ? 0.8 : 1 }} />}
+
+      {/* actual / expected layer — solid (actual order → expected/received) */}
+      {aoc != null && aec != null && (
+        <span style={{ gridColumn: colspan(aoc, aec), gridRow: 1, alignSelf: 'center', height: 8, borderRadius: 999, margin: '0 3px', background: color, zIndex: 2 }} />
+      )}
+      {aoc != null && <span style={{ ...dot, gridColumn: 2 + aoc, borderRadius: '50%', background: color }} />}
+      {aec != null && <span style={{ ...dot, gridColumn: 2 + aec, borderRadius: 3, transform: 'rotate(45deg)', background: color }} />}
     </div>
   );
 }
@@ -207,6 +222,7 @@ function LineTags({ l }) {
   const tags = [];
   if (l.orderOverdue) tags.push(['Overdue', TONE.overdue, '#FEF2F4']);
   if (l.deliveryOverdue) tags.push(['Late', '#7C3AED', '#F5F3FF']);
+  if (l.forecastLate && !l.deliveryOverdue) tags.push([`Late arrival +${l.slipDays}d`, '#C2410C', '#FFF7ED']);
   if (l.orderBeforeStart && !l.orderOverdue) tags.push(['Order before start', TONE.overdue, '#FEF2F4']);
   if (l.dueThisWeek && l.state === 'to-order' && !l.orderOverdue) tags.push(['Needed this wk', '#B45309', '#FFFBEB']);
   if (l.overBudget) tags.push(['Over budget', TONE.overdue, '#FEF2F4']);
@@ -260,20 +276,23 @@ function Agenda({ lines, today, db, ActionButton }) {
 function Milestone({ l }) {
   const overdue = { color: TONE.overdue, fontWeight: 600 };
   const late = { color: TONE.late, fontWeight: 600 };
+  const slip = { color: '#C2410C', fontWeight: 600 };
   const base = { fontSize: 13, color: '#64748B', whiteSpace: 'nowrap' };
   if (l.state === 'received') return <span style={base}>Received {fmtDate(l.actualReceiptDate)}</span>;
   if (l.state === 'to-order') return <span style={{ ...base, ...(l.orderOverdue || l.orderBeforeStart ? overdue : {}) }}>Order by {dayLabel(l.orderOffset)}</span>;
-  return <span style={{ ...base, ...(l.deliveryOverdue ? late : {}) }}>Needed {dayLabel(l.neededOffset)}</span>;
+  if (l.deliveryOverdue) return <span style={{ ...base, ...late }}>Overdue · exp. {fmtDate(l.effectiveArrival)}</span>;
+  if (l.forecastLate) return <span style={{ ...base, ...slip }}>Late arrival · exp. {fmtDate(l.effectiveArrival)} (+{l.slipDays}d)</span>;
+  return <span style={base}>Arriving ~{fmtDate(l.effectiveArrival)}</span>;
 }
 
 function Legend() {
-  const items = [['Order now', TONE.orderNow], ['Ordered / waiting', TONE.awaiting], ['Overdue', TONE.overdue], ['Late', TONE.late], ['Received', TONE.done]];
+  const items = [['Order now', TONE.orderNow], ['Ordered / waiting', TONE.awaiting], ['Late arrival', TONE.lateArrival], ['Overdue', TONE.overdue], ['Late', TONE.late], ['Received', TONE.done]];
   return (
     <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center', fontSize: 12, color: '#64748B', margin: '12px 2px 0' }}>
       {items.map(([t, c]) => <span key={t} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><span style={{ width: 10, height: 10, borderRadius: '50%', background: c }} />{t}</span>)}
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginLeft: 8 }}><span style={{ width: 11, height: 11, borderRadius: '50%', border: '2px solid #fff', boxShadow: '0 0 0 1px rgba(15,23,42,.3)', background: '#94A3B8' }} /> order day</span>
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><span style={{ width: 10, height: 10, border: '2px solid #fff', boxShadow: '0 0 0 1px rgba(15,23,42,.3)', background: '#94A3B8', transform: 'rotate(45deg)' }} /> needed day</span>
-      <span style={{ color: '#94A3B8' }}>· weekends shaded · bar = lead time</span>
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginLeft: 8 }}><span style={{ width: 24, height: 6, borderRadius: 999, background: '#CBD5E1', opacity: 0.7 }} /> planned (faded)</span>
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><span style={{ width: 24, height: 8, borderRadius: 999, background: '#0EA5E9' }} /> actual / expected (solid)</span>
+      <span style={{ color: '#94A3B8' }}>· ● order · ◆ delivery · weekends shaded</span>
     </div>
   );
 }

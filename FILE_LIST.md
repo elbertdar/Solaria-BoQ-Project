@@ -3,6 +3,63 @@
 The source of truth for what files exist and where. **Updated every time we change something.**
 
 - **Last updated:** 5 Jun 2026
+- **Latest build:** Late delivery resolves — planned vs actual arrival, "Late arrival" signal
+
+---
+
+## ⚠ Files touched in the latest build (Planned vs actual arrival)
+
+**The fix:** an ordered line no longer assumes it arrives on the planned date. Once ordered, expected
+arrival = **actual order date + lead time** (a late order lands late). So late ordering now
+propagates into a late delivery instead of snapping back to plan. Push-date still overrides; receipt
+finalizes the actual date.
+
+Three arrival concepts per line now: **planned** (needed date, never moves), **expected** (forecast
+once ordered, or supplier's push-date), **actual** (receipt). New fields on `computeLine`:
+`plannedArrival`, `projectedArrival`, `slipDays`, `forecastLate`.
+
+New **"Late arrival"** state (orange), distinct from the existing **"Late"** (violet = delivery
+overdue): *Late arrival* = ordered, projected to land after the planned date but not yet overdue;
+it escalates to *Late* once the expected date passes with no receipt.
+
+**Project Schedule timeline** now draws two layers per row: **planned (faded)** order→needed, and
+**actual/expected (solid)** actual-order→expected. Order late and the solid bar starts later and
+extends past the faded planned diamond — the slip is visible. Legend + Agenda + tags updated.
+
+**This Week** gains a **"Late arrival — ordered late"** bucket (forecast slips not yet overdue),
+separate from "Late — chase supplier".
+
+**Deliberately NOT changed:** the portfolio Gantt still uses planned dates (no auto-rollback of
+project length on slip — that's the PM's judgment). Per-PR supplier delivery date is a future
+follow-up. Balance/reconciliation untouched. **No schema change — pure recomputation, still v10.**
+
+**Changed (3) — no new files:**
+- `src/engine/schedule.js` — `computeLine` expected-arrival logic + `plannedArrival`/`slipDays`/`forecastLate` + `lateArrival` tone; `portfolioWorklist`/`agendaBuckets`/`scheduleCounts` gain the late-arrival split
+- `src/pages/SchedulePage.jsx` — faded-planned / solid-actual timeline, Late-arrival tone/tag/bucket, Milestone shows expected vs planned + slip, legend
+- `src/pages/DashboardPage.jsx` — "Late arrival" worklist bucket + tone
+
+---
+
+## Previous build (Balance sign convention)
+
+---
+
+## ⚠ Files touched in the latest build (Balance sign convention)
+
+The Balance column read like a *variance* (committed − budget), so under-budget rows showed as
+**negative** even though the column is named "Balance" (which implies remaining). Extras used the
+opposite direction. Now **every row uses one convention — budget − committed**:
+- **Positive (green) = under budget / still to order.**  **Negative (red) = over.**
+- "Δ Cost" is renamed **Cost balance** (budget − actual), same convention.
+- **Extra** rows have a 0 budget, so they stay negative (0 − committed / 0 − actual): pure overspend.
+
+Pure display/labelling change — no schema or engine math changed (still v10).
+
+**Changed (1):** `src/pages/ReconciliationPage.jsx` — remaining-based Balance + Cost balance cells, header rename, footnote.
+
+---
+
+## Previous build (Portfolio timeline)
 - **Latest build:** This Week → Worklist / Timeline toggle (portfolio Gantt by region)
 - **Run:** `npm run dev` from the project root · details + assumptions in `README.md`
 - **Total app files:** 23 under `src/` + `README.md`

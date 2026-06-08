@@ -93,7 +93,18 @@ export function computeLine(db, b, today = todayLocal()) {
   const promisedDate = parseDate(b.promisedDate);
   const snoozedUntil = parseDate(b.snoozedUntil);
   const snoozedActive = !!(snoozedUntil && snoozedUntil > today);
-  const effectiveArrival = promisedDate || neededDate;
+  // Planned vs actual arrival. The plan is the needed date; but once ordered, the realistic
+  // arrival is the ACTUAL order date + lead time (a late order lands late — it does NOT snap
+  // back to plan). Push-date (promisedDate) is the PM's manual override; receipt finalizes it.
+  const plannedArrival = neededDate;
+  const projectedArrival = actualOrderDate ? addBusinessDays(actualOrderDate, lead) : null;
+  const effectiveArrival = (state === 'received' ? actualReceiptDate : null)
+    || promisedDate
+    || (state === 'awaiting' ? (projectedArrival || neededDate) : neededDate);
+  const slipDays = (effectiveArrival && plannedArrival) ? diffDays(effectiveArrival, plannedArrival) : 0;
+  // "Late arrival" = ordered, projected to land AFTER the planned date (known the moment you order),
+  // but not yet overdue. Escalates to deliveryOverdue once the expected date passes with no receipt.
+  const forecastLate = state === 'awaiting' && !!effectiveArrival && !!plannedArrival && effectiveArrival > plannedArrival;
 
   const { monThis, friThis, monNext, friNext } = weekBounds(today);
   const inRange = (d, a, z) => d && d >= a && d <= z;
@@ -116,6 +127,7 @@ export function computeLine(db, b, today = todayLocal()) {
   else if (orderOverdue) { urgency = 0; tone = 'overdue'; }        // late order → red
   else if (deliveryOverdue) { urgency = 1; tone = 'late'; }        // late delivery → orange
   else if (orderBeforeStart && state === 'to-order') { urgency = 1; tone = 'overdue'; }
+  else if (forecastLate) { urgency = 3; tone = 'lateArrival'; }    // ordered late → will arrive after plan
   else if (state === 'awaiting') { urgency = 4; tone = 'awaiting'; } // ordered & waiting → blue
   else if (orderThisWeek || dueThisWeek) { urgency = 2; tone = 'orderNow'; } // routine → yellow
   else { urgency = 5; tone = 'neutral'; }
@@ -124,6 +136,7 @@ export function computeLine(db, b, today = todayLocal()) {
     boqItem: b, projectId: b.projectId, materialName: materialName(db, b.materialId), unit: b.unit, mandorId: b.mandorId,
     budget, committedQty, receivedQty, overBudget, lead, hasLead, leadSource,
     state, neededOffset, orderOffset, neededDate, orderDate, promisedDate, snoozedUntil, snoozedActive, effectiveArrival, lateDays,
+    plannedArrival, projectedArrival, slipDays, forecastLate,
     actualOrderDate, actualReceiptDate,
     orderOverdue, deliveryOverdue, orderBeforeStart, orderThisWeek, orderNextWeek, dueThisWeek,
     nextMilestoneDate, nextKind, urgency, tone,
@@ -170,13 +183,14 @@ export function portfolioWorklist(db, today = todayLocal()) {
   const overdueToOrder = lines.filter((l) => l.orderOverdue).sort(byOrder);
   const orderThisWeek = lines.filter((l) => l.orderThisWeek).sort(byOrder);
   const lateDelivery = lines.filter((l) => l.deliveryOverdue).sort(byArrival);
+  const lateArrival = lines.filter((l) => l.forecastLate && !l.deliveryOverdue).sort(byArrival);
   const orderNextWeek = lines.filter((l) => l.orderNextWeek).sort(byOrder);
 
   return {
-    overdueToOrder, orderThisWeek, lateDelivery, orderNextWeek,
+    overdueToOrder, orderThisWeek, lateDelivery, lateArrival, orderNextWeek,
     counts: {
       overdueToOrder: overdueToOrder.length, orderThisWeek: orderThisWeek.length,
-      lateDelivery: lateDelivery.length, orderNextWeek: orderNextWeek.length,
+      lateDelivery: lateDelivery.length, lateArrival: lateArrival.length, orderNextWeek: orderNextWeek.length,
     },
     health: {
       activeProjects: db.projects.filter((p) => p.boqStatus === 'working').length,
@@ -195,6 +209,7 @@ export function scheduleCounts(lines) {
     arriving: lines.filter((l) => l.state === 'awaiting' && l.dueThisWeek).length,
     overdueOrder: lines.filter((l) => l.orderOverdue).length,
     overdueDeliver: lines.filter((l) => l.deliveryOverdue).length,
+    slipping: lines.filter((l) => l.forecastLate && !l.deliveryOverdue).length,
   };
 }
 export function matchesFilter(line, filter) {
@@ -210,11 +225,12 @@ export function agendaBuckets(lines, today = todayLocal()) {
   const friThis = addDays(monThis, 4);
   const followingMon = addDays(monThis, 14);
   // orderNow = routine to-order due this week; overdue = late ORDER; late = late DELIVERY.
-  const buckets = { orderNow: [], overdue: [], late: [], thisWeek: [], nextWeek: [], later: [], done: [] };
+  const buckets = { orderNow: [], overdue: [], late: [], lateArrival: [], thisWeek: [], nextWeek: [], later: [], done: [] };
   for (const l of lines) {
     if (l.state === 'received') { buckets.done.push(l); continue; }
     if (l.orderOverdue) { buckets.overdue.push(l); continue; }       // late order
-    if (l.deliveryOverdue) { buckets.late.push(l); continue; }       // late delivery
+    if (l.deliveryOverdue) { buckets.late.push(l); continue; }       // late delivery (overdue)
+    if (l.forecastLate) { buckets.lateArrival.push(l); continue; }   // ordered late → projected late
     if (l.orderThisWeek) { buckets.orderNow.push(l); continue; }     // routine
     const m = l.nextMilestoneDate;
     if (!m) { buckets.later.push(l); continue; }
