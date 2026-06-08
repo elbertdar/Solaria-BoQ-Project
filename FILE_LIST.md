@@ -3,7 +3,37 @@
 The source of truth for what files exist and where. **Updated every time we change something.**
 
 - **Last updated:** 5 Jun 2026
-- **Latest build:** Late delivery resolves — planned vs actual arrival, "Late arrival" signal
+- **Latest build:** Schedule colour cleanup — one status tag per line, six colours
+
+---
+
+## ⚠ Files touched in the latest build (Schedule status colours)
+
+De-bloated the schedule to a single status tag per line, six colours:
+- **Green** Complete · **Blue** On track (ordered, on time) · **Yellow** Order now (routine)
+- **Red** Overdue (not ordered, past order-by — action: order) · **Grey** Upcoming
+- **Purple** = ordered but late — *two cases, same colour, distinguished by text*:
+  **Late delivery** (delivery overdue, chase supplier) vs **Late order** (ordered late → will land after plan).
+
+Each line now shows exactly ONE tag (its status). Removed the **Over budget** tag from the schedule
+(that's Balance's job), plus the stacked Snoozed / Needed-this-week / Order-before-start tags.
+The orange "Late arrival" colour from the previous build is gone — it's purple now.
+
+Judgment calls (flag me to change): **Order before start** folds into red Overdue; **No lead time**
+shows as a grey tag (a line can't be scheduled without it); **Snooze** is no longer a schedule tag
+(it still suppresses items from the This-Week chase list). Planned bar stays faded grey (= Upcoming),
+as agreed.
+
+Pure display — no schema/engine-math change, still v10.
+
+**Changed (3) — no new files:**
+- `src/engine/schedule.js` — forecast-late now uses the purple `late` tone (distinguished by text, not colour)
+- `src/pages/SchedulePage.jsx` — single `statusTag` per line, six-colour palette, agenda labels, milestone wording, legend
+- `src/pages/DashboardPage.jsx` — late buckets both purple, renamed "Late delivery" / "Late order"
+
+---
+
+## Previous build (Planned vs actual arrival)
 
 ---
 

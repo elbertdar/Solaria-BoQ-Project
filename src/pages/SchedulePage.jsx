@@ -8,20 +8,20 @@ import {
 } from '../engine/schedule.js';
 import { fmtDate } from '../engine/format.js';
 
-const TONE = { overdue: '#E11D48', late: '#8B5CF6', lateArrival: '#EA580C', orderNow: '#EAB308', awaiting: '#0EA5E9', done: '#16A34A', neutral: '#94A3B8' };
+const TONE = { overdue: '#E11D48', late: '#8B5CF6', orderNow: '#EAB308', awaiting: '#0EA5E9', done: '#16A34A', neutral: '#94A3B8' };
 const BORDER = '#E5E7EB';
 const WEEKEND = 'rgba(100,116,139,0.07)';
 const TODAYBG = 'rgba(245,158,11,0.14)';
 
 const BUCKETS = [
+  { key: 'overdue', label: 'Overdue', sub: 'not ordered — order now', color: '#E11D48' },
   { key: 'orderNow', label: 'Order this week', sub: 'routine', color: '#EAB308' },
-  { key: 'overdue', label: 'Overdue', sub: 'late order — order now', color: '#E11D48' },
-  { key: 'late', label: 'Late', sub: 'delivery overdue — chase supplier', color: '#8B5CF6' },
-  { key: 'lateArrival', label: 'Late arrival', sub: 'ordered late — will arrive after the planned date', color: '#EA580C' },
-  { key: 'thisWeek', label: 'Arriving this week', sub: 'ordered & waiting', color: '#0EA5E9' },
+  { key: 'late', label: 'Late delivery', sub: 'ordered — delivery overdue, chase supplier', color: '#8B5CF6' },
+  { key: 'lateArrival', label: 'Late order', sub: 'ordered late — will arrive after the planned date', color: '#8B5CF6' },
+  { key: 'thisWeek', label: 'Arriving this week', sub: 'ordered & on track', color: '#0EA5E9' },
   { key: 'nextWeek', label: 'Next week', color: '#94A3B8' },
   { key: 'later', label: 'Later', color: '#94A3B8' },
-  { key: 'done', label: 'Done', color: '#16A34A' },
+  { key: 'done', label: 'Complete', color: '#16A34A' },
 ];
 const dayLabel = (o) => (o == null ? '—' : `Day ${o}`);
 
@@ -218,23 +218,21 @@ function Row({ l, N, cols, baseDay, weekendCols, todayCol, ActionButton }) {
   );
 }
 
+// Exactly one tag per line — its scheduling status. (Over-budget lives on Balance, not here.)
+function statusTag(l) {
+  if (l.state === 'received') return { text: 'Complete', fg: '#15803D', bg: '#F0FDF4' };
+  if (l.orderOverdue || (l.orderBeforeStart && l.state === 'to-order')) return { text: 'Overdue', fg: '#BE123C', bg: '#FEF2F4' };       // red — not ordered, past order-by
+  if (l.deliveryOverdue) return { text: 'Late delivery', fg: '#6D28D9', bg: '#F5F3FF' };                                                 // purple — ordered, delivery overdue
+  if (l.forecastLate) return { text: 'Late order', fg: '#6D28D9', bg: '#F5F3FF' };                                                        // purple — ordered late, will arrive late
+  if (l.state === 'awaiting') return { text: 'On track', fg: '#0369A1', bg: '#EFF6FF' };                                                  // blue
+  if (l.state === 'to-order' && !l.hasLead) return { text: 'No lead time', fg: '#475569', bg: '#F1F5F9' };                                // grey — can't schedule until set
+  if (l.orderThisWeek || l.dueThisWeek) return { text: 'Order now', fg: '#A16207', bg: '#FEFCE8' };                                       // yellow
+  return { text: 'Upcoming', fg: '#64748B', bg: '#F1F5F9' };                                                                              // grey
+}
+
 function LineTags({ l }) {
-  const tags = [];
-  if (l.orderOverdue) tags.push(['Overdue', TONE.overdue, '#FEF2F4']);
-  if (l.deliveryOverdue) tags.push(['Late', '#7C3AED', '#F5F3FF']);
-  if (l.forecastLate && !l.deliveryOverdue) tags.push([`Late arrival +${l.slipDays}d`, '#C2410C', '#FFF7ED']);
-  if (l.orderBeforeStart && !l.orderOverdue) tags.push(['Order before start', TONE.overdue, '#FEF2F4']);
-  if (l.dueThisWeek && l.state === 'to-order' && !l.orderOverdue) tags.push(['Needed this wk', '#B45309', '#FFFBEB']);
-  if (l.overBudget) tags.push(['Over budget', TONE.overdue, '#FEF2F4']);
-  if (l.snoozedActive) tags.push(['Snoozed', '#64748B', '#F1F5F9']);
-  if (!l.hasLead) tags.push(['No lead time', '#B45309', '#FFFBEB']);
-  if (l.state === 'received') tags.push(['Received', '#15803D', '#F0FDF4']);
-  if (!tags.length) return null;
-  return (
-    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-      {tags.map(([t, fg, bg]) => <span key={t} style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 999, textTransform: 'uppercase', letterSpacing: '0.03em', color: fg, background: bg }}>{t}</span>)}
-    </div>
-  );
+  const s = statusTag(l);
+  return <span style={{ alignSelf: 'flex-start', fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 999, textTransform: 'uppercase', letterSpacing: '0.03em', color: s.fg, background: s.bg }}>{s.text}</span>;
 }
 
 // ---------- Agenda ----------
@@ -276,17 +274,16 @@ function Agenda({ lines, today, db, ActionButton }) {
 function Milestone({ l }) {
   const overdue = { color: TONE.overdue, fontWeight: 600 };
   const late = { color: TONE.late, fontWeight: 600 };
-  const slip = { color: '#C2410C', fontWeight: 600 };
   const base = { fontSize: 13, color: '#64748B', whiteSpace: 'nowrap' };
   if (l.state === 'received') return <span style={base}>Received {fmtDate(l.actualReceiptDate)}</span>;
   if (l.state === 'to-order') return <span style={{ ...base, ...(l.orderOverdue || l.orderBeforeStart ? overdue : {}) }}>Order by {dayLabel(l.orderOffset)}</span>;
-  if (l.deliveryOverdue) return <span style={{ ...base, ...late }}>Overdue · exp. {fmtDate(l.effectiveArrival)}</span>;
-  if (l.forecastLate) return <span style={{ ...base, ...slip }}>Late arrival · exp. {fmtDate(l.effectiveArrival)} (+{l.slipDays}d)</span>;
+  if (l.deliveryOverdue) return <span style={{ ...base, ...late }}>Late delivery · exp. {fmtDate(l.effectiveArrival)}</span>;
+  if (l.forecastLate) return <span style={{ ...base, ...late }}>Late order · exp. {fmtDate(l.effectiveArrival)} (+{l.slipDays}d)</span>;
   return <span style={base}>Arriving ~{fmtDate(l.effectiveArrival)}</span>;
 }
 
 function Legend() {
-  const items = [['Order now', TONE.orderNow], ['Ordered / waiting', TONE.awaiting], ['Late arrival', TONE.lateArrival], ['Overdue', TONE.overdue], ['Late', TONE.late], ['Received', TONE.done]];
+  const items = [['Complete', TONE.done], ['On track', TONE.awaiting], ['Order now', TONE.orderNow], ['Overdue', TONE.overdue], ['Late delivery / Late order', TONE.late], ['Upcoming', TONE.neutral]];
   return (
     <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center', fontSize: 12, color: '#64748B', margin: '12px 2px 0' }}>
       {items.map(([t, c]) => <span key={t} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><span style={{ width: 10, height: 10, borderRadius: '50%', background: c }} />{t}</span>)}

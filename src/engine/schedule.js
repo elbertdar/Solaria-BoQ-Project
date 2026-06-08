@@ -127,7 +127,7 @@ export function computeLine(db, b, today = todayLocal()) {
   else if (orderOverdue) { urgency = 0; tone = 'overdue'; }        // late order → red
   else if (deliveryOverdue) { urgency = 1; tone = 'late'; }        // late delivery → orange
   else if (orderBeforeStart && state === 'to-order') { urgency = 1; tone = 'overdue'; }
-  else if (forecastLate) { urgency = 3; tone = 'lateArrival'; }    // ordered late → will arrive after plan
+  else if (forecastLate) { urgency = 3; tone = 'late'; }           // ordered late → purple, same as late delivery
   else if (state === 'awaiting') { urgency = 4; tone = 'awaiting'; } // ordered & waiting → blue
   else if (orderThisWeek || dueThisWeek) { urgency = 2; tone = 'orderNow'; } // routine → yellow
   else { urgency = 5; tone = 'neutral'; }

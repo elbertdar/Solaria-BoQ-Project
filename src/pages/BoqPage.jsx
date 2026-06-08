@@ -332,11 +332,12 @@ function BoqModal({ item, onClose }) {
     setMaterialId(m.id); setMatQuery(m.canonicalName);
     if (!unit) setUnit(m.defaultUnit);
     if (expectedUnitCost === '' && m.estUnitCost != null) setCost(m.estUnitCost);
+    if (!description.trim()) setDescription(m.canonicalName);
     setTouchedMat(false);
   }
   function createNewMaterial() {
     const id = addMaterial({ canonicalName: matQuery.trim(), defaultUnit: unit || 'pcs', materialTypeId: db.materialTypes[0]?.id, leadTimeDays: 7 });
-    setMaterialId(id); if (!unit) setUnit('pcs'); setTouchedMat(false);
+    setMaterialId(id); if (!unit) setUnit('pcs'); if (!description.trim()) setDescription(matQuery.trim()); setTouchedMat(false);
   }
   function confirmNewMandor() {
     if (!newMandor.trim()) return;
@@ -349,7 +350,6 @@ function BoqModal({ item, onClose }) {
     let mid = materialId;
     if (!mid && exactResolve) mid = exactResolve.id;
     if (!mid) { setError('Pick an existing material or create a new canonical entry — BoQ items can’t use free-text names (BR-1).'); return; }
-    if (!description.trim()) { setError('Add a short description.'); return; }
     if (!unit) { setError('Set a unit.'); return; }
     if (!allowance) {
       if (quantity === '' || Number(quantity) <= 0) { setError('Enter a quantity.'); return; }
@@ -357,7 +357,7 @@ function BoqModal({ item, onClose }) {
     }
 
     const patch = {
-      projectId: currentProjectId, materialId: mid, description: description.trim(),
+      projectId: currentProjectId, materialId: mid, description: description.trim() || (db.materials.find((x) => x.id === mid)?.canonicalName ?? ''),
       mandorId, unit, budgetBasis,
       quantity: allowance ? 0 : Number(quantity),
       expectedUnitCost: allowance ? 0 : (Number(expectedUnitCost) || 0),
@@ -440,8 +440,8 @@ function BoqModal({ item, onClose }) {
         </div>
 
         <div className="full">
-          <label className="lbl">Description <span className="req">*</span></label>
-          <input type="text" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Free-text spec notes (Ket.)" />
+          <label className="lbl">Description</label>
+          <input type="text" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Defaults to the material name — add spec notes if needed (Ket.)" />
         </div>
 
         <div className="full">
@@ -553,7 +553,7 @@ function DraftRow({ b, db, start, onPatch, onDelete }) {
         <select className="input" style={{ minWidth: 150 }} value={b.materialId || ''} onChange={(e) => {
           const mid = e.target.value;
           const m = db.materials.find((x) => x.id === mid);
-          onPatch(b.id, { materialId: mid, ...(m ? { unit: m.defaultUnit, ...(allow ? {} : { expectedUnitCost: m.estUnitCost }) } : {}) });
+          onPatch(b.id, { materialId: mid, ...(m ? { unit: m.defaultUnit, ...(b.description ? {} : { description: m.canonicalName }), ...(allow ? {} : { expectedUnitCost: m.estUnitCost }) } : {}) });
         }}>
           <option value="">— select —</option>
           {db.materials.map((m) => <option key={m.id} value={m.id}>{m.canonicalName}</option>)}

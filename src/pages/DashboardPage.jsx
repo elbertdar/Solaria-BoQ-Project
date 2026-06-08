@@ -9,7 +9,7 @@ import { portfolioWorklist, todayLocal, addDays, toISO, computeLine, portfolioGa
 import { fmtDate, today as todayISO } from '../engine/format.js';
 import PortfolioGantt from '../components/PortfolioGantt.jsx';
 
-const TONE = { overdue: '#E11D48', late: '#8B5CF6', lateArrival: '#EA580C', orderNow: '#EAB308', awaiting: '#0EA5E9', done: '#16A34A', neutral: '#94A3B8' };
+const TONE = { overdue: '#E11D48', late: '#8B5CF6', orderNow: '#EAB308', awaiting: '#0EA5E9', done: '#16A34A', neutral: '#94A3B8' };
 const BORDER = '#E5E7EB';
 
 export default function DashboardPage() {
@@ -109,7 +109,7 @@ export default function DashboardPage() {
       />
 
       <Bucket
-        title="Late — chase supplier" tone="late" subtitle="ordered, but delivery is overdue"
+        title="Late delivery — chase supplier" tone="late" subtitle="ordered, but delivery is overdue"
         empty="No late deliveries to chase."
         rows={wl.lateDelivery} onUndo={undo}
         renderWhen={(l) => <span style={{ color: TONE.late, fontWeight: 600 }}>{l.lateDays}d late · expected {fmtDate(l.effectiveArrival)}{supplierName(orderedPrFor(l)?.supplierPrimaryId) ? ` · ${supplierName(orderedPrFor(l).supplierPrimaryId)}` : ''}</span>}
@@ -125,9 +125,9 @@ export default function DashboardPage() {
 
       {wl.lateArrival.length > 0 && (
         <Bucket
-          title="Late arrival — ordered late" tone="lateArrival" subtitle="will arrive after the planned date — re-plan or expedite"
+          title="Late order — ordered late" tone="late" subtitle="will arrive after the planned date — re-plan or expedite"
           rows={wl.lateArrival} onUndo={undo}
-          renderWhen={(l) => <span style={{ color: TONE.lateArrival, fontWeight: 600 }}>+{l.slipDays}d vs plan · expected {fmtDate(l.effectiveArrival)}{supplierName(orderedPrFor(l)?.supplierPrimaryId) ? ` · ${supplierName(orderedPrFor(l).supplierPrimaryId)}` : ''}</span>}
+          renderWhen={(l) => <span style={{ color: TONE.late, fontWeight: 600 }}>+{l.slipDays}d vs plan · expected {fmtDate(l.effectiveArrival)}{supplierName(orderedPrFor(l)?.supplierPrimaryId) ? ` · ${supplierName(orderedPrFor(l).supplierPrimaryId)}` : ''}</span>}
           action={(l) => (
             <span style={{ display: 'inline-flex', gap: 6 }}>
               <button className="btn sm" onClick={() => setReceiveFor(l)}>Received</button>
