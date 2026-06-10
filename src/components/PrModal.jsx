@@ -85,7 +85,7 @@ export default function PrModal({ pr = null, boqItem = null, onClose }) {
       picId: picId || null,
       status,
       orderDate: orderDate || null,
-      receiptDate: receiptDate || null,
+      receiptDate: status === 'received' ? (receiptDate || null) : null,
     };
     if (editing) updatePr(pr.id, payload);
     else addPr(payload);
@@ -234,7 +234,7 @@ export default function PrModal({ pr = null, boqItem = null, onClose }) {
         </div>
         <div>
           <label className="lbl">Status</label>
-          <select className="input" value={status} onChange={(e) => setStatus(e.target.value)}>
+          <select className="input" value={status} onChange={(e) => { const v = e.target.value; setStatus(v); if (v === 'received' && !receiptDate) setReceiptDate(today()); }}>
             {PR_FLOW.map((s) => <option key={s} value={s}>{PR_STATUS[s].label}</option>)}
             <option value="cancelled">Cancelled</option>
           </select>
@@ -244,11 +244,14 @@ export default function PrModal({ pr = null, boqItem = null, onClose }) {
           <label className="lbl">Order date {status === 'ordered' || status === 'received' ? '' : ''}</label>
           <input type="date" value={orderDate || ''} onChange={(e) => setOrderDate(e.target.value)} />
         </div>
-        <div>
-          <label className="lbl">Receipt date {status === 'received' && <span className="req">*</span>}</label>
-          <input type="date" value={receiptDate || ''} max={today()}
-            onChange={(e) => setReceiptDate(e.target.value)} />
-        </div>
+        {status === 'received' && (
+          <div>
+            <label className="lbl">Receipt date <span className="req">*</span></label>
+            <input type="date" value={receiptDate || ''} max={today()}
+              onChange={(e) => setReceiptDate(e.target.value)} />
+            <div className="help">Recorded only once the goods are received.</div>
+          </div>
+        )}
       </div>
 
       {wouldExceed && (

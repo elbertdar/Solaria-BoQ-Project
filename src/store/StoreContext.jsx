@@ -24,6 +24,12 @@ function normalize(d) {
     const projOf = Object.fromEntries(d.boqItems.map((b) => [b.id, b.projectId]));
     for (const p of d.prs) if (p.projectId == null && p.boqItemId) p.projectId = projOf[p.boqItemId] || null;
   }
+  if (Array.isArray(d.prs)) for (const p of d.prs) {
+    if (!Array.isArray(p.statusHistory)) {
+      const at = p.createdAt || (p.orderDate ? new Date(p.orderDate).toISOString() : nowISO());
+      p.statusHistory = [{ at, from: null, to: p.status, by: null }]; // pre-feature rows: actor unknown
+    }
+  }
   return d;
 }
 function load() {
@@ -338,6 +344,8 @@ export function StoreProvider({ children }) {
       if (pr.boqItemId && !boqItem) return d;        // a linked PR must point to a real line
       const projectId = boqItem ? boqItem.projectId : pr.projectId;
       if (!projectId) return d;                       // every PR belongs to a project
+      const actor = d.currentUser ? { id: d.currentUser.id, name: d.currentUser.name } : null;
+      const status = pr.status || 'draft';
       const rec = {
         id,
         projectId,
@@ -350,10 +358,11 @@ export function StoreProvider({ children }) {
         supplierSecondaryId: pr.supplierSecondaryId || null,
         picId: pr.picId || null,
         unitCost: Number(pr.unitCost) || 0,
-        status: pr.status || 'draft',
+        status,
         orderDate: pr.orderDate || null,
-        receiptDate: pr.receiptDate || null,
+        receiptDate: status === 'received' ? (pr.receiptDate || null) : null, // no receipt date unless received
         createdAt: nowISO(),
+        statusHistory: [{ at: nowISO(), from: null, to: status, by: actor }],
       };
       return { ...d, prs: [...d.prs, rec] };
     });
@@ -361,37 +370,52 @@ export function StoreProvider({ children }) {
   }, []);
 
   const updatePr = useCallback((id, patch) => {
-    setDb((d) => ({
-      ...d,
-      prs: d.prs.map((p) => {
-        if (p.id !== id) return p;
-        const next = { ...p, ...patch };
-        if (next.quantity != null) next.quantity = Number(next.quantity) || 0;
-        if (next.unitCost != null) next.unitCost = Number(next.unitCost) || 0;
-        return next;
-      }),
-    }));
+    setDb((d) => {
+      const actor = d.currentUser ? { id: d.currentUser.id, name: d.currentUser.name } : null;
+      return {
+        ...d,
+        prs: d.prs.map((p) => {
+          if (p.id !== id) return p;
+          const next = { ...p, ...patch };
+          if (next.quantity != null) next.quantity = Number(next.quantity) || 0;
+          if (next.unitCost != null) next.unitCost = Number(next.unitCost) || 0;
+          if (next.status !== 'received') next.receiptDate = null;   // receipt only when received
+          const statusChanged = patch.status != null && patch.status !== p.status;
+          next.statusHistory = statusChanged
+            ? [...(p.statusHistory || []), { at: nowISO(), from: p.status, to: next.status, by: actor }]
+            : (p.statusHistory || []);
+          return next;
+        }),
+      };
+    });
   }, []);
 
   // BR-4: received requires a receipt date. Returns {ok,error}.
   const setPrStatus = useCallback((id, status, receiptDate) => {
     let result = { ok: true };
-    setDb((d) => ({
-      ...d,
-      prs: d.prs.map((p) => {
-        if (p.id !== id) return p;
-        if (status === 'received' && !(receiptDate || p.receiptDate)) {
-          result = { ok: false, error: 'A receipt date is required to mark a PR received.' };
-          return p;
-        }
-        return {
-          ...p,
-          status,
-          receiptDate: status === 'received' ? (receiptDate || p.receiptDate) : p.receiptDate,
-          orderDate: (status === 'ordered' && !p.orderDate) ? (new Date().toISOString().slice(0, 10)) : p.orderDate,
-        };
-      }),
-    }));
+    setDb((d) => {
+      const actor = d.currentUser ? { id: d.currentUser.id, name: d.currentUser.name } : null;
+      return {
+        ...d,
+        prs: d.prs.map((p) => {
+          if (p.id !== id) return p;
+          if (status === 'received' && !(receiptDate || p.receiptDate)) {
+            result = { ok: false, error: 'A receipt date is required to mark a PR received.' };
+            return p;
+          }
+          const changed = status !== p.status;
+          return {
+            ...p,
+            status,
+            receiptDate: status === 'received' ? (receiptDate || p.receiptDate) : null, // clear unless received
+            orderDate: (status === 'ordered' && !p.orderDate) ? (new Date().toISOString().slice(0, 10)) : p.orderDate,
+            statusHistory: changed
+              ? [...(p.statusHistory || []), { at: nowISO(), from: p.status, to: status, by: actor }]
+              : (p.statusHistory || []),
+          };
+        }),
+      };
+    });
     return result;
   }, []);
 

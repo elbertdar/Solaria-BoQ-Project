@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, Fragment } from 'react';
 import { useStore, useProject } from '../store/StoreContext.jsx';
 import { prsForProject, materialName, isExtraPr, brandName } from '../engine/reconcile.js';
 import { ProjectBar, StatusPill, FilterBar, FilterSearch, FilterSelect } from '../components/ui.jsx';
@@ -19,6 +19,7 @@ export default function PurchaseRequestsPage() {
   const [q, setQ] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [supplierFilter, setSupplierFilter] = useState('');
+  const [open, setOpen] = useState(null);
 
   const supplierName = (id) => db.suppliers.find((s) => s.id === id)?.name || '—';
   const picName = (id) => db.users.find((u) => u.id === id)?.name || '—';
@@ -69,14 +70,20 @@ export default function PurchaseRequestsPage() {
           <table className="table">
             <thead>
               <tr>
+                <th style={{ width: 28 }}></th>
                 <th>Material</th><th>Status</th>
                 <th className="num">Qty</th><th>Unit</th><th className="num">Unit cost</th><th className="num">Line total</th>
                 <th>Sup 1 / Sup 2</th><th>PIC</th><th>Order</th><th>Receipt</th><th></th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((p) => (
-                <tr key={p.id}>
+              {filtered.map((p) => {
+                const isOpen = open === p.id;
+                const hist = p.statusHistory || [];
+                return (
+                <Fragment key={p.id}>
+                <tr>
+                  <td className="num clickable" style={{ cursor: 'pointer', color: 'var(--muted, #94A3B8)' }} onClick={() => setOpen(isOpen ? null : p.id)} title="Status history">{isOpen ? '▾' : '▸'}</td>
                   <td className="mat-link">{materialName(db, p.materialId)}{isExtraPr(db, p) && <span className="pill" style={{ background: '#FEF3C7', color: '#92660C', border: '1px solid #FDE68A', marginLeft: 6, fontSize: 11 }}>Extra</span>}{p.brandId && <div className="muted" style={{ fontSize: 11 }}>{brandName(db, p.brandId)}</div>}</td>
                   <td><StatusPill status={p.status} /></td>
                   <td className="num">{num(p.quantity)}</td>
@@ -97,9 +104,32 @@ export default function PurchaseRequestsPage() {
                     )}
                   </td>
                 </tr>
-              ))}
+                {isOpen && (
+                  <tr><td colSpan={12} style={{ background: '#F8FAFC' }}>
+                    <div style={{ padding: '8px 10px 10px' }}>
+                      <div className="lbl" style={{ marginBottom: 6 }}>Status history</div>
+                      {hist.length ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          {[...hist].reverse().map((h, i) => (
+                            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, flexWrap: 'wrap' }}>
+                              <span className="muted" style={{ minWidth: 152, whiteSpace: 'nowrap' }}>
+                                {fmtDate(h.at)} · {new Date(h.at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                              {h.from ? <><StatusPill status={h.from} /><span className="muted">→</span></> : <span className="muted">created as</span>}
+                              <StatusPill status={h.to} />
+                              <span className="muted">· by {h.by?.name || '—'}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : <div className="muted" style={{ fontSize: 13 }}>No status changes recorded yet.</div>}
+                    </div>
+                  </td></tr>
+                )}
+                </Fragment>
+                );
+              })}
               {filtered.length === 0 && (
-                <tr><td colSpan={11}><div className="empty">{prs.length === 0 ? 'No purchase requests yet. Raise one from a BoQ item.' : 'No PRs match these filters.'}</div></td></tr>
+                <tr><td colSpan={12}><div className="empty">{prs.length === 0 ? 'No purchase requests yet. Raise one from a BoQ item.' : 'No PRs match these filters.'}</div></td></tr>
               )}
             </tbody>
           </table>

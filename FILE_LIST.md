@@ -3,7 +3,36 @@
 The source of truth for what files exist and where. **Updated every time we change something.**
 
 - **Last updated:** 5 Jun 2026
-- **Latest build:** Thousands separators — commas on qty & price across tables and inputs
+- **Latest build:** PR audit — receipt-date gating + status-change history (with actor) + expandable row
+
+---
+
+## ⚠ Latest build (PR status history & receipt gating)
+
+**Receipt date is now gated behind actual receipt.** The invariant `receiptDate ≠ null ⇔ status = 'received'`
+is enforced in the store on every write path (`addPr`, `updatePr`, `setPrStatus`), so moving a PR to any
+non-received status clears its receipt date and it can't be set ahead of time. The PR modal only shows the
+receipt-date field when status is "received" (and prefills today on that switch).
+
+**Every status change is logged.** Each PR carries `statusHistory: [{ at, from, to, by:{id,name} }]`.
+The actor is a snapshot of the current user (name frozen at the time, so it survives renames/deletes) —
+single-user today, but the shape is ready for multiple users. Both paths that change status log it:
+`setPrStatus` (the Advance / receive actions) and `updatePr` (editing status in the PR modal). Creation
+seeds one entry (`null → initial status`). Existing PRs are backfilled on load with a single
+`null → current status` entry (actor unknown, shown as "—"), since pre-feature transitions weren't recorded.
+
+**Expandable history row.** Each PR row in Purchase Requests has a ▸ chevron that expands to its status
+timeline — when, `from → to` (status pills), and who. (Note: not added to the Overview/Balance drill-downs.)
+
+**Verified:** 12-check reducer harness (seed on create, log on every transition, block received-without-date,
+clear receipt when leaving received, no log when status unchanged, actor reflects the acting user) + clean-room
+installer extraction. **Storage unchanged — v10** (`normalize` backfills `statusHistory`).
+
+**Changed:** `store/StoreContext.jsx`, `components/PrModal.jsx`, `pages/PurchaseRequestsPage.jsx`
+
+---
+
+## Previous build (Number formatting)
 
 ---
 
