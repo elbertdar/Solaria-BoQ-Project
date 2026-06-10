@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
+import { TONE } from '../theme.js';
 import { useStore, useProject } from '../store/StoreContext.jsx';
 import { ProjectBar } from '../components/ui.jsx';
 import PrModal from '../components/PrModal.jsx';
@@ -8,7 +9,6 @@ import {
 } from '../engine/schedule.js';
 import { fmtDate } from '../engine/format.js';
 
-const TONE = { overdue: '#E11D48', late: '#8B5CF6', orderNow: '#EAB308', awaiting: '#0EA5E9', done: '#16A34A', neutral: '#94A3B8' };
 const BORDER = '#E5E7EB';
 const WEEKEND = 'rgba(100,116,139,0.07)';
 const TODAYBG = 'rgba(245,158,11,0.14)';
@@ -28,9 +28,9 @@ const dayLabel = (o) => (o == null ? '—' : `Day ${o}`);
 export default function SchedulePage() {
   const { db, currentProjectId, setPrStatus, updateProject } = useStore();
   const project = useProject();
-  const today = todayLocal();
-  const { lines, start, curOff, dayAxis } = scheduleForProject(db, currentProjectId, today);
-  const counts = scheduleCounts(lines);
+  const today = useMemo(() => todayLocal(), []);
+  const { lines, start, curOff, dayAxis } = useMemo(() => scheduleForProject(db, currentProjectId, today), [db, currentProjectId, today]);
+  const counts = useMemo(() => scheduleCounts(lines), [lines]);
 
   const [filter, setFilter] = useState(null);
   const [view, setView] = useState('timeline');

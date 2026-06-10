@@ -41,6 +41,14 @@ const pickFields = (o, keys) => { const r = {}; for (const k of keys) r[k] = o?.
 let _uid = 0;
 const uid = (p) => `${p}-${Date.now().toString(36)}-${(_uid++).toString(36)}`;
 
+// Generic collection CRUD — collapses the repeated add/update/delete trios. Module-scoped and
+// fed the stable setDb, so each useMemo([]) wrapper below yields stable action identities.
+const makeCrud = (setDb, key, prefix, defaults) => ({
+  add: (obj) => { const id = uid(prefix); setDb((d) => ({ ...d, [key]: [...(d[key] || []), { id, ...(defaults || {}), ...obj }] })); return id; },
+  update: (id, patch) => setDb((d) => ({ ...d, [key]: (d[key] || []).map((x) => x.id === id ? { ...x, ...patch } : x) })),
+  remove: (id) => setDb((d) => ({ ...d, [key]: (d[key] || []).filter((x) => x.id !== id) })),
+});
+
 export function StoreProvider({ children }) {
   const [db, setDb] = useState(load);
   const [currentProjectId, setCurrentProjectId] = useState(() => load().projects[0]?.id);
@@ -50,14 +58,23 @@ export function StoreProvider({ children }) {
   }, [db]);
 
   // ---- Catalogue (Feature 5.1) ----
-  const addMaterial = useCallback((m) => {
-    const id = uid('mat');
-    setDb((d) => ({ ...d, materials: [...d.materials, { id, aliases: [], ...m }] }));
-    return id;
-  }, []);
-  const updateMaterial = useCallback((id, patch) => {
-    setDb((d) => ({ ...d, materials: d.materials.map((m) => m.id === id ? { ...m, ...patch } : m) }));
-  }, []);
+  // ---- Collection CRUD via factory (aliased to the original names; value/deps unchanged) ----
+  const materialCrud = useMemo(() => makeCrud(setDb, 'materials', 'mat', { aliases: [] }), []);
+  const addMaterial = materialCrud.add, updateMaterial = materialCrud.update;
+  const supplierCrud = useMemo(() => makeCrud(setDb, 'suppliers', 's', { materialTypeIds: [] }), []);
+  const addSupplier = supplierCrud.add;
+  const brandCrud = useMemo(() => makeCrud(setDb, 'brands', 'br'), []);
+  const addBrand = brandCrud.add, updateBrand = brandCrud.update;
+  const typeCrud = useMemo(() => makeCrud(setDb, 'materialTypes', 'mt', { description: '' }), []);
+  const addMaterialType = typeCrud.add, updateMaterialType = typeCrud.update;
+  const projectCrud = useMemo(() => makeCrud(setDb, 'projects', 'p', { client: 'Solaria F&B', location: '' }), []);
+  const addProject = projectCrud.add, updateProject = projectCrud.update;
+  const mandorCrud = useMemo(() => makeCrud(setDb, 'mandors', 'm'), []);
+  const addMandor = useMemo(() => (name) => mandorCrud.add({ name }), []);
+  const updateMandor = mandorCrud.update, deleteMandor = mandorCrud.remove;
+  const userCrud = useMemo(() => makeCrud(setDb, 'users', 'u', { role: 'Purchasing PIC' }), []);
+  const addUser = userCrud.add;
+
   const addAlias = useCallback((id, alias) => {
     setDb((d) => ({
       ...d,
@@ -198,21 +215,8 @@ export function StoreProvider({ children }) {
   }, []);
 
   // ---- Suppliers (Feature 5.3) ----
-  const addSupplier = useCallback((s) => {
-    const id = uid('s');
-    setDb((d) => ({ ...d, suppliers: [...d.suppliers, { id, materialTypeIds: [], ...s }] }));
-    return id;
-  }, []);
 
   // ---- Brands (per-material; one row each — never a list jammed in a cell) ----
-  const addBrand = useCallback((b) => {
-    const id = uid('br');
-    setDb((d) => ({ ...d, brands: [...(d.brands || []), { id, materialId: b.materialId, name: b.name }] }));
-    return id;
-  }, []);
-  const updateBrand = useCallback((id, patch) => {
-    setDb((d) => ({ ...d, brands: (d.brands || []).map((b) => b.id === id ? { ...b, ...patch } : b) }));
-  }, []);
   const deleteBrand = useCallback((id) => {
     setDb((d) => ({
       ...d,
@@ -305,42 +309,10 @@ export function StoreProvider({ children }) {
   }, []);
 
   // ---- Material types (source of truth for every type dropdown / filter) ----
-  const addMaterialType = useCallback((t) => {
-    const id = uid('mt');
-    setDb((d) => ({ ...d, materialTypes: [...d.materialTypes, { id, description: '', ...t }] }));
-    return id;
-  }, []);
-  const updateMaterialType = useCallback((id, patch) => {
-    setDb((d) => ({ ...d, materialTypes: d.materialTypes.map((t) => t.id === id ? { ...t, ...patch } : t) }));
-  }, []);
 
   // ---- Projects & mandors ----
-  const addProject = useCallback((p) => {
-    const id = uid('p');
-    setDb((d) => ({ ...d, projects: [...d.projects, { id, client: 'Solaria F&B', location: '', ...p }] }));
-    return id;
-  }, []);
-  const updateProject = useCallback((id, patch) => {
-    setDb((d) => ({ ...d, projects: d.projects.map((p) => p.id === id ? { ...p, ...patch } : p) }));
-  }, []);
-  const addMandor = useCallback((name) => {
-    const id = uid('m');
-    setDb((d) => ({ ...d, mandors: [...d.mandors, { id, name }] }));
-    return id;
-  }, []);
-  const updateMandor = useCallback((id, patch) => {
-    setDb((d) => ({ ...d, mandors: d.mandors.map((m) => m.id === id ? { ...m, ...patch } : m) }));
-  }, []);
-  const deleteMandor = useCallback((id) => {
-    setDb((d) => ({ ...d, mandors: d.mandors.filter((m) => m.id !== id) }));
-  }, []);
 
   // ---- Team / users (staff records the app references; not login accounts) ----
-  const addUser = useCallback((u) => {
-    const id = uid('u');
-    setDb((d) => ({ ...d, users: [...d.users, { id, role: 'Purchasing PIC', ...u }] }));
-    return id;
-  }, []);
   const updateUser = useCallback((id, patch) => {
     setDb((d) => ({
       ...d,

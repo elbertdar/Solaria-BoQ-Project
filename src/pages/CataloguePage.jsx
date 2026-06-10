@@ -3,7 +3,7 @@ import { useStore } from '../store/StoreContext.jsx';
 import { suggestMaterials } from '../engine/match.js';
 import { idr } from '../engine/format.js';
 import Modal from '../components/Modal.jsx';
-import { FilterBar, FilterSearch, FilterSelect } from '../components/ui.jsx';
+import { FilterBar, FilterSearch, FilterSelect, DeleteConfirm } from '../components/ui.jsx';
 
 export default function CataloguePage() {
   const { db, addMaterial, updateMaterial, addAlias, removeAlias, addBrand, deleteBrand, softDeleteMaterial } = useStore();
@@ -116,25 +116,13 @@ function DeleteMaterial({ material, db, onClose, onConfirm }) {
   const brands = db.brands.filter((b) => b.materialId === material.id).length;
   const blocked = boq > 0 || prs > 0;
   return (
-    <Modal title={`Delete · ${material.canonicalName}`} onClose={onClose}
-      footer={blocked
-        ? <button className="btn" onClick={onClose}>Close</button>
-        : <>
-            <button className="btn ghost" onClick={onClose}>Cancel</button>
-            <button className="btn danger" onClick={onConfirm}>Move to Trash</button>
-          </>}>
-      {blocked ? (
-        <p style={{ margin: 0, lineHeight: 1.6 }}>
-          <b>{material.canonicalName}</b> is in use — it can’t be deleted while it’s referenced by{' '}
-          {boq > 0 && <b>{boq} BoQ line{boq === 1 ? '' : 's'}</b>}{boq > 0 && prs > 0 ? ' and ' : ''}
-          {prs > 0 && <b>{prs} purchase request{prs === 1 ? '' : 's'}</b>}. Remove or repoint those first.
-        </p>
-      ) : (
-        <p style={{ margin: 0, lineHeight: 1.6 }}>
-          Delete <b>{material.canonicalName}</b>{brands > 0 ? <> and its <b>{brands} brand{brands === 1 ? '' : 's'}</b></> : ''}? It’s unused, and can be restored from Trash for 7 days.
-        </p>
-      )}
-    </Modal>
+    <DeleteConfirm title={`Delete · ${material.canonicalName}`} blocked={blocked} onClose={onClose} onConfirm={onConfirm}
+      blockedMsg={<>
+        <b>{material.canonicalName}</b> is in use — it can’t be deleted while it’s referenced by{' '}
+        {boq > 0 && <b>{boq} BoQ line{boq === 1 ? '' : 's'}</b>}{boq > 0 && prs > 0 ? ' and ' : ''}
+        {prs > 0 && <b>{prs} purchase request{prs === 1 ? '' : 's'}</b>}. Remove or repoint those first.
+      </>}
+      confirmMsg={<>Delete <b>{material.canonicalName}</b>{brands > 0 ? <> and its <b>{brands} brand{brands === 1 ? '' : 's'}</b></> : ''}? It’s unused, and can be restored from Trash for 7 days.</>} />
   );
 }
 

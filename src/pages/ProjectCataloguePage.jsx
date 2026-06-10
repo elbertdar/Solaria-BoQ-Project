@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../store/StoreContext.jsx';
 import { projectTotals } from '../engine/reconcile.js';
@@ -6,7 +6,7 @@ import { scheduleForProject, todayLocal } from '../engine/schedule.js';
 import { idr, fmtDate } from '../engine/format.js';
 import NewProjectModal from '../components/NewProjectModal.jsx';
 import Modal from '../components/Modal.jsx';
-import { FilterBar, FilterSearch, FilterSelect } from '../components/ui.jsx';
+import { FilterBar, FilterSearch, FilterSelect, Pill } from '../components/ui.jsx';
 
 const TABS = [
   { key: 'active', label: 'Active' },
@@ -16,13 +16,13 @@ const TABS = [
 
 const pill = (txt, kind) => {
   const c = kind === 'risk' ? ['#E11D48', '#FEF2F4'] : kind === 'ok' ? ['#16A34A', '#F0FDF4'] : ['#64748B', '#F1F5F9'];
-  return <span style={{ fontSize: 12, fontWeight: 700, padding: '2px 9px', borderRadius: 999, color: c[0], background: c[1], whiteSpace: 'nowrap' }}>{txt}</span>;
+  return <Pill fg={c[0]} bg={c[1]}>{txt}</Pill>;
 };
 
 export default function ProjectCataloguePage() {
   const { db, setCurrentProjectId, addProject, softDeleteProject, currentProjectId } = useStore();
   const nav = useNavigate();
-  const today = todayLocal();
+  const today = useMemo(() => todayLocal(), []);
   const [tab, setTab] = useState('active');
   const [newProject, setNewProject] = useState(false);
   const [delFor, setDelFor] = useState(null);
@@ -31,7 +31,7 @@ export default function ProjectCataloguePage() {
   const [overFilter, setOverFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
 
-  const rows = db.projects.map((p) => {
+  const rows = useMemo(() => db.projects.map((p) => {
     const totals = projectTotals(db, p.id);
     const { lines, start, curOff } = scheduleForProject(db, p.id, today);
     const neededDates = lines.map((l) => l.neededDate).filter(Boolean);
@@ -39,7 +39,7 @@ export default function ProjectCataloguePage() {
     const received = lines.filter((l) => l.state === 'received').length;
     const attention = lines.filter((l) => l.orderOverdue || l.deliveryOverdue).length;
     return { p, totals, start, curOff, estFinish, items: lines.length, received, attention };
-  });
+  }), [db, today]);
 
   const open = (id) => { setCurrentProjectId(id); nav('/overview'); };
 

@@ -3,7 +3,38 @@
 The source of truth for what files exist and where. **Updated every time we change something.**
 
 - **Last updated:** 5 Jun 2026
-- **Latest build:** Deletion workflow — soft-delete + Trash (restore within 7 days)
+- **Latest build:** Refactor pass COMPLETE — batches 1–4 (dedup, dead-code, CRUD factory, memoization, BoqPage split)
+
+---
+
+## ⚠ Refactor pass — all four batches (behaviour-preserving — no UI/logic changes)
+
+A cleanup sweep across the heaviest files. **Nothing the user sees changed**; verified by compile +
+a CRUD-equivalence harness + the soft-delete round-trip + clean-room installer extraction.
+
+**Batch 3 — `BoqPage` decomposition (724 → 338 lines):**
+- Extracted `BoqModal` (257), `CommitModal` (76), `HistoryView` (62) into their own files under `src/components/`.
+- New `src/components/boqShared.jsx` (15) holds the two cross-component helpers — `dnum` (BoQ rows + item modal) and `fmtVal` (commit modal + history view) — so the split introduces **no duplication**.
+- `BoqPage` now contains only the page shell + `Group` + `Row` + `DraftRow`; six now-unused imports dropped.
+- `Row` (read-only display) and `DraftRow` (live edit inputs) were left un-merged on purpose — they share almost no markup, so a shared cell component would be contrived.
+- App-file count: 24 → **28** under `src/` (the split adds focused files; total LOC ≈ flat, per-file complexity way down).
+
+**Batch 1 — cross-cutting dedup + dead code:** removed dead `OverPill`; `TONE` → `theme.js` (was duplicated in Schedule + Dashboard); new `Pill` + `DeleteConfirm` primitives in `ui.jsx` adopted by the duplicating sites. (`deletePr` kept — Dashboard "undo" hard-deletes legitimately.)
+
+**Batch 2 — `StoreContext` CRUD factory (−28 lines):** module-scoped `makeCrud(setDb, key, prefix, defaults)` collapses 13 add/update/delete actions, each `useMemo([])`-stable and aliased to the original names (value + deps + call sites unchanged). Custom logic preserved: `addMandor`, `updateUser`/`deleteUser`, `deleteBrand`, soft-deletes.
+
+**Batch 4 — efficiency (memoization):** `ReconciliationPage`, `SchedulePage`, `ProjectCataloguePage`, `DashboardPage` wrap expensive derivations in `useMemo` keyed on `[db, currentProjectId]` with a stabilised `today`. Typing in a filter no longer recomputes the whole reconciliation/schedule.
+
+**Heaviest files now:** StoreContext 456, BoqPage 338, SchedulePage 295, PrModal 292 — far more balanced (was BoqPage 724 alone).
+
+**Storage:** unchanged — still **v10**.
+
+**New files:** `src/components/{BoqModal,CommitModal,HistoryView,boqShared}.jsx`
+**Changed (refactor):** `theme.js`, `ui.jsx`, `StoreContext.jsx`, `BoqPage.jsx`, `pages/{Dashboard,Schedule,ProjectCatalogue,Reconciliation,Catalogue,MaterialTypes,Trash}Page.jsx`
+
+---
+
+## Previous build (Deletion workflow)
 
 ---
 

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../store/StoreContext.jsx';
+import Modal from './Modal.jsx';
 import { PR_STATUS } from '../theme.js';
 import { computeLine, todayLocal } from '../engine/schedule.js';
 
@@ -33,10 +34,26 @@ export function StatusPill({ status }) {
   return <span className={'pill ' + s.pill}><span className="pdot" style={pdot(s.pill)} />{s.label}</span>;
 }
 
-export function OverPill({ over }) {
-  return over
-    ? <span className="pill risk">Over budget</span>
-    : <span className="pill ok">Within budget</span>;
+// Inline coloured pill for ad-hoc fg/bg pairs (entity badges, project status) where the
+// .pill.* CSS classes don't fit. One definition instead of the same style object in five files.
+export function Pill({ children, fg, bg, title }) {
+  return <span title={title} style={{ display: 'inline-block', fontSize: 12, fontWeight: 700, padding: '2px 9px', borderRadius: 999, color: fg, background: bg, whiteSpace: 'nowrap' }}>{children}</span>;
+}
+
+// Shared delete-confirmation shell. `blocked` swaps the body + footer (Close-only) so callers
+// only supply their entity-specific ref counts and copy. Used by material/type deletes.
+export function DeleteConfirm({ title, blocked, blockedMsg, confirmMsg, confirmLabel = 'Move to Trash', onConfirm, onClose }) {
+  return (
+    <Modal title={title} onClose={onClose}
+      footer={blocked
+        ? <button className="btn" onClick={onClose}>Close</button>
+        : <>
+            <button className="btn ghost" onClick={onClose}>Cancel</button>
+            <button className="btn danger" onClick={onConfirm}>{confirmLabel}</button>
+          </>}>
+      <p style={{ margin: 0, lineHeight: 1.6 }}>{blocked ? blockedMsg : confirmMsg}</p>
+    </Modal>
+  );
 }
 
 function pdot(pill) {

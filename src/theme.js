@@ -29,3 +29,7 @@ export const PR_FLOW = ['draft', 'requested', 'quoted', 'ordered', 'received'];
 // Receipt is the stricter "realized" set used for the headline balance.
 export const COMMITTED_STATUSES = ['ordered', 'received'];
 export const RECEIVED_STATUSES = ['received'];
+
+// Schedule/agenda status → bar & dot colour (shared by Schedule + Dashboard timelines).
+// Single source so the two surfaces can't drift apart (they were identical literals).
+export const TONE = { overdue: '#E11D48', late: '#8B5CF6', orderNow: '#EAB308', awaiting: '#0EA5E9', done: '#16A34A', neutral: '#94A3B8' };

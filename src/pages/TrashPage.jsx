@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useStore } from '../store/StoreContext.jsx';
 import { fmtDate } from '../engine/format.js';
-import { FilterBar, FilterSearch, FilterSelect } from '../components/ui.jsx';
+import { FilterBar, FilterSearch, FilterSelect, Pill } from '../components/ui.jsx';
 
 const ENTITY = {
   pr: { label: 'Purchase request', color: ['#0369A1', '#EFF6FF'] },
@@ -55,7 +55,7 @@ export default function TrashPage() {
                       <b>{e.summary}</b>
                       {e.count > 1 && <div className="muted" style={{ fontSize: 12 }}>{e.count} records restored together (incl. linked rows)</div>}
                     </td>
-                    <td><span style={{ fontSize: 12, fontWeight: 700, padding: '2px 9px', borderRadius: 999, color: meta.color[0], background: meta.color[1], whiteSpace: 'nowrap' }}>{meta.label}</span></td>
+                    <td><Pill fg={meta.color[0]} bg={meta.color[1]}>{meta.label}</Pill></td>
                     <td style={{ whiteSpace: 'nowrap' }}>{fmtDate(e.deletedAt)}</td>
                     <td style={{ whiteSpace: 'nowrap', color: left <= 1 ? 'var(--risk)' : 'var(--muted, #94A3B8)', fontWeight: left <= 1 ? 600 : 400 }}>{left === 0 ? 'today' : `in ${left} day${left === 1 ? '' : 's'}`}</td>
                     <td className="num" style={{ whiteSpace: 'nowrap' }}>

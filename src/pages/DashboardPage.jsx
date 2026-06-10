@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { TONE } from '../theme.js';
 import { useStore } from '../store/StoreContext.jsx';
 import { KpiCard } from '../components/ui.jsx';
 import Modal from '../components/Modal.jsx';
@@ -9,14 +10,13 @@ import { portfolioWorklist, todayLocal, addDays, toISO, computeLine, portfolioGa
 import { fmtDate, today as todayISO } from '../engine/format.js';
 import PortfolioGantt from '../components/PortfolioGantt.jsx';
 
-const TONE = { overdue: '#E11D48', late: '#8B5CF6', orderNow: '#EAB308', awaiting: '#0EA5E9', done: '#16A34A', neutral: '#94A3B8' };
 const BORDER = '#E5E7EB';
 
 export default function DashboardPage() {
   const { db, setCurrentProjectId, addPr, deletePr, setPrStatus, updateBoqItem, addProject } = useStore();
   const nav = useNavigate();
-  const today = todayLocal();
-  const wl = portfolioWorklist(db, today);
+  const today = useMemo(() => todayLocal(), []);
+  const wl = useMemo(() => portfolioWorklist(db, today), [db, today]);
 
   const [done, setDone] = useState([]);        // session-only check-off for "Mark ordered"
   const [receiveFor, setReceiveFor] = useState(null);
@@ -24,7 +24,7 @@ export default function DashboardPage() {
   const [snoozeFor, setSnoozeFor] = useState(null);
   const [newProject, setNewProject] = useState(false);
   const [view, setView] = useState('worklist');
-  const gantt = portfolioGantt(db, today);
+  const gantt = useMemo(() => portfolioGantt(db, today), [db, today]);
 
   const openProject = (projectId, route = '/boq') => { setCurrentProjectId(projectId); nav(route); };
 

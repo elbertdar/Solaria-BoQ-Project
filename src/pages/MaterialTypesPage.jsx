@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useStore } from '../store/StoreContext.jsx';
 import Modal from '../components/Modal.jsx';
-import { FilterBar, FilterSearch } from '../components/ui.jsx';
+import { FilterBar, FilterSearch, DeleteConfirm } from '../components/ui.jsx';
 
 export default function MaterialTypesPage() {
   const { db, addMaterialType, updateMaterialType, softDeleteMaterialType } = useStore();
@@ -84,23 +84,13 @@ function DeleteType({ type, db, onClose, onConfirm }) {
   const sups = db.suppliers.filter((s) => (s.materialTypeIds || []).includes(type.id)).length;
   const blocked = mats > 0 || sups > 0;
   return (
-    <Modal title={`Delete · ${type.name}`} onClose={onClose}
-      footer={blocked
-        ? <button className="btn" onClick={onClose}>Close</button>
-        : <>
-            <button className="btn ghost" onClick={onClose}>Cancel</button>
-            <button className="btn danger" onClick={onConfirm}>Move to Trash</button>
-          </>}>
-      {blocked ? (
-        <p style={{ margin: 0, lineHeight: 1.6 }}>
-          <b>{type.name}</b> is in use — it can’t be deleted while{' '}
-          {mats > 0 && <b>{mats} material{mats === 1 ? '' : 's'}</b>}{mats > 0 && sups > 0 ? ' and ' : ''}
-          {sups > 0 && <b>{sups} supplier{sups === 1 ? '' : 's'}</b>} reference it. Reassign those first.
-        </p>
-      ) : (
-        <p style={{ margin: 0, lineHeight: 1.6 }}>Delete <b>{type.name}</b>? It’s unused, and can be restored from Trash for 7 days.</p>
-      )}
-    </Modal>
+    <DeleteConfirm title={`Delete · ${type.name}`} blocked={blocked} onClose={onClose} onConfirm={onConfirm}
+      blockedMsg={<>
+        <b>{type.name}</b> is in use — it can’t be deleted while{' '}
+        {mats > 0 && <b>{mats} material{mats === 1 ? '' : 's'}</b>}{mats > 0 && sups > 0 ? ' and ' : ''}
+        {sups > 0 && <b>{sups} supplier{sups === 1 ? '' : 's'}</b>} reference it. Reassign those first.
+      </>}
+      confirmMsg={<>Delete <b>{type.name}</b>? It’s unused, and can be restored from Trash for 7 days.</>} />
   );
 }
 
