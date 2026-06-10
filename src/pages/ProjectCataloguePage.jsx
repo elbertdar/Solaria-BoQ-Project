@@ -20,11 +20,12 @@ const pill = (txt, kind) => {
 };
 
 export default function ProjectCataloguePage() {
-  const { db, setCurrentProjectId, addProject, updateProject, addProjectType, softDeleteProject, currentProjectId } = useStore();
+  const { db, setCurrentProjectId, addProject, updateProject, addProjectType, deleteProjectType, softDeleteProject, currentProjectId } = useStore();
   const nav = useNavigate();
   const today = useMemo(() => todayLocal(), []);
   const [tab, setTab] = useState('active');
   const [newProject, setNewProject] = useState(false);
+  const [manageTypes, setManageTypes] = useState(false);
   const [delFor, setDelFor] = useState(null);
   const [q, setQ] = useState('');
   const [projectFilter, setProjectFilter] = useState('');
@@ -62,7 +63,10 @@ export default function ProjectCataloguePage() {
           <h1>Project Catalogue</h1>
           <p className="sub">Every build in one place — budget, commitment, timeline, and risk at a glance.</p>
         </div>
-        <button className="btn primary" onClick={() => setNewProject(true)}>+ New project</button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn ghost" onClick={() => setManageTypes(true)}>Manage types</button>
+          <button className="btn primary" onClick={() => setNewProject(true)}>+ New project</button>
+        </div>
       </div>
 
       <div className="seg" style={{ marginBottom: 16 }}>
@@ -106,6 +110,8 @@ export default function ProjectCataloguePage() {
 
       {newProject && <NewProjectModal onClose={() => setNewProject(false)}
         onCreate={(vals) => { const id = addProject(vals); setNewProject(false); setCurrentProjectId(id); nav('/boq'); }} />}
+
+      {manageTypes && <ManageTypes db={db} onClose={() => setManageTypes(false)} onDelete={deleteProjectType} />}
 
       {delFor && <DeleteProject project={delFor} db={db} onClose={() => setDelFor(null)}
         onConfirm={() => {
@@ -189,6 +195,39 @@ function DeleteProject({ project, db, onClose, onConfirm }) {
           <p className="help" style={{ marginBottom: 0 }}>This project has data, so we ask you to type its code — guards against an accidental delete.</p>
         </>
       )}
+    </Modal>
+  );
+}
+
+function ManageTypes({ db, onClose, onDelete }) {
+  const types = db.projectTypes || [];
+  const usage = (id) => db.projects.filter((p) => p.projectTypeId === id).length;
+  return (
+    <Modal title="Project types" onClose={onClose}
+      footer={<button className="btn ghost" onClick={onClose}>Done</button>}>
+      {types.length === 0 ? (
+        <div className="empty">No project types yet. Add one from a project's Type cell or the New project dialog.</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {types.map((t) => {
+            const n = usage(t.id);
+            return (
+              <div key={t.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '9px 12px', border: '1px solid var(--border)', borderRadius: 8 }}>
+                <div>
+                  <b>{t.name}</b>
+                  <div className="muted" style={{ fontSize: 12 }}>{n === 0 ? 'Not used by any project' : `Used by ${n} project${n === 1 ? '' : 's'}`}</div>
+                </div>
+                <button className="btn sm ghost" style={{ color: 'var(--risk)' }}
+                  onClick={() => onDelete(t.id)}
+                  title={n > 0 ? `Removes the type from ${n} project${n === 1 ? '' : 's'}` : 'Delete this type'}>
+                  Delete
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      <p className="help" style={{ marginBottom: 0, marginTop: 12 }}>Deleting a type never deletes a project — any project using it simply loses its type label.</p>
     </Modal>
   );
 }

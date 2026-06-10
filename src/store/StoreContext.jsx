@@ -79,6 +79,13 @@ export function StoreProvider({ children }) {
   const addProject = projectCrud.add, updateProject = projectCrud.update;
   const projectTypeCrud = useMemo(() => makeCrud(setDb, 'projectTypes', 'pt'), []);
   const addProjectType = projectTypeCrud.add;
+  const deleteProjectType = useCallback((id) => {
+    setDb((d) => ({
+      ...d,
+      projectTypes: d.projectTypes.filter((t) => t.id !== id),
+      projects: d.projects.map((p) => (p.projectTypeId === id ? { ...p, projectTypeId: null } : p)),
+    }));
+  }, []);
   const mandorCrud = useMemo(() => makeCrud(setDb, 'mandors', 'm'), []);
   const addMandor = useMemo(() => (name) => mandorCrud.add({ name }), []);
   const updateMandor = mandorCrud.update, deleteMandor = mandorCrud.remove;
@@ -458,14 +465,14 @@ export function StoreProvider({ children }) {
     addBrand, updateBrand, deleteBrand,
     softDeletePr, softDeleteMaterial, softDeleteMaterialType, softDeleteProject, restoreTrash, purgeTrash,
     addMaterialType, updateMaterialType,
-    addProject, updateProject, addProjectType, addMandor, updateMandor, deleteMandor,
+    addProject, updateProject, addProjectType, deleteProjectType, addMandor, updateMandor, deleteMandor,
     addUser, updateUser, deleteUser,
     addPr, updatePr, setPrStatus, deletePr,
     importData,
     resetDb,
   }), [db, currentProjectId, addMaterial, updateMaterial, addAlias, removeAlias,
     addBoqItem, updateBoqItem, patchBoqItem, deleteBoqItem, finalizeBoq,
-    stageBoqModify, stageBoqAdd, editStagedAdd, stageBoqDelete, unstageBoq, discardBoqStaged, commitBoqStaged, addSupplier, addBrand, updateBrand, deleteBrand, softDeletePr, softDeleteMaterial, softDeleteMaterialType, softDeleteProject, restoreTrash, purgeTrash, addMaterialType, updateMaterialType, addProject, updateProject, addProjectType, addMandor, updateMandor, deleteMandor,
+    stageBoqModify, stageBoqAdd, editStagedAdd, stageBoqDelete, unstageBoq, discardBoqStaged, commitBoqStaged, addSupplier, addBrand, updateBrand, deleteBrand, softDeletePr, softDeleteMaterial, softDeleteMaterialType, softDeleteProject, restoreTrash, purgeTrash, addMaterialType, updateMaterialType, addProject, updateProject, addProjectType, deleteProjectType, addMandor, updateMandor, deleteMandor,
     addUser, updateUser, deleteUser,
     addPr, updatePr, setPrStatus, deletePr, importData, resetDb]);
 

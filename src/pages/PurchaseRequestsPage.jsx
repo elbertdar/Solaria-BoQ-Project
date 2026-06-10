@@ -67,13 +67,13 @@ export default function PurchaseRequestsPage() {
 
       <div className="card">
         <div className="card-body flush">
-          <table className="table">
+          <table className="table compact">
             <thead>
               <tr>
                 <th style={{ width: 28 }}></th>
                 <th>Material</th><th>Status</th>
                 <th className="num">Qty</th><th>Unit</th><th className="num">Unit cost</th><th className="num">Line total</th>
-                <th>Sup 1 / Sup 2</th><th>PIC</th><th>Order</th><th>Receipt</th><th>Comment</th><th></th>
+                <th>Supplier 1</th><th>Supplier 2</th><th>PIC</th><th>Order</th><th>Receipt</th><th>Comment</th><th></th>
               </tr>
             </thead>
             <tbody>
@@ -90,14 +90,12 @@ export default function PurchaseRequestsPage() {
                   <td>{p.unit}</td>
                   <td className="num">{idr(p.unitCost)}</td>
                   <td className="num">{idr(p.quantity * (p.unitCost || 0))}</td>
-                  <td>
-                    {supplierName(p.supplierPrimaryId)}
-                    {p.supplierSecondaryId && <span className="muted"> / {supplierName(p.supplierSecondaryId)}</span>}
-                  </td>
+                  <td>{supplierName(p.supplierPrimaryId)}</td>
+                  <td>{p.supplierSecondaryId ? supplierName(p.supplierSecondaryId) : <span className="muted">—</span>}</td>
                   <td>{picName(p.picId)}</td>
                   <td>{fmtDate(p.orderDate)}</td>
                   <td>{fmtDate(p.receiptDate)}</td>
-                  <td style={{ verticalAlign: 'top' }}>
+                  <td>
                     <CommentCell value={p.comment || ''} onSave={(c) => updatePr(p.id, { comment: c })} />
                   </td>
                   <td className="num" style={{ whiteSpace: 'nowrap' }}>
@@ -108,7 +106,7 @@ export default function PurchaseRequestsPage() {
                   </td>
                 </tr>
                 {isOpen && (
-                  <tr><td colSpan={13} style={{ background: '#F8FAFC' }}>
+                  <tr><td colSpan={14} style={{ background: '#F8FAFC' }}>
                     <div style={{ padding: '8px 10px 10px' }}>
                       <div className="lbl" style={{ marginBottom: 6 }}>Status history</div>
                       {hist.length ? (
@@ -132,7 +130,7 @@ export default function PurchaseRequestsPage() {
                 );
               })}
               {filtered.length === 0 && (
-                <tr><td colSpan={13}><div className="empty">{prs.length === 0 ? 'No purchase requests yet. Raise one from a BoQ item.' : 'No PRs match these filters.'}</div></td></tr>
+                <tr><td colSpan={14}><div className="empty">{prs.length === 0 ? 'No purchase requests yet. Raise one from a BoQ item.' : 'No PRs match these filters.'}</div></td></tr>
               )}
             </tbody>
           </table>

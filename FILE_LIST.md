@@ -3,11 +3,34 @@
 The source of truth for what files exist and where. **Updated every time we change something.**
 
 - **Last updated:** 5 Jun 2026
-- **Latest build:** Fix — catalogue table now fits (Timeline wraps + tighter padding); no clipping
+- **Latest build:** 3 fixes — delete project types, split PR supplier columns, center PR comment cell
 
 ---
 
-## ⚠ Latest build (catalogue fits, take 2)
+## ⚠ Latest build (3 fixes)
+
+**1 · Delete a project type (easy).** New **Manage types** button in the catalogue header (next to "+ New
+project") opens a modal listing every type with its usage count and a one-click **Delete**. Deleting is
+non-destructive to projects — `deleteProjectType` removes the type and sets `projectTypeId: null` on any
+project that referenced it (so those projects just lose their label; nothing is deleted). The store action
+already existed; this build exposes it in the context value and adds the UI. (Verified with a 10-check
+reducer harness incl. immutability.)
+
+**2 · Split PR suppliers into two columns.** The combined "Sup 1 / Sup 2" column is now **Supplier 1** and
+**Supplier 2** (em-dash when there's no secondary). colSpans bumped 13 → 14. To keep the look clean despite
+the extra column, the PR table is now **`compact`** — the tighter 9px padding across 14 columns more than
+offsets the new column, so the table is actually slightly narrower than before.
+
+**3 · Center the PR comment cell.** Dropped the `vertical-align: top` override on the comment `<td>`, so the
+"+ note" button (and comment text) now sit vertically centered like the rest of the row.
+
+**Storage unchanged — v10.** **Verified:** compile + reducer harness + clean-room installer extraction.
+
+**Changed:** `store/StoreContext.jsx`, `pages/ProjectCataloguePage.jsx`, `pages/PurchaseRequestsPage.jsx`
+
+---
+
+## Previous build (catalogue fits, take 2)
 
 The earlier `overflow-x: auto` fix just moved the problem — on a tall table the horizontal scrollbar
 lands at the very bottom, so the Delete column read as clipped with no obvious way to scroll to it.
