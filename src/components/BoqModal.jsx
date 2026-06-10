@@ -5,6 +5,7 @@ import { suggestMaterials, resolveMaterial } from '../engine/match.js';
 import { leadTimeFor, projectStart, addDays, addBusinessDays } from '../engine/schedule.js';
 import { fmtDate } from '../engine/format.js';
 import Modal from './Modal.jsx';
+import NumberInput from './NumberInput.jsx';
 import { dnum } from './boqShared.jsx';
 
 export default function BoqModal({ item, onClose }) {
@@ -176,7 +177,7 @@ export default function BoqModal({ item, onClose }) {
         {!allowance && (
           <div>
             <label className="lbl">Quantity <span className="req">*</span></label>
-            <input type="number" min="0" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
+            <NumberInput allowDecimal value={quantity} onChange={setQuantity} />
           </div>
         )}
         <div>
@@ -187,13 +188,13 @@ export default function BoqModal({ item, onClose }) {
         {allowance ? (
           <div>
             <label className="lbl">Allowance (IDR)</label>
-            <input type="number" min="0" value={allowanceAmount} onChange={(e) => setAllowanceAmount(e.target.value)} placeholder="e.g. 5000000" />
+            <NumberInput value={allowanceAmount} onChange={setAllowanceAmount} placeholder="e.g. 5,000,000" />
             <div className="help">Leave 0 for an untracked bucket (just keeps the spend visible).</div>
           </div>
         ) : (
           <div>
             <label className="lbl">Expected unit cost (IDR)</label>
-            <input type="number" min="0" value={expectedUnitCost} onChange={(e) => setCost(e.target.value)} />
+            <NumberInput value={expectedUnitCost} onChange={setCost} />
           </div>
         )}
         <div>

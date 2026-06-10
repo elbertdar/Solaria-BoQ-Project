@@ -4,6 +4,7 @@ import { useStore } from '../store/StoreContext.jsx';
 import { checkProspectivePr, materialName, boqForProject, remainingQty, brandsForMaterial } from '../engine/reconcile.js';
 import { PR_FLOW, PR_STATUS } from '../theme.js';
 import { idr, today } from '../engine/format.js';
+import NumberInput from './NumberInput.jsx';
 
 export default function PrModal({ pr = null, boqItem = null, onClose }) {
   const { db, currentProjectId, addPr, updatePr, softDeletePr, addBrand } = useStore();
@@ -198,12 +199,12 @@ export default function PrModal({ pr = null, boqItem = null, onClose }) {
 
         <div>
           <label className="lbl">Quantity <span className="req">*</span></label>
-          <input type="number" value={quantity} min="0"
-            onChange={(e) => { setQuantity(e.target.value); setAckOver(false); }} />
+          <NumberInput allowDecimal value={quantity}
+            onChange={(v) => { setQuantity(v); setAckOver(false); }} />
         </div>
         <div>
           <label className="lbl">Unit cost (IDR)</label>
-          <input type="number" value={unitCost} min="0" onChange={(e) => setUnitCost(e.target.value)} />
+          <NumberInput value={unitCost} onChange={setUnitCost} />
           <div className="help">Line total: {idr(lineTotal)}</div>
         </div>
 

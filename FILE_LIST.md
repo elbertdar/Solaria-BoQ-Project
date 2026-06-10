@@ -3,7 +3,26 @@
 The source of truth for what files exist and where. **Updated every time we change something.**
 
 - **Last updated:** 5 Jun 2026
-- **Latest build:** Refactor pass COMPLETE — batches 1–4 (dedup, dead-code, CRUD factory, memoization, BoqPage split)
+- **Latest build:** Thousands separators — commas on qty & price across tables and inputs
+
+---
+
+## ⚠ Latest build (Number formatting)
+
+Qty and price now show comma thousands separators (`Rp 1,000,000`, `1,000`) everywhere.
+
+- **Tables:** `engine/format.js` — `idr()` and `num()` switched from `id-ID` (dots) to comma grouping (`en-US`), keeping the manual `Rp ` prefix and the `—`-for-null behaviour. Every table reads through these, so all displays update at once. (`idrShort` KPI form now reads `Rp 1.2 mly` with a dot decimal — consistent with comma grouping.)
+- **Inputs:** new `src/components/NumberInput.jsx` — a `type="text"` field (browsers can't format `type="number"`) that shows commas live while typing and reports a clean `Number` (or `''`) upstream, so the data model stays numeric. Resyncs on external prefill without snapping mid-edit (e.g. won't collapse `1.` to `1`). Decimals capped at 2 dp; `inputMode` set for the right mobile keypad.
+- **Wired into:** quantity (BoqModal, DraftRow, PrModal — decimals allowed) and price/cost/allowance (BoqModal cost+allowance, DraftRow cost+allowance, PrModal unit cost, Catalogue est cost). **Day-offset and lead-time stay plain `type="number"`** — small integers where the stepper is handy and grouping is pointless.
+- Known minor: editing in the *middle* of a grouped number can jump the caret to the end (comma reflow); appending at the end is unaffected.
+
+**Verified:** 20-check format/parse harness (grouping, decimal cap, mid-edit safety, round-trips) + a formatter-output harness + clean-room installer extraction. **Storage unchanged — v10.**
+
+**New:** `src/components/NumberInput.jsx` · **Changed:** `engine/format.js`, `components/{BoqModal,PrModal}.jsx`, `pages/{BoqPage,CataloguePage}.jsx`
+
+---
+
+## Previous build (Refactor pass — batches 1–4)
 
 ---
 

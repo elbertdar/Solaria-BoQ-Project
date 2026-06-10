@@ -1,13 +1,11 @@
 // engine/format.js — display formatting. IDR only for v1 (multi-currency deferred §10).
 
-const idrFmt = new Intl.NumberFormat('id-ID', {
-  style: 'currency', currency: 'IDR', maximumFractionDigits: 0,
-});
-const numFmt = new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 });
+const grpFmt = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }); // 1,000,000
+const numFmt = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 }); // qty, up to 2 dp
 
 export function idr(n) {
   if (n == null || isNaN(n)) return '—';
-  return idrFmt.format(n);
+  return (n < 0 ? '-' : '') + 'Rp ' + grpFmt.format(Math.abs(n)); // "Rp 1,000,000" / "-Rp 4,320,000"
 }
 
 // Compact IDR for big KPI numerals: "Rp 1,2 mly" / "Rp 340 jt".

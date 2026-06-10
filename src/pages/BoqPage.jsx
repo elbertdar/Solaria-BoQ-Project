@@ -5,6 +5,7 @@ import { leadTimeFor, projectStart, addDays, addBusinessDays } from '../engine/s
 import { ProjectBar, FilterBar, FilterSearch, FilterSelect } from '../components/ui.jsx';
 import Modal from '../components/Modal.jsx';
 import PrModal from '../components/PrModal.jsx';
+import NumberInput from '../components/NumberInput.jsx';
 import { idr, fmtDate, num } from '../engine/format.js';
 import { dnum } from '../components/boqShared.jsx';
 import BoqModal from '../components/BoqModal.jsx';
@@ -320,15 +321,15 @@ function DraftRow({ b, db, start, onPatch, onDelete }) {
           {db.mandors.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
         </select>
       </td>
-      <td className="num">{allow ? dash : <input type="number" style={{ ...CELL, width: 72, textAlign: 'right' }} value={b.quantity ?? ''}
-        onChange={(e) => onPatch(b.id, { quantity: numOrNull(e.target.value) ?? 0 })} />}</td>
+      <td className="num">{allow ? dash : <NumberInput allowDecimal style={{ ...CELL, width: 72, textAlign: 'right' }} value={b.quantity ?? ''}
+        onChange={(v) => onPatch(b.id, { quantity: v === '' ? 0 : v })} />}</td>
       <td><input style={{ ...CELL, width: 84 }} value={b.unit || ''} placeholder="unit"
         onChange={(e) => onPatch(b.id, { unit: e.target.value })} /></td>
       <td className="num">{allow
-        ? <input type="number" style={{ ...CELL, width: 112, textAlign: 'right' }} value={b.allowanceAmount ?? ''} placeholder="lump sum"
-            onChange={(e) => onPatch(b.id, { allowanceAmount: numOrNull(e.target.value) ?? 0 })} />
-        : <input type="number" style={{ ...CELL, width: 112, textAlign: 'right' }} value={b.expectedUnitCost ?? ''}
-            onChange={(e) => onPatch(b.id, { expectedUnitCost: numOrNull(e.target.value) ?? 0 })} />}</td>
+        ? <NumberInput style={{ ...CELL, width: 112, textAlign: 'right' }} value={b.allowanceAmount ?? ''} placeholder="lump sum"
+            onChange={(v) => onPatch(b.id, { allowanceAmount: v === '' ? 0 : v })} />
+        : <NumberInput style={{ ...CELL, width: 112, textAlign: 'right' }} value={b.expectedUnitCost ?? ''}
+            onChange={(v) => onPatch(b.id, { expectedUnitCost: v === '' ? 0 : v })} />}</td>
       <td className="num">{allow ? dash : <input type="number" style={{ ...CELL, width: 72, textAlign: 'right' }} value={b.neededDayOffset ?? ''}
         onChange={(e) => onPatch(b.id, { neededDayOffset: numOrNull(e.target.value) })} />}</td>
       <td className="num">{allow ? dash : orderDay != null ? <>Day {orderDay}</> : <span className="muted">—</span>}</td>

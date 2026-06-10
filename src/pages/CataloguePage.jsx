@@ -3,6 +3,7 @@ import { useStore } from '../store/StoreContext.jsx';
 import { suggestMaterials } from '../engine/match.js';
 import { idr } from '../engine/format.js';
 import Modal from '../components/Modal.jsx';
+import NumberInput from '../components/NumberInput.jsx';
 import { FilterBar, FilterSearch, FilterSelect, DeleteConfirm } from '../components/ui.jsx';
 
 export default function CataloguePage() {
@@ -204,7 +205,7 @@ function MaterialModal({ title, material, onClose, onSave, types, materials }) {
         </div>
         <div>
           <label className="lbl">Estimated unit cost (IDR)</label>
-          <input type="number" min="0" value={estCost} onChange={(e) => setEstCost(e.target.value)} placeholder="e.g. 65000" />
+          <NumberInput value={estCost} onChange={setEstCost} placeholder="e.g. 65,000" />
           <div className="help">Default cost used to pre-fill a BoQ line when this material is chosen.</div>
         </div>
         <div>
