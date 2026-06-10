@@ -13,6 +13,7 @@ function normalize(d) {
   if (!Array.isArray(d.boqEdits)) d.boqEdits = [];
   if (!Array.isArray(d.brands)) d.brands = [];
   if (!Array.isArray(d.trash)) d.trash = [];
+  if (!Array.isArray(d.projectTypes)) d.projectTypes = [];
   // Deletion becomes permanent after 7 days: drop expired trash on load.
   { const cutoff = Date.now() - 7 * 86400000; d.trash = d.trash.filter((t) => t && t.deletedAt && new Date(t.deletedAt).getTime() > cutoff); }
   if (Array.isArray(d.projects)) for (const p of d.projects) if (!p.boqStatus) p.boqStatus = 'draft';
@@ -76,6 +77,8 @@ export function StoreProvider({ children }) {
   const addMaterialType = typeCrud.add, updateMaterialType = typeCrud.update;
   const projectCrud = useMemo(() => makeCrud(setDb, 'projects', 'p', { client: 'Solaria F&B', location: '' }), []);
   const addProject = projectCrud.add, updateProject = projectCrud.update;
+  const projectTypeCrud = useMemo(() => makeCrud(setDb, 'projectTypes', 'pt'), []);
+  const addProjectType = projectTypeCrud.add;
   const mandorCrud = useMemo(() => makeCrud(setDb, 'mandors', 'm'), []);
   const addMandor = useMemo(() => (name) => mandorCrud.add({ name }), []);
   const updateMandor = mandorCrud.update, deleteMandor = mandorCrud.remove;
@@ -455,14 +458,14 @@ export function StoreProvider({ children }) {
     addBrand, updateBrand, deleteBrand,
     softDeletePr, softDeleteMaterial, softDeleteMaterialType, softDeleteProject, restoreTrash, purgeTrash,
     addMaterialType, updateMaterialType,
-    addProject, updateProject, addMandor, updateMandor, deleteMandor,
+    addProject, updateProject, addProjectType, addMandor, updateMandor, deleteMandor,
     addUser, updateUser, deleteUser,
     addPr, updatePr, setPrStatus, deletePr,
     importData,
     resetDb,
   }), [db, currentProjectId, addMaterial, updateMaterial, addAlias, removeAlias,
     addBoqItem, updateBoqItem, patchBoqItem, deleteBoqItem, finalizeBoq,
-    stageBoqModify, stageBoqAdd, editStagedAdd, stageBoqDelete, unstageBoq, discardBoqStaged, commitBoqStaged, addSupplier, addBrand, updateBrand, deleteBrand, softDeletePr, softDeleteMaterial, softDeleteMaterialType, softDeleteProject, restoreTrash, purgeTrash, addMaterialType, updateMaterialType, addProject, updateProject, addMandor, updateMandor, deleteMandor,
+    stageBoqModify, stageBoqAdd, editStagedAdd, stageBoqDelete, unstageBoq, discardBoqStaged, commitBoqStaged, addSupplier, addBrand, updateBrand, deleteBrand, softDeletePr, softDeleteMaterial, softDeleteMaterialType, softDeleteProject, restoreTrash, purgeTrash, addMaterialType, updateMaterialType, addProject, updateProject, addProjectType, addMandor, updateMandor, deleteMandor,
     addUser, updateUser, deleteUser,
     addPr, updatePr, setPrStatus, deletePr, importData, resetDb]);
 

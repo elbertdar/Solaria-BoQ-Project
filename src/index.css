@@ -166,7 +166,7 @@ button { font-family: inherit; }
 .card-head h2 { font-size: 15.5px; font-weight: 600; margin: 0; }
 .card-head .spacer { flex: 1; }
 .card-body { padding: 16px 18px; }
-.card-body.flush { padding: 0; }
+.card-body.flush { padding: 0; overflow-x: auto; }
 
 /* ---------- KPI ---------- */
 .kpi-grid {
@@ -236,6 +236,7 @@ button { font-family: inherit; }
   padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: middle;
 }
 .table tr:last-child td { border-bottom: none; }
+.table.compact th, .table.compact td { padding-left: 9px; padding-right: 9px; }
 .table tr.clickable { cursor: pointer; }
 .table tr.clickable:hover td { background: var(--surface-2); }
 .table .mat-link { color: var(--info); font-weight: 600; }

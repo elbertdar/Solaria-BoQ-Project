@@ -134,3 +134,11 @@ seed.brands = [      // per-material brand variants (one row each); brand is cho
   { id: 'br-semen-tigaroda', materialId: 'mat-semen', name: 'Tiga Roda' },
   { id: 'br-semen-gresik', materialId: 'mat-semen', name: 'Gresik' },
 ];
+
+seed.projectTypes = [   // user-customizable project categories (add more in the catalogue)
+  { id: 'pt-new', name: 'New store' },
+  { id: 'pt-reno', name: 'Renovation' },
+  { id: 'pt-relo', name: 'Relocation' },
+  { id: 'pt-kiosk', name: 'Kiosk' },
+];
+seed.projects.forEach((p, i) => { p.projectTypeId = seed.projectTypes[i % seed.projectTypes.length].id; });

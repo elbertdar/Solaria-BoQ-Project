@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../store/StoreContext.jsx';
 import { projectTotals } from '../engine/reconcile.js';
@@ -20,7 +20,7 @@ const pill = (txt, kind) => {
 };
 
 export default function ProjectCataloguePage() {
-  const { db, setCurrentProjectId, addProject, softDeleteProject, currentProjectId } = useStore();
+  const { db, setCurrentProjectId, addProject, updateProject, addProjectType, softDeleteProject, currentProjectId } = useStore();
   const nav = useNavigate();
   const today = useMemo(() => todayLocal(), []);
   const [tab, setTab] = useState('active');
@@ -84,7 +84,8 @@ export default function ProjectCataloguePage() {
             <FilterSelect value={statusFilter} onChange={setStatusFilter} allLabel="Any status" width={170}
               options={[{ value: 'attention', label: 'Needs attention' }, { value: 'ontrack', label: 'On track' }]} />
           </FilterBar>
-          <ActiveTable rows={filteredRows} onOpen={open} onDelete={setDelFor} />
+          <ActiveTable rows={filteredRows} onOpen={open} onDelete={setDelFor}
+            types={db.projectTypes || []} onUpdate={updateProject} onAddType={addProjectType} />
         </>
       )}
 
@@ -117,6 +118,53 @@ export default function ProjectCataloguePage() {
   );
 }
 
+function RegionCell({ value, onSave }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value || '');
+  const cancel = useRef(false);
+  useEffect(() => { if (!editing) setDraft(value || ''); }, [value, editing]);
+  const start = () => { cancel.current = false; setDraft(value || ''); setEditing(true); };
+  const finish = () => { setEditing(false); if (cancel.current) { cancel.current = false; return; } if (draft.trim() !== (value || '')) onSave(draft.trim()); };
+  if (editing) {
+    return <input autoFocus value={draft}
+      onChange={(e) => setDraft(e.target.value)} onBlur={finish}
+      onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); if (e.key === 'Escape') { cancel.current = true; e.currentTarget.blur(); } }}
+      placeholder="Region…" style={{ width: 130, boxSizing: 'border-box', font: 'inherit', fontSize: 13, padding: '4px 6px', border: '1px solid #CBD5E1', borderRadius: 6 }} />;
+  }
+  return value
+    ? <span onClick={start} title="Click to edit" style={{ cursor: 'text' }}>{value}</span>
+    : <button className="btn sm ghost" onClick={start} style={{ fontSize: 11, padding: '2px 6px', color: 'var(--muted, #94A3B8)' }}>+ region</button>;
+}
+
+function TypeCell({ value, types, onSave, onAddType }) {
+  const [mode, setMode] = useState('view'); // view | select | new
+  const [newName, setNewName] = useState('');
+  const goingNew = useRef(false);
+  const cancel = useRef(false);
+  const name = (types.find((t) => t.id === value) || {}).name || '';
+  if (mode === 'select') {
+    return (
+      <select autoFocus className="input" style={{ minWidth: 130, fontSize: 13 }} value={value || ''}
+        onChange={(e) => { const v = e.target.value; if (v === '__new') { goingNew.current = true; setNewName(''); setMode('new'); } else { onSave(v || null); setMode('view'); } }}
+        onBlur={() => { if (goingNew.current) { goingNew.current = false; return; } setMode('view'); }}>
+        <option value="">— None —</option>
+        {types.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+        <option value="__new">➕ New type…</option>
+      </select>
+    );
+  }
+  if (mode === 'new') {
+    const commit = () => { setMode('view'); if (cancel.current) { cancel.current = false; return; } const n = newName.trim(); if (n) { const id = onAddType(n); onSave(id); } };
+    return <input autoFocus value={newName}
+      onChange={(e) => setNewName(e.target.value)} onBlur={commit}
+      onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); if (e.key === 'Escape') { cancel.current = true; e.currentTarget.blur(); } }}
+      placeholder="New type name…" style={{ width: 140, boxSizing: 'border-box', font: 'inherit', fontSize: 13, padding: '4px 6px', border: '1px solid #CBD5E1', borderRadius: 6 }} />;
+  }
+  return name
+    ? <span onClick={() => setMode('select')} title="Click to change" style={{ cursor: 'pointer' }}>{name}</span>
+    : <button className="btn sm ghost" onClick={() => setMode('select')} style={{ fontSize: 11, padding: '2px 6px', color: 'var(--muted, #94A3B8)' }}>+ type</button>;
+}
+
 function DeleteProject({ project, db, onClose, onConfirm }) {
   const boq = db.boqItems.filter((b) => b.projectId === project.id).length;
   const boqIds = new Set(db.boqItems.filter((b) => b.projectId === project.id).map((b) => b.id));
@@ -145,17 +193,19 @@ function DeleteProject({ project, db, onClose, onConfirm }) {
   );
 }
 
-function ActiveTable({ rows, onOpen, onDelete }) {
+function ActiveTable({ rows, onOpen, onDelete, types, onUpdate, onAddType }) {
   if (rows.length === 0) {
     return <div className="card"><div className="empty">No projects match these filters.</div></div>;
   }
   return (
     <div className="card">
       <div className="card-body flush">
-        <table className="table">
+        <table className="table compact">
           <thead>
             <tr>
               <th>Project</th>
+              <th>Type</th>
+              <th>Region</th>
               <th>Timeline</th>
               <th className="num">Budgeted cost</th>
               <th className="num">Committed</th>
@@ -173,10 +223,16 @@ function ActiveTable({ rows, onOpen, onDelete }) {
                 <tr key={p.id} style={{ cursor: 'pointer' }} onClick={() => onOpen(p.id)}>
                   <td>
                     <b>{p.name}</b>
-                    <div className="muted" style={{ fontSize: 12 }}>{p.code ? p.code + ' · ' : ''}{p.location}</div>
+                    {p.code && <div className="muted" style={{ fontSize: 12 }}>{p.code}</div>}
                   </td>
-                  <td style={{ whiteSpace: 'nowrap' }}>
-                    {start ? fmtDate(start) : '—'} <span className="muted">→</span> {estFinish ? fmtDate(estFinish) : '—'}
+                  <td onClick={(e) => e.stopPropagation()}>
+                    <TypeCell value={p.projectTypeId} types={types} onSave={(v) => onUpdate(p.id, { projectTypeId: v })} onAddType={(n) => onAddType({ name: n })} />
+                  </td>
+                  <td onClick={(e) => e.stopPropagation()}>
+                    <RegionCell value={p.location} onSave={(v) => onUpdate(p.id, { location: v })} />
+                  </td>
+                  <td>
+                    <span style={{ whiteSpace: 'nowrap' }}>{start ? fmtDate(start) : '—'}</span> <span className="muted">→</span> <span style={{ whiteSpace: 'nowrap' }}>{estFinish ? fmtDate(estFinish) : '—'}</span>
                     <div className="muted" style={{ fontSize: 12 }}>{curOff != null ? `currently day ${curOff}` : 'no start date'}</div>
                   </td>
                   <td className="num">{idr(totals.budgetCost)}</td>

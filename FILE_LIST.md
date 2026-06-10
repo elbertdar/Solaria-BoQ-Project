@@ -3,7 +3,87 @@
 The source of truth for what files exist and where. **Updated every time we change something.**
 
 - **Last updated:** 5 Jun 2026
-- **Latest build:** PR modal — Comment field added; suppliers now paired side-by-side
+- **Latest build:** Fix — catalogue table now fits (Timeline wraps + tighter padding); no clipping
+
+---
+
+## ⚠ Latest build (catalogue fits, take 2)
+
+The earlier `overflow-x: auto` fix just moved the problem — on a tall table the horizontal scrollbar
+lands at the very bottom, so the Delete column read as clipped with no obvious way to scroll to it.
+The real fix is to make the 10-column table **fit** the container instead.
+
+Two changes to the catalogue table (all columns + data kept):
+- **Timeline** no longer forces one line — the two dates each stay intact (`nowrap`) but the cell can
+  break between them. This removes the ~195px hard floor that single column was imposing; it still renders
+  on one line when there's room, and only wraps when squeezed.
+- The table is marked **`compact`** → cell padding 14px → 9px (≈100px back across 10 columns).
+
+Together the table's minimum width drops well under `.main`'s 1180px, so it lays out without clipping or
+a scrollbar. The global `.card-body.flush { overflow-x: auto }` stays as a graceful fallback for very narrow
+windows (and the wide PR table), but the catalogue no longer triggers it.
+
+**Storage unchanged — v10.** **Verified:** compile + clean-room installer extraction.
+
+**Changed:** `index.css`, `pages/ProjectCataloguePage.jsx`
+
+---
+
+## Previous build (New Project type typeahead)
+
+---
+
+## ⚠ Latest build (New Project type typeahead)
+
+The **New project** dialog now has a **Project type** field — a typeahead/combobox over the existing
+`projectTypes` "history":
+
+- **Browse** — focus the field to see all existing types.
+- **Filter** — type "Ma" and it suggests "Mall" (case-insensitive substring match).
+- **Add** — type a new name and pick "➕ Add … as a new type"; it's created on save (reused by name if it
+  already exists, so no duplicates).
+- **History spans completed projects** — suggestions come from the `projectTypes` collection, which isn't
+  scoped to project status and is never pruned, so types used on completed (or deleted) projects still show.
+- Optional — leave it blank and the project has no type.
+
+Reuses the app's existing `.suggest` typeahead styling (same as the material picker). `NewProjectModal` now
+resolves the chosen/typed type to a `projectTypeId` and passes it through `onCreate → addProject`; the two
+callers (catalogue, dashboard) were already pass-through.
+
+**Storage unchanged — v10.** **Verified:** 8-check harness (filter, browse, pick, reuse-by-name, create, empty, case-insensitive) + clean-room installer extraction.
+
+**Changed:** `components/NewProjectModal.jsx`
+
+---
+
+## Previous build (Project type + region column)
+
+---
+
+## ⚠ Latest build (Project type + region column)
+
+Two changes to the **Project Catalogue**, both done as inline-editable columns (no new admin page,
+no create-modal changes — set them right in the table, on new or existing projects):
+
+- **Project type** — projects gain a `projectTypeId` referencing a new user-customizable `projectTypes`
+  collection. The **Type** column is click-to-edit: a dropdown of existing types plus "➕ New type…",
+  which lets you create a type on the fly (genuinely customizable). Seeded with a few examples
+  (New store / Renovation / Relocation / Kiosk) for fresh installs; existing data starts empty and you
+  add your own. New action `addProjectType` (via the CRUD factory).
+- **Region** — `location` is promoted out of the project-name sub-line into its own **Region** column
+  (cleaner for future export), click-to-edit text. The project cell now shows just name + code.
+
+Both cells save via `updateProject`; row-click navigation is preserved (the editable cells stop event
+propagation). Columns sit right after Project: `Project | Type | Region | Timeline | …`.
+
+**Storage unchanged — v10** (`normalize` adds `projectTypes: []`).
+**Verified:** column/cell counts align, `addProjectType` returns the id for assignment, clean-room installer extraction.
+
+**Changed:** `data/seed.js`, `store/StoreContext.jsx`, `pages/ProjectCataloguePage.jsx`
+
+---
+
+## Previous build (PR modal layout + comment)
 
 ---
 
