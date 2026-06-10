@@ -13,6 +13,7 @@ import CataloguePage from './pages/CataloguePage.jsx';
 import MaterialTypesPage from './pages/MaterialTypesPage.jsx';
 import MandorsPage from './pages/MandorsPage.jsx';
 import UsersPage from './pages/UsersPage.jsx';
+import TrashPage from './pages/TrashPage.jsx';
 
 export default function App() {
   return (
@@ -34,6 +35,7 @@ export default function App() {
               <Route path="/material-types" element={<MaterialTypesPage />} />
               <Route path="/mandors" element={<MandorsPage />} />
               <Route path="/users" element={<UsersPage />} />
+              <Route path="/trash" element={<TrashPage />} />
               <Route path="*" element={<DashboardPage />} />
             </Routes>
           </main>

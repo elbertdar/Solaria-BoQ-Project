@@ -3,7 +3,42 @@
 The source of truth for what files exist and where. **Updated every time we change something.**
 
 - **Last updated:** 5 Jun 2026
-- **Latest build:** Schedule colour cleanup — one status tag per line, six colours
+- **Latest build:** Deletion workflow — soft-delete + Trash (restore within 7 days)
+
+---
+
+## ⚠ Files touched in the latest build (Deletion workflow)
+
+A unified soft-delete system. Deleting **moves records to a `trash` collection** (it doesn't wipe
+them) with a full payload + timestamp, so they can be **restored within 7 days**, after which they're
+permanently purged on load. Because deleted records leave their collection, every page and the
+reconcile/schedule engines keep seeing only live data — no query changes anywhere.
+
+New **Trash** page (sidebar → System) lists everything deleted: type, when, days-until-expiry,
+Restore, Delete-forever. Linked rows restore together (a project brings back its BoQ lines + PRs;
+a material brings back its brands).
+
+Deletable now, safeguards scaled to blast radius:
+- **Purchase requests** — two-step "Move to Trash" in the PR editor.
+- **Materials** (Catalogue) — *unused only*; blocked with a message if referenced by any BoQ line or PR. Cascades the material's brands.
+- **Material types** — *unused only*; blocked if any material or supplier references it.
+- **Projects** (Catalogue) — cascades BoQ + PRs + staged edits + history into one restorable entry. If the project has data you must **type its code**; empty projects just confirm. Deleting the active project repoints the current-project selection.
+
+**Not changed:** **BoQ** line deletion keeps its existing flow (staged delete + Undo before commit, plus the committed edit-history log). **Balance** is computed. **Mandors/Team** still hard-delete (can fold into Trash later).
+
+**Storage:** still **v10** — `normalize()` adds an empty `trash` array and purges >7-day entries on load.
+
+**Changed (6) + 1 new file:**
+- `src/store/StoreContext.jsx` — `trash` collection; soft-delete actions (PR/material/type/project, with cascade) + `restoreTrash`/`purgeTrash`; 7-day purge in `normalize`
+- `src/pages/TrashPage.jsx` — **NEW** — recycle bin (restore / delete-forever)
+- `src/App.jsx` — `/trash` route · `src/components/Sidebar.jsx` — System → Trash + count badge
+- `src/components/PrModal.jsx` — delete → soft-delete ("Move to Trash")
+- `src/pages/CataloguePage.jsx` / `MaterialTypesPage.jsx` — ref-checked delete
+- `src/pages/ProjectCataloguePage.jsx` — project delete with type-to-confirm
+
+---
+
+## Previous build (Schedule status colours)
 
 ---
 

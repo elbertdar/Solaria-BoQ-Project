@@ -4,8 +4,9 @@ import Modal from '../components/Modal.jsx';
 import { FilterBar, FilterSearch } from '../components/ui.jsx';
 
 export default function MaterialTypesPage() {
-  const { db, addMaterialType, updateMaterialType } = useStore();
+  const { db, addMaterialType, updateMaterialType, softDeleteMaterialType } = useStore();
   const [editing, setEditing] = useState(undefined); // undefined = closed, null = new, object = edit
+  const [delFor, setDelFor] = useState(null);
   const [q, setQ] = useState('');
 
   const usageCount = (typeId) => db.materials.filter((m) => m.materialTypeId === typeId).length;
@@ -45,7 +46,10 @@ export default function MaterialTypesPage() {
                       </span>
                     </td>
                     <td className={t.description ? '' : 'muted'}>{t.description || '—'}</td>
-                    <td className="num"><button className="btn sm ghost" onClick={() => setEditing(t)}>Edit</button></td>
+                    <td className="num" style={{ whiteSpace: 'nowrap' }}>
+                      <button className="btn sm ghost" onClick={() => setEditing(t)}>Edit</button>{' '}
+                      <button className="btn sm ghost" style={{ color: 'var(--risk)' }} onClick={() => setDelFor(t)}>Delete</button>
+                    </td>
                   </tr>
                 );
               })}
@@ -69,7 +73,34 @@ export default function MaterialTypesPage() {
           }}
         />
       )}
+      {delFor && <DeleteType type={delFor} db={db} onClose={() => setDelFor(null)}
+        onConfirm={() => { softDeleteMaterialType(delFor.id); setDelFor(null); }} />}
     </>
+  );
+}
+
+function DeleteType({ type, db, onClose, onConfirm }) {
+  const mats = db.materials.filter((m) => m.materialTypeId === type.id).length;
+  const sups = db.suppliers.filter((s) => (s.materialTypeIds || []).includes(type.id)).length;
+  const blocked = mats > 0 || sups > 0;
+  return (
+    <Modal title={`Delete · ${type.name}`} onClose={onClose}
+      footer={blocked
+        ? <button className="btn" onClick={onClose}>Close</button>
+        : <>
+            <button className="btn ghost" onClick={onClose}>Cancel</button>
+            <button className="btn danger" onClick={onConfirm}>Move to Trash</button>
+          </>}>
+      {blocked ? (
+        <p style={{ margin: 0, lineHeight: 1.6 }}>
+          <b>{type.name}</b> is in use — it can’t be deleted while{' '}
+          {mats > 0 && <b>{mats} material{mats === 1 ? '' : 's'}</b>}{mats > 0 && sups > 0 ? ' and ' : ''}
+          {sups > 0 && <b>{sups} supplier{sups === 1 ? '' : 's'}</b>} reference it. Reassign those first.
+        </p>
+      ) : (
+        <p style={{ margin: 0, lineHeight: 1.6 }}>Delete <b>{type.name}</b>? It’s unused, and can be restored from Trash for 7 days.</p>
+      )}
+    </Modal>
   );
 }
 

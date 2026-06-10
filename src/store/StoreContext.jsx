@@ -12,6 +12,9 @@ function normalize(d) {
   if (!Array.isArray(d.boqStaged)) d.boqStaged = [];
   if (!Array.isArray(d.boqEdits)) d.boqEdits = [];
   if (!Array.isArray(d.brands)) d.brands = [];
+  if (!Array.isArray(d.trash)) d.trash = [];
+  // Deletion becomes permanent after 7 days: drop expired trash on load.
+  { const cutoff = Date.now() - 7 * 86400000; d.trash = d.trash.filter((t) => t && t.deletedAt && new Date(t.deletedAt).getTime() > cutoff); }
   if (Array.isArray(d.projects)) for (const p of d.projects) if (!p.boqStatus) p.boqStatus = 'draft';
   if (Array.isArray(d.boqItems)) for (const b of d.boqItems) {
     if (!b.budgetBasis) b.budgetBasis = 'quantity';
@@ -218,6 +221,89 @@ export function StoreProvider({ children }) {
     }));
   }, []);
 
+  // ---- Soft delete / trash (move-out, not flag-in-place) ----
+  // Deleted records LEAVE their collection and live in `trash` with a full payload, so every page
+  // and the reconcile/schedule engines keep seeing only live data. Restore re-inserts; auto-purged at 7 days.
+  const trashEntry = (entity, summary, records) => ({
+    id: uid('trash'), entity, summary, deletedAt: nowISO(), records,
+    count: Object.values(records).reduce((n, arr) => n + arr.length, 0),
+  });
+
+  const softDeletePr = useCallback((id) => {
+    setDb((d) => {
+      const pr = d.prs.find((p) => p.id === id);
+      if (!pr) return d;
+      const mat = d.materials.find((m) => m.id === pr.materialId);
+      const summary = `PR · ${mat?.canonicalName || 'material'} · ${pr.quantity} ${pr.unit || ''}`.trim();
+      return { ...d, prs: d.prs.filter((p) => p.id !== id), trash: [trashEntry('pr', summary, { prs: [pr] }), ...(d.trash || [])] };
+    });
+  }, []);
+
+  // Unused-only: callers (UI) block deletion when a material is referenced by live BoQ items / PRs.
+  const softDeleteMaterial = useCallback((id) => {
+    setDb((d) => {
+      const mat = d.materials.find((m) => m.id === id);
+      if (!mat) return d;
+      const brands = (d.brands || []).filter((b) => b.materialId === id);
+      return {
+        ...d,
+        materials: d.materials.filter((m) => m.id !== id),
+        brands: (d.brands || []).filter((b) => b.materialId !== id),
+        trash: [trashEntry('material', `Material · ${mat.canonicalName}`, { materials: [mat], brands }), ...(d.trash || [])],
+      };
+    });
+  }, []);
+
+  const softDeleteMaterialType = useCallback((id) => {
+    setDb((d) => {
+      const t = d.materialTypes.find((x) => x.id === id);
+      if (!t) return d;
+      return {
+        ...d,
+        materialTypes: d.materialTypes.filter((x) => x.id !== id),
+        trash: [trashEntry('materialType', `Material type · ${t.name}`, { materialTypes: [t] }), ...(d.trash || [])],
+      };
+    });
+  }, []);
+
+  const softDeleteProject = useCallback((id) => {
+    setDb((d) => {
+      const proj = d.projects.find((x) => x.id === id);
+      if (!proj) return d;
+      const boqItems = d.boqItems.filter((b) => b.projectId === id);
+      const boqIds = new Set(boqItems.map((b) => b.id));
+      const prs = d.prs.filter((pr) => pr.projectId === id || (pr.boqItemId && boqIds.has(pr.boqItemId)));
+      const prIds = new Set(prs.map((pr) => pr.id));
+      const boqStaged = (d.boqStaged || []).filter((sg) => sg.projectId === id);
+      const boqEdits = (d.boqEdits || []).filter((e) => e.projectId === id);
+      const summary = `Project · ${proj.code || proj.name}${proj.code ? ` — ${proj.name}` : ''}`;
+      return {
+        ...d,
+        projects: d.projects.filter((x) => x.id !== id),
+        boqItems: d.boqItems.filter((b) => b.projectId !== id),
+        prs: d.prs.filter((pr) => !prIds.has(pr.id)),
+        boqStaged: (d.boqStaged || []).filter((sg) => sg.projectId !== id),
+        boqEdits: (d.boqEdits || []).filter((e) => e.projectId !== id),
+        trash: [trashEntry('project', summary, { projects: [proj], boqItems, prs, boqStaged, boqEdits }), ...(d.trash || [])],
+      };
+    });
+  }, []);
+
+  const restoreTrash = useCallback((trashId) => {
+    setDb((d) => {
+      const entry = (d.trash || []).find((t) => t.id === trashId);
+      if (!entry) return d;
+      const next = { ...d };
+      for (const [coll, recs] of Object.entries(entry.records)) next[coll] = [...(d[coll] || []), ...recs];
+      next.trash = (d.trash || []).filter((t) => t.id !== trashId);
+      return next;
+    });
+  }, []);
+
+  const purgeTrash = useCallback((trashId) => {
+    setDb((d) => ({ ...d, trash: (d.trash || []).filter((t) => t.id !== trashId) }));
+  }, []);
+
   // ---- Material types (source of truth for every type dropdown / filter) ----
   const addMaterialType = useCallback((t) => {
     const id = uid('mt');
@@ -369,6 +455,7 @@ export function StoreProvider({ children }) {
     stageBoqModify, stageBoqAdd, editStagedAdd, stageBoqDelete, unstageBoq, discardBoqStaged, commitBoqStaged,
     addSupplier,
     addBrand, updateBrand, deleteBrand,
+    softDeletePr, softDeleteMaterial, softDeleteMaterialType, softDeleteProject, restoreTrash, purgeTrash,
     addMaterialType, updateMaterialType,
     addProject, updateProject, addMandor, updateMandor, deleteMandor,
     addUser, updateUser, deleteUser,
@@ -377,7 +464,7 @@ export function StoreProvider({ children }) {
     resetDb,
   }), [db, currentProjectId, addMaterial, updateMaterial, addAlias, removeAlias,
     addBoqItem, updateBoqItem, patchBoqItem, deleteBoqItem, finalizeBoq,
-    stageBoqModify, stageBoqAdd, editStagedAdd, stageBoqDelete, unstageBoq, discardBoqStaged, commitBoqStaged, addSupplier, addBrand, updateBrand, deleteBrand, addMaterialType, updateMaterialType, addProject, updateProject, addMandor, updateMandor, deleteMandor,
+    stageBoqModify, stageBoqAdd, editStagedAdd, stageBoqDelete, unstageBoq, discardBoqStaged, commitBoqStaged, addSupplier, addBrand, updateBrand, deleteBrand, softDeletePr, softDeleteMaterial, softDeleteMaterialType, softDeleteProject, restoreTrash, purgeTrash, addMaterialType, updateMaterialType, addProject, updateProject, addMandor, updateMandor, deleteMandor,
     addUser, updateUser, deleteUser,
     addPr, updatePr, setPrStatus, deletePr, importData, resetDb]);
 

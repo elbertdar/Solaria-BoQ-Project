@@ -36,6 +36,12 @@ const GROUPS = [
       { to: '/users', ico: '◎', label: 'Team' },
     ],
   },
+  {
+    label: 'System',
+    items: [
+      { to: '/trash', ico: '🗑', label: 'Trash', badgeKey: 'trash' },
+    ],
+  },
 ];
 
 export default function Sidebar() {
@@ -45,10 +51,12 @@ export default function Sidebar() {
   const overdueCount = sched.overdueOrder + sched.overdueDeliver;
   const wl = portfolioWorklist(db);
   const portfolioCount = wl.counts.overdueToOrder + wl.counts.lateDelivery;
+  const trashCount = (db.trash || []).length;
 
   const project = db.projects.find((p) => p.id === currentProjectId) || db.projects[0];
 
   const badgeFor = (key) => (key === 'portfolio' ? portfolioCount : key === 'sched' ? overdueCount : key === 'warn' ? warnCount : 0);
+  const countFor = (key) => (key === 'trash' ? trashCount : badgeFor(key));
 
   return (
     <aside className="sidebar">
@@ -65,13 +73,14 @@ export default function Sidebar() {
               <div className="muted" style={{ fontSize: 11, padding: '0 10px 6px' }}>{project.code || project.name}</div>
             )}
             {g.items.map((it) => {
-              const n = badgeFor(it.badgeKey);
+              const isTrash = it.badgeKey === 'trash';
+              const n = isTrash ? trashCount : badgeFor(it.badgeKey);
               return (
                 <NavLink key={it.to} to={it.to} end={it.end}
                   className={({ isActive }) => 'nav-item' + (isActive ? ' active' : '')}>
                   <span className="ico">{it.ico}</span>
                   <span>{it.label}</span>
-                  {n > 0 && <span className="badge risk">{n}</span>}
+                  {n > 0 && <span className={'badge' + (isTrash ? '' : ' risk')}>{n}</span>}
                 </NavLink>
               );
             })}

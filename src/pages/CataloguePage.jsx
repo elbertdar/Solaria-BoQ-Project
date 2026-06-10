@@ -6,11 +6,12 @@ import Modal from '../components/Modal.jsx';
 import { FilterBar, FilterSearch, FilterSelect } from '../components/ui.jsx';
 
 export default function CataloguePage() {
-  const { db, addMaterial, updateMaterial, addAlias, removeAlias, addBrand, deleteBrand } = useStore();
+  const { db, addMaterial, updateMaterial, addAlias, removeAlias, addBrand, deleteBrand, softDeleteMaterial } = useStore();
   const [adding, setAdding] = useState(false);
   const [editMat, setEditMat] = useState(null);
   const [aliasFor, setAliasFor] = useState(null);
   const [brandFor, setBrandFor] = useState(null);
+  const [delFor, setDelFor] = useState(null);
   const [q, setQ] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
 
@@ -82,7 +83,8 @@ export default function CataloguePage() {
                   <td className="num" style={{ whiteSpace: 'nowrap' }}>
                     <button className="btn sm ghost" onClick={() => setEditMat(m)}>Edit</button>{' '}
                     <button className="btn sm ghost" onClick={() => setAliasFor(m)}>+ Alias</button>{' '}
-                    <button className="btn sm ghost" onClick={() => setBrandFor(m)}>+ Brand</button>
+                    <button className="btn sm ghost" onClick={() => setBrandFor(m)}>+ Brand</button>{' '}
+                    <button className="btn sm ghost" style={{ color: 'var(--risk)' }} onClick={() => setDelFor(m)}>Delete</button>
                   </td>
                 </tr>
               ))}
@@ -102,7 +104,37 @@ export default function CataloguePage() {
         onAdd={(a) => { addAlias(aliasFor.id, a); setAliasFor(null); }} />}
       {brandFor && <ManageBrands material={brandFor} brands={db.brands.filter((b) => b.materialId === brandFor.id)}
         onClose={() => setBrandFor(null)} onAdd={(name) => addBrand({ materialId: brandFor.id, name })} onDelete={deleteBrand} />}
+      {delFor && <DeleteMaterial material={delFor} db={db} onClose={() => setDelFor(null)}
+        onConfirm={() => { softDeleteMaterial(delFor.id); setDelFor(null); }} />}
     </>
+  );
+}
+
+function DeleteMaterial({ material, db, onClose, onConfirm }) {
+  const boq = db.boqItems.filter((b) => b.materialId === material.id).length;
+  const prs = db.prs.filter((p) => p.materialId === material.id).length;
+  const brands = db.brands.filter((b) => b.materialId === material.id).length;
+  const blocked = boq > 0 || prs > 0;
+  return (
+    <Modal title={`Delete · ${material.canonicalName}`} onClose={onClose}
+      footer={blocked
+        ? <button className="btn" onClick={onClose}>Close</button>
+        : <>
+            <button className="btn ghost" onClick={onClose}>Cancel</button>
+            <button className="btn danger" onClick={onConfirm}>Move to Trash</button>
+          </>}>
+      {blocked ? (
+        <p style={{ margin: 0, lineHeight: 1.6 }}>
+          <b>{material.canonicalName}</b> is in use — it can’t be deleted while it’s referenced by{' '}
+          {boq > 0 && <b>{boq} BoQ line{boq === 1 ? '' : 's'}</b>}{boq > 0 && prs > 0 ? ' and ' : ''}
+          {prs > 0 && <b>{prs} purchase request{prs === 1 ? '' : 's'}</b>}. Remove or repoint those first.
+        </p>
+      ) : (
+        <p style={{ margin: 0, lineHeight: 1.6 }}>
+          Delete <b>{material.canonicalName}</b>{brands > 0 ? <> and its <b>{brands} brand{brands === 1 ? '' : 's'}</b></> : ''}? It’s unused, and can be restored from Trash for 7 days.
+        </p>
+      )}
+    </Modal>
   );
 }
 

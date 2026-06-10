@@ -6,7 +6,7 @@ import { PR_FLOW, PR_STATUS } from '../theme.js';
 import { idr, today } from '../engine/format.js';
 
 export default function PrModal({ pr = null, boqItem = null, onClose }) {
-  const { db, currentProjectId, addPr, updatePr, deletePr, addBrand } = useStore();
+  const { db, currentProjectId, addPr, updatePr, softDeletePr, addBrand } = useStore();
   const editing = !!pr;
   const raising = !editing && !!boqItem;
   const editingExtra = editing && !db.boqItems.some((b) => b.id === pr.boqItemId); // editing a PR with no live line
@@ -102,8 +102,8 @@ export default function PrModal({ pr = null, boqItem = null, onClose }) {
         <>
           {editing && (confirmingDelete ? (
             <span style={{ marginRight: 'auto', display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <span className="muted" style={{ fontSize: 13 }}>Delete this PR permanently?</span>
-              <button className="btn sm danger" onClick={() => { deletePr(pr.id); onClose(); }}>Confirm delete</button>
+              <span className="muted" style={{ fontSize: 13 }}>Move this PR to Trash? (restorable for 7 days)</span>
+              <button className="btn sm danger" onClick={() => { softDeletePr(pr.id); onClose(); }}>Move to Trash</button>
               <button className="btn sm ghost" onClick={() => setConfirmingDelete(false)}>Keep</button>
             </span>
           ) : (

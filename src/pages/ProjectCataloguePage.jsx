@@ -5,6 +5,7 @@ import { projectTotals } from '../engine/reconcile.js';
 import { scheduleForProject, todayLocal } from '../engine/schedule.js';
 import { idr, fmtDate } from '../engine/format.js';
 import NewProjectModal from '../components/NewProjectModal.jsx';
+import Modal from '../components/Modal.jsx';
 import { FilterBar, FilterSearch, FilterSelect } from '../components/ui.jsx';
 
 const TABS = [
@@ -19,11 +20,12 @@ const pill = (txt, kind) => {
 };
 
 export default function ProjectCataloguePage() {
-  const { db, setCurrentProjectId, addProject } = useStore();
+  const { db, setCurrentProjectId, addProject, softDeleteProject, currentProjectId } = useStore();
   const nav = useNavigate();
   const today = todayLocal();
   const [tab, setTab] = useState('active');
   const [newProject, setNewProject] = useState(false);
+  const [delFor, setDelFor] = useState(null);
   const [q, setQ] = useState('');
   const [projectFilter, setProjectFilter] = useState('');
   const [overFilter, setOverFilter] = useState('');
@@ -82,7 +84,7 @@ export default function ProjectCataloguePage() {
             <FilterSelect value={statusFilter} onChange={setStatusFilter} allLabel="Any status" width={170}
               options={[{ value: 'attention', label: 'Needs attention' }, { value: 'ontrack', label: 'On track' }]} />
           </FilterBar>
-          <ActiveTable rows={filteredRows} onOpen={open} />
+          <ActiveTable rows={filteredRows} onOpen={open} onDelete={setDelFor} />
         </>
       )}
 
@@ -103,11 +105,47 @@ export default function ProjectCataloguePage() {
 
       {newProject && <NewProjectModal onClose={() => setNewProject(false)}
         onCreate={(vals) => { const id = addProject(vals); setNewProject(false); setCurrentProjectId(id); nav('/boq'); }} />}
+
+      {delFor && <DeleteProject project={delFor} db={db} onClose={() => setDelFor(null)}
+        onConfirm={() => {
+          const id = delFor.id;
+          if (currentProjectId === id) setCurrentProjectId(db.projects.find((p) => p.id !== id)?.id);
+          softDeleteProject(id);
+          setDelFor(null);
+        }} />}
     </>
   );
 }
 
-function ActiveTable({ rows, onOpen }) {
+function DeleteProject({ project, db, onClose, onConfirm }) {
+  const boq = db.boqItems.filter((b) => b.projectId === project.id).length;
+  const boqIds = new Set(db.boqItems.filter((b) => b.projectId === project.id).map((b) => b.id));
+  const prs = db.prs.filter((p) => p.projectId === project.id || (p.boqItemId && boqIds.has(p.boqItemId))).length;
+  const hasData = boq > 0 || prs > 0;
+  const code = project.code || project.name;
+  const [confirmText, setConfirmText] = useState('');
+  const ready = !hasData || confirmText.trim() === code;
+  return (
+    <Modal title={`Delete project · ${code}`} onClose={onClose}
+      footer={<>
+        <button className="btn ghost" onClick={onClose}>Cancel</button>
+        <button className="btn danger" disabled={!ready} onClick={onConfirm}>Move to Trash</button>
+      </>}>
+      <p style={{ marginTop: 0, lineHeight: 1.6 }}>
+        This moves <b>{project.name}</b> and everything under it to Trash — <b>{boq} BoQ line{boq === 1 ? '' : 's'}</b> and <b>{prs} purchase request{prs === 1 ? '' : 's'}</b>. It can be restored as a whole for 7 days.
+      </p>
+      {hasData && (
+        <>
+          <label className="lbl">Type <b>{code}</b> to confirm</label>
+          <input type="text" value={confirmText} onChange={(e) => setConfirmText(e.target.value)} placeholder={code} autoFocus />
+          <p className="help" style={{ marginBottom: 0 }}>This project has data, so we ask you to type its code — guards against an accidental delete.</p>
+        </>
+      )}
+    </Modal>
+  );
+}
+
+function ActiveTable({ rows, onOpen, onDelete }) {
   if (rows.length === 0) {
     return <div className="card"><div className="empty">No projects match these filters.</div></div>;
   }
@@ -124,6 +162,7 @@ function ActiveTable({ rows, onOpen }) {
               <th className="num">Over budget</th>
               <th className="num">Delivered</th>
               <th>Status</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
@@ -155,6 +194,9 @@ function ActiveTable({ rows, onOpen }) {
                   <td>{p.boqStatus !== 'working'
                     ? <span className="pill gray">Draft</span>
                     : attention > 0 ? pill(`⚠ ${attention} to act on`, 'risk') : pill('On track', 'ok')}</td>
+                  <td className="num" onClick={(e) => e.stopPropagation()}>
+                    <button className="btn sm ghost" style={{ color: 'var(--risk)' }} onClick={() => onDelete(p)}>Delete</button>
+                  </td>
                 </tr>
               );
             })}
