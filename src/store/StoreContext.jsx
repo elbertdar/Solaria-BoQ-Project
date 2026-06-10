@@ -29,6 +29,7 @@ function normalize(d) {
       const at = p.createdAt || (p.orderDate ? new Date(p.orderDate).toISOString() : nowISO());
       p.statusHistory = [{ at, from: null, to: p.status, by: null }]; // pre-feature rows: actor unknown
     }
+    if (p.comment == null) p.comment = '';
   }
   return d;
 }
@@ -361,6 +362,7 @@ export function StoreProvider({ children }) {
         status,
         orderDate: pr.orderDate || null,
         receiptDate: status === 'received' ? (pr.receiptDate || null) : null, // no receipt date unless received
+        comment: pr.comment || '',
         createdAt: nowISO(),
         statusHistory: [{ at: nowISO(), from: null, to: status, by: actor }],
       };

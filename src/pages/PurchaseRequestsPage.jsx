@@ -1,4 +1,4 @@
-import { useState, Fragment } from 'react';
+import { useState, Fragment, useEffect, useRef } from 'react';
 import { useStore, useProject } from '../store/StoreContext.jsx';
 import { prsForProject, materialName, isExtraPr, brandName } from '../engine/reconcile.js';
 import { ProjectBar, StatusPill, FilterBar, FilterSearch, FilterSelect } from '../components/ui.jsx';
@@ -8,7 +8,7 @@ import { idr, fmtDate, num, today } from '../engine/format.js';
 import { PR_FLOW, PR_STATUS } from '../theme.js';
 
 export default function PurchaseRequestsPage() {
-  const { db, currentProjectId, setPrStatus } = useStore();
+  const { db, currentProjectId, setPrStatus, updatePr } = useStore();
   const project = useProject();
   const draft = project?.boqStatus !== 'working';
   const prs = [...prsForProject(db, currentProjectId)]
@@ -73,7 +73,7 @@ export default function PurchaseRequestsPage() {
                 <th style={{ width: 28 }}></th>
                 <th>Material</th><th>Status</th>
                 <th className="num">Qty</th><th>Unit</th><th className="num">Unit cost</th><th className="num">Line total</th>
-                <th>Sup 1 / Sup 2</th><th>PIC</th><th>Order</th><th>Receipt</th><th></th>
+                <th>Sup 1 / Sup 2</th><th>PIC</th><th>Order</th><th>Receipt</th><th>Comment</th><th></th>
               </tr>
             </thead>
             <tbody>
@@ -97,6 +97,9 @@ export default function PurchaseRequestsPage() {
                   <td>{picName(p.picId)}</td>
                   <td>{fmtDate(p.orderDate)}</td>
                   <td>{fmtDate(p.receiptDate)}</td>
+                  <td style={{ verticalAlign: 'top' }}>
+                    <CommentCell value={p.comment || ''} onSave={(c) => updatePr(p.id, { comment: c })} />
+                  </td>
                   <td className="num" style={{ whiteSpace: 'nowrap' }}>
                     <button className="btn sm ghost" onClick={() => setModal(p)}>Edit</button>{' '}
                     {!['received', 'cancelled'].includes(p.status) && (
@@ -105,7 +108,7 @@ export default function PurchaseRequestsPage() {
                   </td>
                 </tr>
                 {isOpen && (
-                  <tr><td colSpan={12} style={{ background: '#F8FAFC' }}>
+                  <tr><td colSpan={13} style={{ background: '#F8FAFC' }}>
                     <div style={{ padding: '8px 10px 10px' }}>
                       <div className="lbl" style={{ marginBottom: 6 }}>Status history</div>
                       {hist.length ? (
@@ -129,7 +132,7 @@ export default function PurchaseRequestsPage() {
                 );
               })}
               {filtered.length === 0 && (
-                <tr><td colSpan={12}><div className="empty">{prs.length === 0 ? 'No purchase requests yet. Raise one from a BoQ item.' : 'No PRs match these filters.'}</div></td></tr>
+                <tr><td colSpan={13}><div className="empty">{prs.length === 0 ? 'No purchase requests yet. Raise one from a BoQ item.' : 'No PRs match these filters.'}</div></td></tr>
               )}
             </tbody>
           </table>
@@ -143,6 +146,34 @@ export default function PurchaseRequestsPage() {
       )}
     </>
   );
+}
+
+function CommentCell({ value, onSave }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const cancel = useRef(false);
+  useEffect(() => { if (!editing) setDraft(value); }, [value, editing]);
+
+  const start = () => { cancel.current = false; setDraft(value); setEditing(true); };
+  const finish = () => {
+    setEditing(false);
+    if (cancel.current) { cancel.current = false; return; }
+    if (draft.trim() !== (value || '')) onSave(draft.trim());
+  };
+
+  if (editing) {
+    return (
+      <textarea autoFocus value={draft} rows={2}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={finish}
+        onKeyDown={(e) => { if (e.key === 'Escape') { cancel.current = true; e.currentTarget.blur(); } }}
+        placeholder="Add a note… (click away to save)"
+        style={{ width: 180, boxSizing: 'border-box', font: 'inherit', fontSize: 12.5, lineHeight: 1.4, padding: '4px 6px', border: '1px solid #CBD5E1', borderRadius: 6, resize: 'vertical' }} />
+    );
+  }
+  return value
+    ? <div onClick={start} title="Click to edit" style={{ cursor: 'text', whiteSpace: 'normal', wordBreak: 'break-word', maxWidth: 180, fontSize: 12.5, lineHeight: 1.4 }}>{value}</div>
+    : <button className="btn sm ghost" onClick={start} style={{ fontSize: 11, padding: '2px 6px', color: 'var(--muted, #94A3B8)' }}>+ note</button>;
 }
 
 function ReceiveModal({ pr, onClose, onConfirm }) {

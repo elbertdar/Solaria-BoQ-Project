@@ -32,6 +32,7 @@ export default function PrModal({ pr = null, boqItem = null, onClose }) {
   const [status, setStatus] = useState(pr?.status ?? 'draft');
   const [orderDate, setOrderDate] = useState(editing ? (pr.orderDate ?? '') : (raising ? today() : ''));
   const [receiptDate, setReceiptDate] = useState(editing ? (pr.receiptDate ?? '') : (raising ? today() : ''));
+  const [comment, setComment] = useState(pr?.comment ?? '');
   const [error, setError] = useState('');
   const [ackOver, setAckOver] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -86,6 +87,7 @@ export default function PrModal({ pr = null, boqItem = null, onClose }) {
       status,
       orderDate: orderDate || null,
       receiptDate: status === 'received' ? (receiptDate || null) : null,
+      comment: comment.trim(),
     };
     if (editing) updatePr(pr.id, payload);
     else addPr(payload);
@@ -206,6 +208,13 @@ export default function PrModal({ pr = null, boqItem = null, onClose }) {
           <label className="lbl">Unit cost (IDR)</label>
           <NumberInput value={unitCost} onChange={setUnitCost} />
           <div className="help">Line total: {idr(lineTotal)}</div>
+        </div>
+
+        <div>
+          <label className="lbl">Comment <span className="muted">(optional)</span></label>
+          <textarea value={comment} onChange={(e) => setComment(e.target.value)} rows={2}
+            placeholder="Note for this PR…"
+            style={{ width: '100%', boxSizing: 'border-box', font: 'inherit', fontSize: 13.5, lineHeight: 1.4, padding: '8px 12px', border: '1px solid #E5E7EB', borderRadius: 9, resize: 'vertical' }} />
         </div>
 
         <div>

@@ -3,7 +3,57 @@
 The source of truth for what files exist and where. **Updated every time we change something.**
 
 - **Last updated:** 5 Jun 2026
-- **Latest build:** PR audit — receipt-date gating + status-change history (with actor) + expandable row
+- **Latest build:** PR modal — Comment field added; suppliers now paired side-by-side
+
+---
+
+## ⚠ Latest build (PR modal layout + comment)
+
+The New/Edit PR modal had Supplier 1 and Supplier 2 sitting diagonally (`Unit cost | Supplier 1`
+then `Supplier 2 | PIC`). Inserting the **Comment** field right after Unit cost bumps Supplier 1
+down so the two suppliers now share a row:
+
+```
+Unit cost | Comment
+Supplier 1 | Supplier 2      ← paired
+Purchasing PIC | Status
+Order date | (Receipt, when received)
+```
+
+- Same `comment` field as the table column — the modal textarea is added to the save payload, so
+  it works on **both create and edit** (shared `PrModal`), and stays in sync with the table's inline edit.
+- Minor: in the default (non-received) state the bottom row shows Order date with an empty slot beside it
+  (odd field count); it fills in when a Receipt date appears.
+
+**Storage unchanged — v10.** **Verified:** clean compile + clean-room installer extraction.
+
+**Changed:** `components/PrModal.jsx`
+
+---
+
+## Previous build (PR comments)
+
+---
+
+## ⚠ Latest build (PR comments)
+
+Each PR now has an optional free-text **comment**, shown as a column in Purchase Requests.
+
+- **Readable inline** — the comment text renders right in the cell (no click/expand needed to read it).
+- **Width-capped** — the cell is fixed at ~180px and the text *wraps* (row grows taller, not wider), so the table doesn't widen beyond that. Empty PRs show only a faint "+ note", keeping the column compact.
+- **Click-to-edit** — click the text (or "+ note") → small textarea → **click away to save**, Esc to cancel. Clearing it removes the note.
+- **Placement** — last column, before the action buttons.
+- **No audit trail** for comments (unlike status changes) — they're freeform notes. Editing reuses `updatePr`, so status/receipt/history are untouched (verified: commenting a received PR keeps its receipt date and adds no history entry).
+
+Data: PR gains a `comment` string (`addPr` seeds `''`; `normalize` backfills existing rows). **Storage unchanged — v10.**
+
+**Verified:** comment-edit safety harness + clean-room installer extraction.
+
+**Changed:** `store/StoreContext.jsx`, `pages/PurchaseRequestsPage.jsx`
+
+---
+
+## Previous build (PR status history & receipt gating)
 
 ---
 
