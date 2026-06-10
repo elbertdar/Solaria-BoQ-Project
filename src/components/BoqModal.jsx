@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useStore } from '../store/StoreContext.jsx';
 import { materialName, prsForBoqItem } from '../engine/reconcile.js';
 import { suggestMaterials, resolveMaterial } from '../engine/match.js';
@@ -6,6 +6,7 @@ import { leadTimeFor, projectStart, addDays, addBusinessDays } from '../engine/s
 import { fmtDate } from '../engine/format.js';
 import Modal from './Modal.jsx';
 import NumberInput from './NumberInput.jsx';
+import ComboBox from './ComboBox.jsx';
 import { dnum } from './boqShared.jsx';
 
 export default function BoqModal({ item, onClose }) {
@@ -30,17 +31,7 @@ export default function BoqModal({ item, onClose }) {
   const [allowanceAmount, setAllowanceAmount] = useState(item?.allowanceAmount ?? '');
   const allowance = budgetBasis === 'allowance';
   const [mandorId, setMandor] = useState(item?.mandorId ?? db.mandors[0]?.id ?? '');
-  const [addingMandor, setAddingMandor] = useState(false);
-  const [newMandor, setNewMandor] = useState('');
   const [error, setError] = useState('');
-  const [touchedMat, setTouchedMat] = useState(false);
-
-  const suggestions = useMemo(() => {
-    if (materialId || !touchedMat) return [];
-    return suggestMaterials(db.materials, matQuery);
-  }, [db.materials, matQuery, materialId, touchedMat]);
-  const exactResolve = useMemo(() => resolveMaterial(db.materials, matQuery), [db.materials, matQuery]);
-  const noMatch = touchedMat && !materialId && matQuery.trim().length >= 2 && suggestions.length === 0 && !exactResolve;
 
   const matLead = materialId ? leadTimeFor(db, materialId) : null;
   const lead = leadOverride !== '' ? Number(leadOverride) : matLead;
@@ -49,27 +40,32 @@ export default function BoqModal({ item, onClose }) {
   const orderDate = (neededDate && lead != null) ? addBusinessDays(neededDate, -lead) : null;
   const orderDay = dnum(start, orderDate);
 
-  function pickMaterial(m) {
-    setMaterialId(m.id); setMatQuery(m.canonicalName);
+  // ComboBox wiring: fuzzy provider over the catalogue (BR-1), exact resolution at
+  // blur/save time, and inline canonical-material creation.
+  const matProvider = (q) => suggestMaterials(db.materials, q).map((s) => ({
+    id: s.material.id, label: s.material.canonicalName,
+    sublabel: s.matchedOn !== s.material.canonicalName ? `alias “${s.matchedOn}”` : s.material.defaultUnit,
+    score: `${Math.round(s.score * 100)}%`,
+  }));
+  function pickMaterialId(mid) {
+    setMaterialId(mid);
+    const m = db.materials.find((x) => x.id === mid);
+    if (!m) return; // just created — defaults handled in createMaterial
     if (!unit) setUnit(m.defaultUnit);
     if (expectedUnitCost === '' && m.estUnitCost != null) setCost(m.estUnitCost);
     if (!description.trim()) setDescription(m.canonicalName);
-    setTouchedMat(false);
   }
-  function createNewMaterial() {
-    const id = addMaterial({ canonicalName: matQuery.trim(), defaultUnit: unit || 'pcs', materialTypeId: db.materialTypes[0]?.id, leadTimeDays: 7 });
-    setMaterialId(id); if (!unit) setUnit('pcs'); if (!description.trim()) setDescription(matQuery.trim()); setTouchedMat(false);
-  }
-  function confirmNewMandor() {
-    if (!newMandor.trim()) return;
-    const id = addMandor(newMandor.trim());
-    setMandor(id); setNewMandor(''); setAddingMandor(false);
+  function createMaterial(q) {
+    const id = addMaterial({ canonicalName: q.trim(), defaultUnit: unit || 'pcs', materialTypeId: db.materialTypes[0]?.id, leadTimeDays: 7 });
+    if (!unit) setUnit('pcs');
+    if (!description.trim()) setDescription(q.trim());
+    return id;
   }
 
   function save() {
     setError('');
     let mid = materialId;
-    if (!mid && exactResolve) mid = exactResolve.id;
+    if (!mid && matQuery.trim()) { const m = resolveMaterial(db.materials, matQuery); if (m) mid = m.id; }
     if (!mid) { setError('Pick an existing material or create a new canonical entry — BoQ items can’t use free-text names (BR-1).'); return; }
     if (!unit) { setError('Set a unit.'); return; }
     if (!allowance) {
@@ -132,30 +128,16 @@ export default function BoqModal({ item, onClose }) {
       <div className="form-grid">
         <div className="full">
           <label className="lbl">Material <span className="req">*</span></label>
-          <input type="text" value={matQuery} placeholder="Type a material name, e.g. Gypsum Aplus…"
-            onChange={(e) => { setMatQuery(e.target.value); setMaterialId(''); setTouchedMat(true); }} />
+          <ComboBox value={materialId} placeholder="Type a material name, e.g. Gypsum Aplus…"
+            options={db.materials.map((m) => ({ id: m.id, label: m.canonicalName }))}
+            provider={matProvider}
+            resolveId={(q) => resolveMaterial(db.materials, q)?.id || null}
+            onPick={pickMaterialId} onTextChange={setMatQuery}
+            onCreate={createMaterial}
+            createLabel={(q) => `➕ Create “${q}” as a new canonical material`} />
           {materialId && (
             <div className="help" style={{ color: 'var(--ok)' }}>
               ✓ {materialName(db, materialId)}{matLead != null ? ` · material lead time ${matLead} days` : ' · no lead time set (Catalogue)'}
-            </div>
-          )}
-          {!materialId && suggestions.length > 0 && (
-            <div className="suggest">
-              {suggestions.map((s) => (
-                <div className="suggest-item" key={s.material.id} onClick={() => pickMaterial(s.material)}>
-                  <span><b>{s.material.canonicalName}</b>
-                    {s.matchedOn !== s.material.canonicalName && <span className="muted"> · alias “{s.matchedOn}”</span>}
-                  </span>
-                  <span className="score">{Math.round(s.score * 100)}% match</span>
-                </div>
-              ))}
-            </div>
-          )}
-          {noMatch && (
-            <div className="suggest">
-              <div className="suggest-item" onClick={createNewMaterial}>
-                <span>+ Create “{matQuery.trim()}” as a new canonical material</span>
-              </div>
             </div>
           )}
         </div>
@@ -199,21 +181,10 @@ export default function BoqModal({ item, onClose }) {
         )}
         <div>
           <label className="lbl">Mandor</label>
-          {!addingMandor ? (
-            <div style={{ display: 'flex', gap: 6 }}>
-              <select className="input" value={mandorId} onChange={(e) => setMandor(e.target.value)}>
-                {db.mandors.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
-              </select>
-              <button className="btn ghost" type="button" onClick={() => setAddingMandor(true)} title="Add mandor">＋</button>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', gap: 6 }}>
-              <input type="text" value={newMandor} autoFocus placeholder="New mandor name"
-                onChange={(e) => setNewMandor(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && confirmNewMandor()} />
-              <button className="btn" type="button" onClick={confirmNewMandor}>Add</button>
-              <button className="btn ghost" type="button" onClick={() => { setAddingMandor(false); setNewMandor(''); }}>✕</button>
-            </div>
-          )}
+          <ComboBox value={mandorId} onPick={setMandor}
+            options={db.mandors.map((m) => ({ id: m.id, label: m.name }))}
+            onCreate={(q) => addMandor(q.trim())} createLabel={(q) => `➕ Add mandor “${q}”`}
+            placeholder="Search or add a mandor…" />
         </div>
 
         {!allowance && (

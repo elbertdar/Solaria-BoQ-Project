@@ -6,6 +6,7 @@ import { ProjectBar, FilterBar, FilterSearch, FilterSelect } from '../components
 import Modal from '../components/Modal.jsx';
 import PrModal from '../components/PrModal.jsx';
 import NumberInput from '../components/NumberInput.jsx';
+import ComboBox from '../components/ComboBox.jsx';
 import { idr, fmtDate, num } from '../engine/format.js';
 import { dnum } from '../components/boqShared.jsx';
 import BoqModal from '../components/BoqModal.jsx';
@@ -293,6 +294,7 @@ function Row({ r, db, start, onEdit, onRaisePr, onUndo }) {
 const CELL = { width: '100%', boxSizing: 'border-box', padding: '5px 8px', border: '1px solid #E5E7EB', borderRadius: 7, font: 'inherit', fontSize: 13 };
 
 function DraftRow({ b, db, start, onPatch, onDelete }) {
+  const { addMaterial, addMandor } = useStore();
   const allow = b.budgetBasis === 'allowance';
   const lead = b.leadTimeDays != null ? b.leadTimeDays : leadTimeFor(db, b.materialId);
   const neededDate = (start && b.neededDayOffset != null) ? addDays(start, b.neededDayOffset) : null;
@@ -304,22 +306,27 @@ function DraftRow({ b, db, start, onPatch, onDelete }) {
     <tr>
       <td>
         {allow && <div className="pill info" style={{ fontSize: 10, marginBottom: 4, display: 'inline-block' }}>Allowance</div>}
-        <select className="input" style={{ minWidth: 150 }} value={b.materialId || ''} onChange={(e) => {
-          const mid = e.target.value;
-          const m = db.materials.find((x) => x.id === mid);
-          onPatch(b.id, { materialId: mid, ...(m ? { unit: m.defaultUnit, ...(b.description ? {} : { description: m.canonicalName }), ...(allow ? {} : { expectedUnitCost: m.estUnitCost }) } : {}) });
-        }}>
-          <option value="">— select —</option>
-          {db.materials.map((m) => <option key={m.id} value={m.id}>{m.canonicalName}</option>)}
-        </select>
+        <ComboBox value={b.materialId || ''} style={{ minWidth: 150 }} placeholder="Material…"
+          options={db.materials.map((m) => ({ id: m.id, label: m.canonicalName }))}
+          onPick={(mid) => {
+            const m = db.materials.find((x) => x.id === mid);
+            onPatch(b.id, { materialId: mid, ...(m ? { unit: m.defaultUnit, ...(b.description ? {} : { description: m.canonicalName }), ...(allow ? {} : { expectedUnitCost: m.estUnitCost }) } : {}) });
+          }}
+          onCreate={(q) => {
+            const id = addMaterial({ canonicalName: q.trim(), defaultUnit: b.unit || 'pcs', materialTypeId: db.materialTypes[0]?.id, leadTimeDays: 7 });
+            onPatch(b.id, { materialId: id, unit: b.unit || 'pcs', ...(b.description ? {} : { description: q.trim() }) });
+            return id;
+          }}
+          createLabel={(q) => `➕ Create “${q}”`} />
       </td>
       <td><input style={CELL} value={b.description || ''} placeholder="description"
         onChange={(e) => onPatch(b.id, { description: e.target.value })} /></td>
       <td>
-        <select className="input" style={{ minWidth: 120 }} value={b.mandorId || ''} onChange={(e) => onPatch(b.id, { mandorId: e.target.value })}>
-          <option value="">Unassigned</option>
-          {db.mandors.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
-        </select>
+        <ComboBox value={b.mandorId || ''} style={{ minWidth: 120 }} placeholder="Mandor…" noneLabel="Unassigned"
+          options={db.mandors.map((m) => ({ id: m.id, label: m.name }))}
+          onPick={(mid) => onPatch(b.id, { mandorId: mid })}
+          onCreate={(q) => { const id = addMandor(q.trim()); onPatch(b.id, { mandorId: id }); return id; }}
+          createLabel={(q) => `➕ Add “${q}”`} />
       </td>
       <td className="num">{allow ? dash : <NumberInput allowDecimal style={{ ...CELL, width: 72, textAlign: 'right' }} value={b.quantity ?? ''}
         onChange={(v) => onPatch(b.id, { quantity: v === '' ? 0 : v })} />}</td>

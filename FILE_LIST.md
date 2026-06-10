@@ -3,11 +3,48 @@
 The source of truth for what files exist and where. **Updated every time we change something.**
 
 - **Last updated:** 5 Jun 2026
-- **Latest build:** 3 fixes — delete project types, split PR supplier columns, center PR comment cell
+- **Latest build:** Inline create everywhere — unified ComboBox (suppliers, brands, materials, PIC, mandor, types)
 
 ---
 
-## ⚠ Latest build (3 fixes)
+## ⚠ Latest build (inline create everywhere — unified ComboBox)
+
+You no longer have to leave a form to add a record. Every pick-a-record dropdown is now one consistent
+control — **ComboBox** (`components/ComboBox.jsx`, built last session as groundwork, now shipped + wired):
+type to search, ↑ ↓ Enter to navigate, and a **➕ Add …** row creates the record inline and selects it.
+
+Adopted in:
+- **PR form** — **Supplier 1 / Supplier 2** (grouped: ★ Recommended first, searchable, creatable —
+  the original ask), **Brand** (replaces the select→input toggle), **Material** for extra purchases
+  (creatable; inherits the typed unit), **Purchasing PIC** (new PIC created inline, defaults to the
+  Purchasing PIC role). Status stays a plain select (it's an enum, not a record).
+- **BoQ item modal** — **Material** keeps its fuzzy matching + % scores + alias hits (same engine,
+  now rendered through ComboBox; exact text still resolves at save time), **Mandor** (replaces the
+  select + ＋ button).
+- **BoQ draft rows** (the add-row table) — **Material** and **Mandor**, both creatable in place.
+- **Material form** (Catalogue) — **Material type** creatable inline.
+- **New Project** — project type now uses the shared ComboBox (typed-but-unpicked text is still
+  honored on save: reuse by name, else create).
+
+QoL beyond the ask:
+- **New suppliers created from a PR are auto-tagged with the material's category**, so they appear
+  under ★ Recommended for that category from then on.
+- Every list is now searchable by typing — matters as suppliers/materials grow at 30–50 stores/yr.
+- One keyboard model everywhere (↑ ↓ Enter Esc), one visual language (.suggest dropdown).
+
+Left as-is, deliberately: catalogue **TypeCell** (click-to-edit table cell, different interaction; native
+select stays), Suppliers page **category checkboxes** (multi-select tags), enum selects (PR status, user role).
+
+**Storage unchanged — v10.** **Verified:** compile + 14-check harness (ComboBox row assembly, supplier
+auto-tag payload, draft-row create flow) + clean-room installer extraction. Installer now embeds **38 files**
+(ComboBox.jsx ships for the first time).
+
+**Changed:** `index.css`, `components/ComboBox.jsx`, `components/PrModal.jsx`, `components/BoqModal.jsx`,
+`components/NewProjectModal.jsx`, `pages/BoqPage.jsx`, `pages/CataloguePage.jsx`
+
+---
+
+## Previous build (3 fixes)
 
 **1 · Delete a project type (easy).** New **Manage types** button in the catalogue header (next to "+ New
 project") opens a modal listing every type with its usage count and a one-click **Delete**. Deleting is

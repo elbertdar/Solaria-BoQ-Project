@@ -329,11 +329,17 @@ input:focus, select:focus, textarea:focus { outline: 2px solid #BFDBFE; outline-
 .help { font-size: 12px; color: var(--ink-faint); margin-top: 4px; }
 
 /* suggestion list (fuzzy match) */
-.suggest { border: 1px solid var(--border); border-radius: var(--radius-sm); margin-top: 6px; overflow: hidden; }
+.suggest { border: 1px solid var(--border); border-radius: var(--radius-sm); margin-top: 6px; overflow: hidden; background: var(--surface); }
 .suggest-item { padding: 7px 10px; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--border); }
 .suggest-item:last-child { border-bottom: none; }
-.suggest-item:hover { background: var(--info-bg); }
+.suggest-item:hover, .suggest-item.active { background: var(--info-bg); }
 .suggest-item .score { margin-left: auto; font-size: 11px; color: var(--ink-faint); }
+/* unified ComboBox (pick-or-create) */
+.combo { width: 100%; }
+.combo .input { width: 100%; box-sizing: border-box; }
+.suggest-group { padding: 5px 10px; font-size: 11px; font-weight: 600; color: var(--ink-faint); background: var(--surface-2); border-bottom: 1px solid var(--border); }
+.suggest-item.none { color: var(--muted); }
+.suggest-item.create { color: var(--info); font-weight: 600; }
 
 .inline-warn {
   display: flex; gap: 9px; align-items: flex-start;

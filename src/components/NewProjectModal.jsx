@@ -1,33 +1,28 @@
 import { useState } from 'react';
 import Modal from './Modal.jsx';
+import ComboBox from './ComboBox.jsx';
 import { useStore } from '../store/StoreContext.jsx';
 import { today as todayISO } from '../engine/format.js';
 
 // Shared "New project" dialog. onCreate({ name, startDate, code, projectTypeId }) — caller does addProject + nav.
-// Project type is a typeahead/combobox over the existing projectTypes "history" (spans all projects,
+// Project type uses the unified ComboBox over the projectTypes "history" (spans all projects,
 // completed included): browse on focus, filter as you type, pick an existing one or add a new one.
+// Typed-but-unpicked text is still honored at save time (reuse by name, else create).
 export default function NewProjectModal({ onClose, onCreate }) {
   const { db, addProjectType } = useStore();
   const types = db.projectTypes || [];
   const [name, setName] = useState('');
   const [startDate, setStartDate] = useState(todayISO());
   const [code, setCode] = useState('');
-  const [typeQuery, setTypeQuery] = useState('');
-  const [typeId, setTypeId] = useState(null);
-  const [typeOpen, setTypeOpen] = useState(false);
+  const [typeId, setTypeId] = useState('');
+  const [typeText, setTypeText] = useState('');
   const [error, setError] = useState('');
-
-  const q = typeQuery.trim().toLowerCase();
-  const suggestions = q ? types.filter((t) => t.name.toLowerCase().includes(q)) : types;
-  const exact = types.find((t) => t.name.toLowerCase() === q);
-
-  const pick = (t) => { setTypeId(t.id); setTypeQuery(t.name); setTypeOpen(false); };
 
   function save() {
     if (!name.trim()) { setError('Project name is required.'); return; }
     if (!startDate) { setError('Start date is required — the schedule counts days from it.'); return; }
     let projectTypeId = typeId;
-    const qq = typeQuery.trim();
+    const qq = typeText.trim();
     if (!projectTypeId && qq) {                                  // typed text, no pick → reuse by name or create
       const existing = types.find((t) => t.name.toLowerCase() === qq.toLowerCase());
       projectTypeId = existing ? existing.id : addProjectType({ name: qq });
@@ -55,25 +50,12 @@ export default function NewProjectModal({ onClose, onCreate }) {
         </div>
         <div className="full">
           <label className="lbl">Project type <span className="muted">(optional)</span></label>
-          <input type="text" value={typeQuery} placeholder="Search or add a type — e.g. Mall, New store…"
-            onChange={(e) => { setTypeQuery(e.target.value); setTypeId(null); setTypeOpen(true); }}
-            onFocus={() => setTypeOpen(true)}
-            onBlur={() => setTypeOpen(false)} />
-          {typeOpen && (suggestions.length > 0 || (q && !exact)) && (
-            <div className="suggest">
-              {suggestions.map((t) => (
-                <div className="suggest-item" key={t.id} onMouseDown={() => pick(t)}>
-                  <span>{t.name}</span>
-                </div>
-              ))}
-              {q && !exact && (
-                <div className="suggest-item" onMouseDown={() => setTypeOpen(false)}>
-                  <span>➕ Add “{typeQuery.trim()}” as a new type</span>
-                </div>
-              )}
-            </div>
-          )}
-          {types.length > 0 && !typeOpen && <div className="help">Pick an existing type or type a new one — used types are remembered.</div>}
+          <ComboBox value={typeId} onPick={setTypeId} onTextChange={setTypeText}
+            options={types.map((t) => ({ id: t.id, label: t.name }))}
+            onCreate={(q) => addProjectType({ name: q.trim() })}
+            createLabel={(q) => `➕ Add “${q}” as a new type`}
+            placeholder="Search or add a type — e.g. Mall, New store…" />
+          <div className="help">Pick an existing type or type a new one — used types are remembered.</div>
         </div>
       </div>
       {error && <div className="inline-warn"><span>•</span><div>{error}</div></div>}

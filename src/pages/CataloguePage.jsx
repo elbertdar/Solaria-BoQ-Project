@@ -4,6 +4,7 @@ import { suggestMaterials } from '../engine/match.js';
 import { idr } from '../engine/format.js';
 import Modal from '../components/Modal.jsx';
 import NumberInput from '../components/NumberInput.jsx';
+import ComboBox from '../components/ComboBox.jsx';
 import { FilterBar, FilterSearch, FilterSelect, DeleteConfirm } from '../components/ui.jsx';
 
 export default function CataloguePage() {
@@ -156,6 +157,7 @@ function ManageBrands({ material, brands, onClose, onAdd, onDelete }) {
 }
 
 function MaterialModal({ title, material, onClose, onSave, types, materials }) {
+  const { addMaterialType } = useStore();
   const editing = !!material;
   const [name, setName] = useState(material?.canonicalName ?? '');
   const [unit, setUnit] = useState(material?.defaultUnit ?? '');
@@ -199,9 +201,10 @@ function MaterialModal({ title, material, onClose, onSave, types, materials }) {
         </div>
         <div>
           <label className="lbl">Material type</label>
-          <select className="input" value={typeId} onChange={(e) => setTypeId(e.target.value)}>
-            {types.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-          </select>
+          <ComboBox value={typeId} onPick={setTypeId} placeholder="Search or add a type…"
+            options={types.map((t) => ({ id: t.id, label: t.name }))}
+            onCreate={(q) => addMaterialType({ name: q.trim() })}
+            createLabel={(q) => `➕ Add type “${q}”`} />
         </div>
         <div>
           <label className="lbl">Estimated unit cost (IDR)</label>

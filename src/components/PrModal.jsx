@@ -5,9 +5,10 @@ import { checkProspectivePr, materialName, boqForProject, remainingQty, brandsFo
 import { PR_FLOW, PR_STATUS } from '../theme.js';
 import { idr, today } from '../engine/format.js';
 import NumberInput from './NumberInput.jsx';
+import ComboBox from './ComboBox.jsx';
 
 export default function PrModal({ pr = null, boqItem = null, onClose }) {
-  const { db, currentProjectId, addPr, updatePr, softDeletePr, addBrand } = useStore();
+  const { db, currentProjectId, addPr, updatePr, softDeletePr, addBrand, addSupplier, addMaterial, addUser } = useStore();
   const editing = !!pr;
   const raising = !editing && !!boqItem;
   const editingExtra = editing && !db.boqItems.some((b) => b.id === pr.boqItemId); // editing a PR with no live line
@@ -20,8 +21,6 @@ export default function PrModal({ pr = null, boqItem = null, onClose }) {
   const [extraMatId, setExtraMatId] = useState(editingExtra ? pr.materialId : '');
   const [extraUnit, setExtraUnit] = useState(editingExtra ? (pr.unit || '') : '');
   const [brandId, setBrandId] = useState(pr?.brandId ?? '');
-  const [addingBrand, setAddingBrand] = useState(false);
-  const [newBrand, setNewBrand] = useState('');
   const [quantity, setQuantity] = useState(
     editing ? (pr.quantity ?? '') : (raising && initialBoqItem?.budgetBasis !== 'allowance' ? String(remainingQty(db, initialBoqId)) : ''));
   const [unitCost, setUnitCost] = useState(
@@ -51,6 +50,19 @@ export default function PrModal({ pr = null, boqItem = null, onClose }) {
   const recommendedSuppliers = matTypeId ? db.suppliers.filter((s) => (s.materialTypeIds || []).includes(matTypeId)) : [];
   const recIds = new Set(recommendedSuppliers.map((s) => s.id));
   const otherSuppliers = db.suppliers.filter((s) => !recIds.has(s.id));
+
+  // Unified ComboBox option lists. New suppliers created here are auto-tagged with the
+  // material's category, so they show under ★ Recommended for this material next time.
+  const supplierOptions = [
+    ...recommendedSuppliers.map((s) => ({ id: s.id, label: s.name, group: `★ Recommended${recTypeLabel ? ` · ${recTypeLabel}` : ''}` })),
+    ...otherSuppliers.map((s) => ({ id: s.id, label: s.name, group: recommendedSuppliers.length ? 'Other suppliers' : undefined })),
+  ];
+  const createSupplier = (q) => addSupplier({
+    name: q.trim(), location: '',
+    materialTypeIds: matTypeId ? [matTypeId] : [],
+    contact: { phone: '', email: '', address: '' },
+  });
+  const picOptions = db.users.filter((u) => u.role === 'Purchasing PIC').map((u) => ({ id: u.id, label: u.name }));
 
   // Live reconciliation check as quantity changes (BR-7 / Feature 5.6).
   const check = useMemo(() => {
@@ -157,14 +169,20 @@ export default function PrModal({ pr = null, boqItem = null, onClose }) {
         <div>
           <label className="lbl">Material{extra ? <span className="req"> *</span> : ' (inherited)'}</label>
           {extra ? (
-            <select className="input" value={extraMatId} onChange={(e) => {
-              const mid = e.target.value; setExtraMatId(mid); setBrandId('');
-              const m = db.materials.find((x) => x.id === mid);
-              if (m && !extraUnit) setExtraUnit(m.defaultUnit);
-            }}>
-              <option value="">Select a material…</option>
-              {db.materials.map((m) => <option key={m.id} value={m.id}>{m.canonicalName}</option>)}
-            </select>
+            <ComboBox value={extraMatId} placeholder="Search or create a material…"
+              options={db.materials.map((m) => ({ id: m.id, label: m.canonicalName, sublabel: m.defaultUnit }))}
+              onPick={(mid) => {
+                setExtraMatId(mid); setBrandId('');
+                const m = db.materials.find((x) => x.id === mid);
+                if (m && !extraUnit) setExtraUnit(m.defaultUnit);
+              }}
+              onCreate={(q) => {
+                const id = addMaterial({ canonicalName: q.trim(), defaultUnit: extraUnit || 'pcs', materialTypeId: db.materialTypes[0]?.id, leadTimeDays: 7 });
+                if (!extraUnit) setExtraUnit('pcs');
+                setBrandId('');
+                return id;
+              }}
+              createLabel={(q) => `➕ Create material “${q}”`} />
           ) : (
             <div className="readonly-val">{matName}</div>
           )}
@@ -180,22 +198,11 @@ export default function PrModal({ pr = null, boqItem = null, onClose }) {
 
         <div>
           <label className="lbl">Brand</label>
-          {addingBrand ? (
-            <div style={{ display: 'flex', gap: 6 }}>
-              <input type="text" value={newBrand} autoFocus placeholder="Brand name"
-                onChange={(e) => setNewBrand(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') { const n = newBrand.trim(); if (n && effMatId) { setBrandId(addBrand({ materialId: effMatId, name: n })); setNewBrand(''); setAddingBrand(false); } } }} />
-              <button className="btn sm" onClick={() => { const n = newBrand.trim(); if (n && effMatId) { setBrandId(addBrand({ materialId: effMatId, name: n })); setNewBrand(''); setAddingBrand(false); } }}>Add</button>
-              <button className="btn sm ghost" onClick={() => { setAddingBrand(false); setNewBrand(''); }}>✕</button>
-            </div>
-          ) : (
-            <select className="input" value={brandId} disabled={!effMatId}
-              onChange={(e) => { if (e.target.value === '__new') { if (effMatId) setAddingBrand(true); } else setBrandId(e.target.value); }}>
-              <option value="">— Unspecified —</option>
-              {matBrands.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-              {effMatId && <option value="__new">➕ Add a brand…</option>}
-            </select>
-          )}
+          <ComboBox value={brandId} disabled={!effMatId} noneLabel="Unspecified" placeholder="Search or add a brand…"
+            options={matBrands.map((b) => ({ id: b.id, label: b.name }))}
+            onPick={setBrandId}
+            onCreate={(q) => addBrand({ materialId: effMatId, name: q.trim() })}
+            createLabel={(q) => `➕ Add brand “${q}”`} />
           {!effMatId && <div className="help">Pick a material first to choose a brand.</div>}
         </div>
 
@@ -219,27 +226,25 @@ export default function PrModal({ pr = null, boqItem = null, onClose }) {
 
         <div>
           <label className="lbl">Supplier 1</label>
-          <select className="input" value={supplierPrimaryId} onChange={(e) => setSup1(e.target.value)}>
-            <SupplierOptions recommended={recommendedSuppliers} others={otherSuppliers} typeLabel={recTypeLabel} />
-          </select>
-          {recommendedSuppliers.length > 0 && (
+          <ComboBox value={supplierPrimaryId} onPick={setSup1} options={supplierOptions}
+            onCreate={createSupplier} createLabel={(q) => `➕ Add supplier “${q}”`}
+            noneLabel="None" placeholder="Search or add a supplier…" />
+          {recommendedSuppliers.length > 0 ? (
             <div className="help">★ Recommended = suppliers tagged for {recTypeLabel}</div>
-          )}
+          ) : (matTypeId && <div className="help">New suppliers added here get tagged for {recTypeLabel}.</div>)}
         </div>
         <div>
           <label className="lbl">Supplier 2 (comparison)</label>
-          <select className="input" value={supplierSecondaryId} onChange={(e) => setSup2(e.target.value)}>
-            <SupplierOptions recommended={recommendedSuppliers} others={otherSuppliers} typeLabel={recTypeLabel} />
-          </select>
+          <ComboBox value={supplierSecondaryId} onPick={setSup2} options={supplierOptions}
+            onCreate={createSupplier} createLabel={(q) => `➕ Add supplier “${q}”`}
+            noneLabel="None" placeholder="Search or add a supplier…" />
         </div>
 
         <div>
           <label className="lbl">Purchasing PIC</label>
-          <select className="input" value={picId} onChange={(e) => setPic(e.target.value)}>
-            <option value="">—</option>
-            {db.users.filter((u) => u.role === 'Purchasing PIC').map((u) =>
-              <option key={u.id} value={u.id}>{u.name}</option>)}
-          </select>
+          <ComboBox value={picId} onPick={setPic} options={picOptions}
+            onCreate={(q) => addUser({ name: q.trim() })} createLabel={(q) => `➕ Add PIC “${q}”`}
+            noneLabel="None" placeholder="Search team…" />
         </div>
         <div>
           <label className="lbl">Status</label>
@@ -279,27 +284,5 @@ export default function PrModal({ pr = null, boqItem = null, onClose }) {
 
       {error && <div className="inline-warn"><span>•</span><div>{error}</div></div>}
     </Modal>
-  );
-}
-
-// Supplier <select> options with a "Recommended" group (category tag matches the material)
-// floated to the top, then everyone else. Falls back to a flat list when nothing matches.
-function SupplierOptions({ recommended, others, typeLabel }) {
-  return (
-    <>
-      <option value="">—</option>
-      {recommended.length > 0 ? (
-        <>
-          <optgroup label={`★ Recommended${typeLabel ? ` · ${typeLabel}` : ''}`}>
-            {recommended.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </optgroup>
-          <optgroup label="Other suppliers">
-            {others.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
-          </optgroup>
-        </>
-      ) : (
-        others.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)
-      )}
-    </>
   );
 }
