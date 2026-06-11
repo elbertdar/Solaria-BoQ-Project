@@ -271,6 +271,8 @@ button { font-family: inherit; }
 .pill.amber  { background: var(--pending-bg); color: var(--pending); }
 .pill.ok     { background: var(--ok-bg); color: #15803D; }
 .pill.risk   { background: var(--risk-bg); color: var(--risk); }
+.pill.purple { background: #F3EEFF; color: #6D28D9; }
+.pill.teal   { background: #E6FAF7; color: #0F766E; }
 
 .chip {
   display: inline-block; padding: 1px 8px; margin: 2px 4px 2px 0;
@@ -429,7 +431,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid #BFDBFE; outline-
 .pg-row { display: flex; align-items: stretch; border-bottom: 1px solid var(--border); }
 .pg-row:last-child { border-bottom: 0; }
 .pg-label { width: 196px; flex-shrink: 0; padding: 8px 12px; border-right: 1px solid var(--border); box-sizing: border-box; }
-.pg-code { font-weight: 600; color: var(--ink); }
+.pg-code { font-weight: 600; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pg-dates { font-size: 11px; }
 .pg-track { position: relative; flex: 1; min-height: 40px; }
 .pg-axis { min-height: 30px; }

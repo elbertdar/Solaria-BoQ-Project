@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import Modal from './Modal.jsx';
 import { useStore } from '../store/StoreContext.jsx';
 import { checkProspectivePr, materialName, boqForProject, remainingQty, brandsForMaterial } from '../engine/reconcile.js';
-import { PR_FLOW, PR_STATUS } from '../theme.js';
+import { activeStatuses, statusDef, defaultStatusId } from '../engine/status.js';
 import { idr, today } from '../engine/format.js';
 import NumberInput from './NumberInput.jsx';
 import ComboBox from './ComboBox.jsx';
@@ -28,7 +28,7 @@ export default function PrModal({ pr = null, boqItem = null, onClose }) {
   const [supplierPrimaryId, setSup1] = useState(pr?.supplierPrimaryId ?? '');
   const [supplierSecondaryId, setSup2] = useState(pr?.supplierSecondaryId ?? '');
   const [picId, setPic] = useState(pr?.picId ?? db.currentUser?.id ?? '');
-  const [status, setStatus] = useState(pr?.status ?? 'draft');
+  const [status, setStatus] = useState(pr?.status ?? defaultStatusId(db));
   const [orderDate, setOrderDate] = useState(editing ? (pr.orderDate ?? '') : (raising ? today() : ''));
   const [receiptDate, setReceiptDate] = useState(editing ? (pr.receiptDate ?? '') : (raising ? today() : ''));
   const [comment, setComment] = useState(pr?.comment ?? '');
@@ -249,8 +249,24 @@ export default function PrModal({ pr = null, boqItem = null, onClose }) {
         <div>
           <label className="lbl">Status</label>
           <select className="input" value={status} onChange={(e) => { const v = e.target.value; setStatus(v); if (v === 'received' && !receiptDate) setReceiptDate(today()); }}>
-            {PR_FLOW.map((s) => <option key={s} value={s}>{PR_STATUS[s].label}</option>)}
-            <option value="cancelled">Cancelled</option>
+            {(() => {
+              const act = activeStatuses(db);
+              const flow = act.filter((s) => s.phase !== 'void');
+              const closed = act.filter((s) => s.phase === 'void');
+              const cur = statusDef(db, status);
+              const showRetired = cur.retired || cur.missing;
+              return (
+                <>
+                  {flow.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+                  {closed.length > 0 && (
+                    <optgroup label="Closed">
+                      {closed.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+                    </optgroup>
+                  )}
+                  {showRetired && <option value={cur.id}>{cur.label} (retired)</option>}
+                </>
+              );
+            })()}
           </select>
         </div>
 

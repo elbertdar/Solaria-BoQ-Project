@@ -82,7 +82,7 @@ export default function ProjectCataloguePage() {
           <FilterBar shown={filteredRows.length} total={rows.length} unit="projects">
             <FilterSearch value={q} onChange={setQ} placeholder="Search name, code, location…" />
             <FilterSelect value={projectFilter} onChange={setProjectFilter} allLabel="All projects" width={200}
-              options={db.projects.map((p) => ({ value: p.id, label: p.code || p.name }))} />
+              options={db.projects.map((p) => ({ value: p.id, label: p.name }))} />
             <FilterSelect value={overFilter} onChange={setOverFilter} allLabel="Any budget" width={160}
               options={[{ value: 'over', label: 'Over budget only' }]} />
             <FilterSelect value={statusFilter} onChange={setStatusFilter} allLabel="Any status" width={170}

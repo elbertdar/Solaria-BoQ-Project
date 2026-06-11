@@ -4,6 +4,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react';
 import { seed } from '../data/seed.js';
 import { nowISO } from '../engine/format.js';
+import { DEFAULT_PR_STATUSES, sortStatuses, isCommitted, defaultStatusId } from '../engine/status.js';
 
 const KEY = 'solaria_boq_db_v10';
 const StoreCtx = createContext(null);
@@ -14,6 +15,18 @@ function normalize(d) {
   if (!Array.isArray(d.brands)) d.brands = [];
   if (!Array.isArray(d.trash)) d.trash = [];
   if (!Array.isArray(d.projectTypes)) d.projectTypes = [];
+  // Customizable PR statuses: backfill defaults for existing data; guarantee the two
+  // locked semantic statuses always exist; keep the list in phase order.
+  if (!Array.isArray(d.prStatuses) || d.prStatuses.length === 0) {
+    d.prStatuses = DEFAULT_PR_STATUSES.map((s) => ({ ...s }));
+  } else {
+    for (const must of ['ordered', 'received']) {
+      const have = d.prStatuses.find((s) => s.id === must);
+      if (!have) d.prStatuses.push({ ...DEFAULT_PR_STATUSES.find((s) => s.id === must) });
+      else { have.locked = true; have.retired = false; have.phase = must === 'received' ? 'received' : 'committed'; }
+    }
+    d.prStatuses = sortStatuses(d.prStatuses);
+  }
   // Deletion becomes permanent after 7 days: drop expired trash on load.
   { const cutoff = Date.now() - 7 * 86400000; d.trash = d.trash.filter((t) => t && t.deletedAt && new Date(t.deletedAt).getTime() > cutoff); }
   if (Array.isArray(d.projects)) for (const p of d.projects) if (!p.boqStatus) p.boqStatus = 'draft';
@@ -87,6 +100,70 @@ export function StoreProvider({ children }) {
     }));
   }, []);
   const mandorCrud = useMemo(() => makeCrud(setDb, 'mandors', 'm'), []);
+
+  // ---- Customizable PR statuses ----------------------------------------------
+  // 'ordered' / 'received' are locked: engines key commitment + receipt off them.
+  // "Delete" = retire (hidden from pickers, definition kept so history/trash render
+  // forever); live PRs are reassigned at retire time. Retired statuses can be restored.
+  const addPrStatus = useCallback(({ label, pill = 'gray', phase = 'pre' }) => {
+    const id = uid('ps');
+    setDb((d) => ({
+      ...d,
+      prStatuses: sortStatuses([...d.prStatuses, { id, label: label.trim(), pill, phase: phase === 'received' ? 'pre' : phase }]),
+    }));
+    return id;
+  }, []);
+  const updatePrStatus = useCallback((id, patch) => {
+    setDb((d) => ({
+      ...d,
+      prStatuses: sortStatuses(d.prStatuses.map((s) => {
+        if (s.id !== id) return s;
+        if (s.locked) {                       // locked: colour may change, semantics may not
+          const { pill } = patch;
+          return pill ? { ...s, pill } : s;
+        }
+        const next = { ...s, ...patch };
+        if (next.phase === 'received') next.phase = s.phase;   // 'received' phase is exclusive
+        if (typeof next.label === 'string') next.label = next.label.trim() || s.label;
+        return next;
+      })),
+    }));
+  }, []);
+  const reorderPrStatus = useCallback((id, dir) => {           // ±1, within the same phase only
+    setDb((d) => {
+      const list = [...d.prStatuses];
+      const i = list.findIndex((s) => s.id === id);
+      if (i < 0) return d;
+      let j = i + dir;
+      while (j >= 0 && j < list.length && list[j].retired && list[j].phase === list[i].phase) j += dir; // hop hidden rows
+      if (j < 0 || j >= list.length || list[j].phase !== list[i].phase) return d;
+      [list[i], list[j]] = [list[j], list[i]];
+      return { ...d, prStatuses: list };
+    });
+  }, []);
+  const retirePrStatus = useCallback((id, reassignToId) => {
+    setDb((d) => {
+      const s = d.prStatuses.find((x) => x.id === id);
+      if (!s || s.locked) return d;
+      const used = d.prs.some((p) => p.status === id);
+      if (used && !reassignToId) return d;                     // UI always supplies a target when in use
+      if (reassignToId === 'received') return d;               // BR-4: can't bulk-receive without receipt dates
+      const actor = d.currentUser ? { id: d.currentUser.id, name: d.currentUser.name } : null;
+      return {
+        ...d,
+        prStatuses: d.prStatuses.map((x) => (x.id === id ? { ...x, retired: true } : x)),
+        prs: d.prs.map((p) => (p.status === id ? {
+          ...p,
+          status: reassignToId,
+          receiptDate: null,
+          statusHistory: [...(p.statusHistory || []), { at: nowISO(), from: id, to: reassignToId, by: actor }],
+        } : p)),
+      };
+    });
+  }, []);
+  const restorePrStatus = useCallback((id) => {
+    setDb((d) => ({ ...d, prStatuses: sortStatuses(d.prStatuses.map((s) => (s.id === id ? { ...s, retired: false } : s))) }));
+  }, []);
   const addMandor = useMemo(() => (name) => mandorCrud.add({ name }), []);
   const updateMandor = mandorCrud.update, deleteMandor = mandorCrud.remove;
   const userCrud = useMemo(() => makeCrud(setDb, 'users', 'u', { role: 'Purchasing PIC' }), []);
@@ -356,7 +433,7 @@ export function StoreProvider({ children }) {
       const projectId = boqItem ? boqItem.projectId : pr.projectId;
       if (!projectId) return d;                       // every PR belongs to a project
       const actor = d.currentUser ? { id: d.currentUser.id, name: d.currentUser.name } : null;
-      const status = pr.status || 'draft';
+      const status = pr.status || defaultStatusId(d);
       const rec = {
         id,
         projectId,
@@ -420,7 +497,7 @@ export function StoreProvider({ children }) {
             ...p,
             status,
             receiptDate: status === 'received' ? (receiptDate || p.receiptDate) : null, // clear unless received
-            orderDate: (status === 'ordered' && !p.orderDate) ? (new Date().toISOString().slice(0, 10)) : p.orderDate,
+            orderDate: (isCommitted(d, status) && !isCommitted(d, p.status) && !p.orderDate) ? (new Date().toISOString().slice(0, 10)) : p.orderDate,
             statusHistory: changed
               ? [...(p.statusHistory || []), { at: nowISO(), from: p.status, to: status, by: actor }]
               : (p.statusHistory || []),
@@ -466,13 +543,14 @@ export function StoreProvider({ children }) {
     softDeletePr, softDeleteMaterial, softDeleteMaterialType, softDeleteProject, restoreTrash, purgeTrash,
     addMaterialType, updateMaterialType,
     addProject, updateProject, addProjectType, deleteProjectType, addMandor, updateMandor, deleteMandor,
+    addPrStatus, updatePrStatus, reorderPrStatus, retirePrStatus, restorePrStatus,
     addUser, updateUser, deleteUser,
     addPr, updatePr, setPrStatus, deletePr,
     importData,
     resetDb,
   }), [db, currentProjectId, addMaterial, updateMaterial, addAlias, removeAlias,
     addBoqItem, updateBoqItem, patchBoqItem, deleteBoqItem, finalizeBoq,
-    stageBoqModify, stageBoqAdd, editStagedAdd, stageBoqDelete, unstageBoq, discardBoqStaged, commitBoqStaged, addSupplier, addBrand, updateBrand, deleteBrand, softDeletePr, softDeleteMaterial, softDeleteMaterialType, softDeleteProject, restoreTrash, purgeTrash, addMaterialType, updateMaterialType, addProject, updateProject, addProjectType, deleteProjectType, addMandor, updateMandor, deleteMandor,
+    stageBoqModify, stageBoqAdd, editStagedAdd, stageBoqDelete, unstageBoq, discardBoqStaged, commitBoqStaged, addSupplier, addBrand, updateBrand, deleteBrand, softDeletePr, softDeleteMaterial, softDeleteMaterialType, softDeleteProject, restoreTrash, purgeTrash, addMaterialType, updateMaterialType, addProject, updateProject, addProjectType, deleteProjectType, addPrStatus, updatePrStatus, reorderPrStatus, retirePrStatus, restorePrStatus, addMandor, updateMandor, deleteMandor,
     addUser, updateUser, deleteUser,
     addPr, updatePr, setPrStatus, deletePr, importData, resetDb]);
 

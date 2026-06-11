@@ -3,7 +3,7 @@ import { useStore, useProject } from '../store/StoreContext.jsx';
 import { summarizeProject, brandName, brandBreakdown } from '../engine/reconcile.js';
 import { ProjectBar, AlertBanner, StatusPill, FilterBar, FilterSearch, FilterSelect } from '../components/ui.jsx';
 import { idr, num, fmtDate } from '../engine/format.js';
-import { COMMITTED_STATUSES } from '../theme.js';
+import { isCommitted } from '../engine/status.js';
 
 export default function ReconciliationPage() {
   const { db, currentProjectId } = useStore();
@@ -152,7 +152,7 @@ function RowGroup({ r, isOpen, onToggle, db }) {
 
               <h4>Purchase requests (actual)</h4>
               {(() => {
-                const bd = brandBreakdown(db, r.prs.filter((p) => COMMITTED_STATUSES.includes(p.status)));
+                const bd = brandBreakdown(db, r.prs.filter((p) => isCommitted(db, p.status)));
                 const show = bd.length > 1 || (bd.length === 1 && bd[0].brandId);
                 if (!show) return null;
                 return (

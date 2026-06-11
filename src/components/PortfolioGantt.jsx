@@ -56,7 +56,7 @@ export default function PortfolioGantt({ gantt, onOpen }) {
               return (
                 <div className="pg-row" key={p.id}>
                   <div className="pg-label">
-                    <div className="pg-code">{p.code}</div>
+                    <div className="pg-code" title={p.code ? `${p.name} (${p.code})` : p.name}>{p.name}</div>
                     <div className="muted pg-dates">{fmtDate(p.start)} → {fmtDate(p.end)} · {p.durationDays}d</div>
                   </div>
                   <div className="pg-track">

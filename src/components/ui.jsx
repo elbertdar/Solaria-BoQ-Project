@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../store/StoreContext.jsx';
 import Modal from './Modal.jsx';
-import { PR_STATUS } from '../theme.js';
+import { statusDef } from '../engine/status.js';
 import { computeLine, todayLocal } from '../engine/schedule.js';
 
 export function KpiCard({ label, value, tone = '', sub, subTone = '', onClick }) {
@@ -30,8 +30,9 @@ export function AlertBanner({ tone = 'risk', title, children, action }) {
 }
 
 export function StatusPill({ status }) {
-  const s = PR_STATUS[status] || { label: status, pill: 'gray' };
-  return <span className={'pill ' + s.pill}><span className="pdot" style={pdot(s.pill)} />{s.label}</span>;
+  const { db } = useStore();
+  const s = statusDef(db, status);
+  return <span className={'pill ' + (s.pill || 'gray')}><span className="pdot" style={pdot(s.pill)} />{s.label}</span>;
 }
 
 // Inline coloured pill for ad-hoc fg/bg pairs (entity badges, project status) where the
@@ -57,7 +58,7 @@ export function DeleteConfirm({ title, blocked, blockedMsg, confirmMsg, confirmL
 }
 
 function pdot(pill) {
-  const map = { gray: '#94A3B8', info: '#0891B2', amber: '#F59E0B', ok: '#16A34A', risk: '#E11D48' };
+  const map = { gray: '#94A3B8', info: '#0891B2', teal: '#0D9488', amber: '#F59E0B', purple: '#8B5CF6', ok: '#16A34A', risk: '#E11D48' };
   return { background: map[pill] || '#94A3B8' };
 }
 

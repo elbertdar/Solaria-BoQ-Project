@@ -13,7 +13,7 @@
 //   to-order + order date in next Mon–Fri              → "Heads-up: next week"
 // Snoozed late deliveries are hidden until their snooze expires.
 
-import { COMMITTED_STATUSES, RECEIVED_STATUSES } from '../theme.js';
+import { isCommitted, isReceived } from './status.js';
 import { prsForBoqItem, materialName } from './reconcile.js';
 
 // ---- date helpers ----
@@ -66,8 +66,8 @@ const sum = (arr, f) => arr.reduce((t, x) => t + (f(x) || 0), 0);
 // ---- the heart: one self-contained line per BoQ item ----
 export function computeLine(db, b, today = todayLocal()) {
   const prs = prsForBoqItem(db, b.id);
-  const committedQty = sum(prs.filter((p) => COMMITTED_STATUSES.includes(p.status)), (p) => p.quantity);
-  const receivedQty = sum(prs.filter((p) => RECEIVED_STATUSES.includes(p.status)), (p) => p.quantity);
+  const committedQty = sum(prs.filter((p) => isCommitted(db, p.status)), (p) => p.quantity);
+  const receivedQty = sum(prs.filter((p) => isReceived(db, p.status)), (p) => p.quantity);
   const budget = b.quantity || 0;
   const fullyReceived = budget > 0 && receivedQty >= budget;
   const state = fullyReceived ? 'received' : committedQty > 0 ? 'awaiting' : 'to-order';
@@ -85,7 +85,7 @@ export function computeLine(db, b, today = todayLocal()) {
   const orderOffset = start && orderDate ? diffDays(orderDate, start) : null;
 
   const orderDates = prs.map((p) => parseDate(p.orderDate)).filter(Boolean).sort((a, c) => a - c);
-  const receiptDates = prs.filter((p) => RECEIVED_STATUSES.includes(p.status))
+  const receiptDates = prs.filter((p) => isReceived(db, p.status))
     .map((p) => parseDate(p.receiptDate)).filter(Boolean).sort((a, c) => a - c);
   const actualOrderDate = orderDates[0] || null;
   const actualReceiptDate = receiptDates[receiptDates.length - 1] || null;
@@ -195,7 +195,7 @@ export function portfolioWorklist(db, today = todayLocal()) {
     health: {
       activeProjects: db.projects.filter((p) => p.boqStatus === 'working').length,
       overBudget: lines.filter((l) => l.overBudget).length,
-      openPos: db.prs.filter((p) => p.status === 'ordered').length,
+      openPos: db.prs.filter((p) => isCommitted(db, p.status) && !isReceived(db, p.status)).length,
       snoozed: lines.filter((l) => l.snoozedActive && l.state === 'awaiting').length,
     },
   };

@@ -1,4 +1,5 @@
 // data/seed.js — initial dataset. Loaded once into localStorage on first run.
+import { DEFAULT_PR_STATUSES } from '../engine/status.js';
 //
 // Day-offset planning model:
 //   - each project has a startDate (the anchor for "days after start")
@@ -142,3 +143,7 @@ seed.projectTypes = [   // user-customizable project categories (add more in the
   { id: 'pt-kiosk', name: 'Kiosk' },
 ];
 seed.projects.forEach((p, i) => { p.projectTypeId = seed.projectTypes[i % seed.projectTypes.length].id; });
+
+// Customizable PR statuses — 'ordered' and 'received' are locked (engine semantics);
+// the rest can be added / renamed / recolored / reordered / retired in the PR page.
+seed.prStatuses = DEFAULT_PR_STATUSES.map((s) => ({ ...s }));

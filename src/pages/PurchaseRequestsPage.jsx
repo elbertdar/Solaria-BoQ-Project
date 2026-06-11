@@ -5,7 +5,8 @@ import { ProjectBar, StatusPill, FilterBar, FilterSearch, FilterSelect } from '.
 import PrModal from '../components/PrModal.jsx';
 import Modal from '../components/Modal.jsx';
 import { idr, fmtDate, num, today } from '../engine/format.js';
-import { PR_FLOW, PR_STATUS } from '../theme.js';
+import { nextStatusId, activeStatuses, statusDef } from '../engine/status.js';
+import ManageStatusesModal from '../components/ManageStatusesModal.jsx';
 
 export default function PurchaseRequestsPage() {
   const { db, currentProjectId, setPrStatus, updatePr } = useStore();
@@ -20,6 +21,7 @@ export default function PurchaseRequestsPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [supplierFilter, setSupplierFilter] = useState('');
   const [open, setOpen] = useState(null);
+  const [manageStatuses, setManageStatuses] = useState(false);
 
   const supplierName = (id) => db.suppliers.find((s) => s.id === id)?.name || '—';
   const picName = (id) => db.users.find((u) => u.id === id)?.name || '—';
@@ -32,14 +34,13 @@ export default function PurchaseRequestsPage() {
   });
 
   function advance(p) {
-    const i = PR_FLOW.indexOf(p.status);
-    if (i < 0 || i >= PR_FLOW.length - 1) return;
-    const next = PR_FLOW[i + 1];
+    const next = nextStatusId(db, p.status);
+    if (!next) return;
     if (next === 'received') { setReceiveFor(p); return; }   // needs receipt date
     setPrStatus(p.id, next);
   }
 
-  const statusOptions = [...PR_FLOW.map((s) => ({ value: s, label: PR_STATUS[s].label })), { value: 'cancelled', label: 'Cancelled' }];
+  const statusOptions = activeStatuses(db).map((s) => ({ value: s.id, label: s.label }));
 
   return (
     <>
@@ -48,7 +49,10 @@ export default function PurchaseRequestsPage() {
           <h1>Purchase Requests</h1>
           <p className="sub">{project.name} · the realized counterpart to the BoQ — what’s actually been ordered</p>
         </div>
-        <button className="btn primary" disabled={draft} onClick={() => setModal(null)}>+ New PR</button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn ghost" onClick={() => setManageStatuses(true)}>Manage statuses</button>
+          <button className="btn primary" disabled={draft} onClick={() => setModal(null)}>+ New PR</button>
+        </div>
       </div>
 
       <FilterBar shown={filtered.length} total={prs.length} unit="PRs">
@@ -100,8 +104,8 @@ export default function PurchaseRequestsPage() {
                   </td>
                   <td className="num" style={{ whiteSpace: 'nowrap' }}>
                     <button className="btn sm ghost" onClick={() => setModal(p)}>Edit</button>{' '}
-                    {!['received', 'cancelled'].includes(p.status) && (
-                      <button className="btn sm" onClick={() => advance(p)}>Advance</button>
+                    {nextStatusId(db, p.status) && (
+                      <button className="btn sm" onClick={() => advance(p)} title={`→ ${statusDef(db, nextStatusId(db, p.status)).label}`}>Advance</button>
                     )}
                   </td>
                 </tr>
@@ -138,6 +142,7 @@ export default function PurchaseRequestsPage() {
       </div>
 
       {modal !== undefined && <PrModal pr={modal} onClose={() => setModal(undefined)} />}
+      {manageStatuses && <ManageStatusesModal onClose={() => setManageStatuses(false)} />}
       {receiveFor && (
         <ReceiveModal pr={receiveFor} onClose={() => setReceiveFor(null)}
           onConfirm={(date) => { setPrStatus(receiveFor.id, 'received', date); setReceiveFor(null); }} />

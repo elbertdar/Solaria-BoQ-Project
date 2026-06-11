@@ -3,11 +3,73 @@
 The source of truth for what files exist and where. **Updated every time we change something.**
 
 - **Last updated:** 5 Jun 2026
-- **Latest build:** Inline create everywhere — unified ComboBox (suppliers, brands, materials, PIC, mandor, types)
+- **Latest build:** Status section mover + name-first project labels everywhere
 
 ---
 
-## ⚠ Latest build (inline create everywhere — unified ComboBox)
+## ⚠ Latest build (2 minor changes)
+
+**1 · Move statuses between sections.** Each unlocked status in the Manage statuses modal now has a
+section dropdown (Before ordering / After ordering / Closed) — so an existing status can be moved into
+the Ordered→Received zone (or out of it). Moving an in-use status changes how its PRs count against
+budget immediately (that's the point); the store already guarded phase changes (`received` stays
+exclusive, locked rows can't move) and re-sorts on every change.
+
+**2 · Name-first project labels.** Per client preference, the project NAME now leads everywhere the
+code used to: This Week worklist links, the sidebar's current-project label, Portfolio Gantt row labels
+(ellipsized, full name + code in the tooltip), and the catalogue's project filter. The code stays as a
+secondary hint (tooltips / parentheses) — except the delete-project type-to-confirm, which deliberately
+keeps the short code as the thing you type.
+
+**Storage unchanged — v10.** **Verified:** compile + clean-room installer extraction.
+
+**Changed:** `components/ManageStatusesModal.jsx`, `components/Sidebar.jsx`, `components/PortfolioGantt.jsx`,
+`pages/DashboardPage.jsx`, `pages/ProjectCataloguePage.jsx`, `index.css`
+
+---
+
+## Previous build (customizable PR statuses)
+
+PR statuses are now db records (`db.prStatuses`) instead of a hardcoded enum. **Manage statuses**
+button on the PR page header opens the editor.
+
+**Locked:** `Ordered` and `Received` — the engines key real semantics off them (entering Ordered
+commits cost/qty against budget + stamps orderDate; Received is the only status that may carry a
+receiptDate, BR-4). They can be **recolored** but not renamed, moved out of place, or removed.
+
+**Everything else is the user's:** add, rename (click the pill), recolor (7 swatches incl. new
+purple/teal), reorder (↑↓), remove. Statuses live in **phases**, which is what the engines read:
+- *Before ordering* (Draft, Requested, Quoted…) — not counted against budget
+- *After ordering — committed* (Ordered + customs like "Shipped") — counts as committed
+- *Received* (locked terminal)
+- *Closed — not counted* (Cancelled + customs like "Rejected") — excluded everywhere, out of the flow
+
+So a custom "Shipped" between Ordered and Received **stays committed**, and a custom "Rejected"
+is excluded like Cancelled. The Advance button walks the custom flow (tooltip shows the next step)
+and still routes through the receipt-date modal into Received.
+
+**No dead ends — "delete" = retire:** the definition is kept (status history and trashed PRs render
+with the right label/colour forever), it just leaves all pickers and the flow. Retiring an in-use
+status requires choosing a destination for its PRs (reassignment is history-logged; `Received` is
+refused as a bulk target — BR-4). Retired statuses are listed in the modal and can be **restored**.
+normalize() re-inserts/repairs the locked pair if data is ever tampered, so the flow can never break.
+
+Migration: existing v10 data is backfilled with the six defaults on load — behavior is byte-identical
+until you customize. `engine/status.js` is the new single source (theme.js enums removed); semantic
+literals across engines/pages swapped for phase checks (`isCommitted/isReceived/isVoid`), incl.
+Dashboard/Schedule "receive" quick-actions now finding any committed-not-received PR.
+
+**Storage unchanged — v10.** **Verified:** compile + 27-check harness (defaults parity, custom
+committed/void participation, retire/reassign guards, normalize repair) + clean-room extraction.
+Installer now embeds **40 files** (new: `engine/status.js`, `components/ManageStatusesModal.jsx`).
+
+**Changed:** `theme.js`, `data/seed.js`, `store/StoreContext.jsx`, `engine/reconcile.js`,
+`engine/schedule.js`, `components/ui.jsx`, `components/PrModal.jsx`, `pages/PurchaseRequestsPage.jsx`,
+`pages/DashboardPage.jsx`, `pages/SchedulePage.jsx`, `pages/ReconciliationPage.jsx`, `index.css`
+
+---
+
+## Previous build (inline create everywhere — unified ComboBox)
 
 You no longer have to leave a form to add a record. Every pick-a-record dropdown is now one consistent
 control — **ComboBox** (`components/ComboBox.jsx`, built last session as groundwork, now shipped + wired):

@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { TONE } from '../theme.js';
+import { isCommitted, isReceived } from '../engine/status.js';
 import { useStore } from '../store/StoreContext.jsx';
 import { KpiCard } from '../components/ui.jsx';
 import Modal from '../components/Modal.jsx';
@@ -30,7 +31,7 @@ export default function DashboardPage() {
 
   // KPI link targets: jump to a project that actually has the thing.
   const overBudgetLine = db.boqItems.map((b) => computeLine(db, b, today)).find((l) => l.overBudget);
-  const openPo = db.prs.find((p) => p.status === 'ordered');
+  const openPo = db.prs.find((p) => isCommitted(db, p.status) && !isReceived(db, p.status));
   const openPoProjectId = openPo ? db.boqItems.find((b) => b.id === openPo.boqItemId)?.projectId : null;
 
   function markOrdered(line, bucket) {
@@ -39,7 +40,7 @@ export default function DashboardPage() {
   }
   function undo(entry) { deletePr(entry.prId); setDone((d) => d.filter((x) => x !== entry)); }
 
-  const orderedPrFor = (line) => db.prs.find((p) => p.boqItemId === line.boqItem.id && p.status === 'ordered');
+  const orderedPrFor = (line) => db.prs.find((p) => p.boqItemId === line.boqItem.id && isCommitted(db, p.status) && !isReceived(db, p.status));
   const supplierName = (id) => db.suppliers.find((s) => s.id === id)?.name;
   const doneFor = (bucket) => done.filter((d) => d.bucket === bucket);
 
@@ -191,7 +192,7 @@ function Bucket({ title, subtitle, tone = 'neutral', rows, doneRows = [], empty,
                     {l.materialName} <span className="muted" style={{ fontWeight: 400 }}>· {l.budget} {l.unit}</span>
                   </div>
                   <div style={{ fontSize: 12.5, color: '#64748B' }}>
-                    <a onClick={(e) => { e.preventDefault(); onOpen(l.projectId); }} style={{ cursor: 'pointer' }}>{l.project?.code || l.project?.name}</a>
+                    <a onClick={(e) => { e.preventDefault(); onOpen(l.projectId); }} style={{ cursor: 'pointer' }} title={l.project?.code || ''}>{l.project?.name || l.project?.code}</a>
                     {mandorName(l.mandorId) ? ` · ${mandorName(l.mandorId)}` : ''} · {renderWhen(l)}
                   </div>
                 </div>

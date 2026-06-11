@@ -70,7 +70,7 @@ export default function Sidebar() {
           <div className="sb-group" key={g.label}>
             <div className="sb-group-label">{g.label}</div>
             {g.label === 'Project' && project && (
-              <div className="muted" style={{ fontSize: 11, padding: '0 10px 6px' }}>{project.code || project.name}</div>
+              <div className="muted" title={project.code || ''} style={{ fontSize: 11, padding: '0 10px 6px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{project.name}</div>
             )}
             {g.items.map((it) => {
               const isTrash = it.badgeKey === 'trash';

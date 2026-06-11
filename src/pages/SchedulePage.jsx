@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { TONE } from '../theme.js';
+import { isCommitted, isReceived } from '../engine/status.js';
 import { useStore, useProject } from '../store/StoreContext.jsx';
 import { ProjectBar } from '../components/ui.jsx';
 import PrModal from '../components/PrModal.jsx';
@@ -40,7 +41,7 @@ export default function SchedulePage() {
   const visible = lines.filter((l) => matchesFilter(l, filter));
   const toggleFilter = (f) => setFilter((cur) => (cur === f ? null : f));
 
-  const orderedPrFor = (line) => db.prs.find((p) => p.boqItemId === line.boqItem.id && p.status === 'ordered');
+  const orderedPrFor = (line) => db.prs.find((p) => p.boqItemId === line.boqItem.id && isCommitted(db, p.status) && !isReceived(db, p.status));
   function ActionButton({ line }) {
     if (line.state === 'received') return <span className="muted" style={{ fontSize: 12 }}>received</span>;
     const ordered = orderedPrFor(line);

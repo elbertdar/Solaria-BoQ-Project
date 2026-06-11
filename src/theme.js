@@ -12,23 +12,7 @@ export const COLORS = {
   pending: '#F59E0B',
 };
 
-// PR lifecycle → pill class (see index.css .pill.*). Q-6 default lifecycle.
-export const PR_STATUS = {
-  draft:     { label: 'Draft',     pill: 'gray'  },
-  requested: { label: 'Requested', pill: 'info'  },
-  quoted:    { label: 'Quoted',    pill: 'info'  },
-  ordered:   { label: 'Ordered',   pill: 'amber' },
-  received:  { label: 'Received',  pill: 'ok'    },
-  cancelled: { label: 'Cancelled', pill: 'gray'  },
-};
-
-// Allowed forward transitions (kept liberal for the MVP; tighten once Q-6 is settled).
-export const PR_FLOW = ['draft', 'requested', 'quoted', 'ordered', 'received'];
-
-// Quantities counted as "committed" against budget (drives the over-qty warning).
-// Receipt is the stricter "realized" set used for the headline balance.
-export const COMMITTED_STATUSES = ['ordered', 'received'];
-export const RECEIVED_STATUSES = ['received'];
+// PR statuses moved to engine/status.js (customizable, stored in db.prStatuses).
 
 // Schedule/agenda status → bar & dot colour (shared by Schedule + Dashboard timelines).
 // Single source so the two surfaces can't drift apart (they were identical literals).

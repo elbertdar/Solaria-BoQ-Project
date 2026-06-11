@@ -4,7 +4,7 @@
 // All pure functions over the db object. Recomputed on every render from
 // source records, so the balance is always live — never stored, never stale.
 
-import { COMMITTED_STATUSES, RECEIVED_STATUSES } from '../theme.js';
+import { isCommitted, isReceived, isVoid } from './status.js';
 
 const sum = (arr, f) => arr.reduce((t, x) => t + (f(x) || 0), 0);
 
@@ -51,10 +51,10 @@ export function isExtraPr(db, pr) {
   return !pr.boqItemId || !db.boqItems.some((b) => b.id === pr.boqItemId);
 }
 export function prsForBoqItem(db, boqItemId) {
-  return db.prs.filter((p) => p.boqItemId === boqItemId && p.status !== 'cancelled');
+  return db.prs.filter((p) => p.boqItemId === boqItemId && !isVoid(db, p.status));
 }
 export function boqItemHasPr(db, boqItemId) {
-  return db.prs.some((p) => p.boqItemId === boqItemId && p.status !== 'cancelled');
+  return db.prs.some((p) => p.boqItemId === boqItemId && !isVoid(db, p.status));
 }
 // Quantity still left to order on a BoQ line = budget − already-committed (ordered + received).
 // Used to pre-fill a new PR's quantity. Never negative.
@@ -62,7 +62,7 @@ export function remainingQty(db, boqItemId) {
   const b = db.boqItems.find((x) => x.id === boqItemId);
   if (!b) return 0;
   const committed = prsForBoqItem(db, boqItemId)
-    .filter((p) => COMMITTED_STATUSES.includes(p.status))
+    .filter((p) => isCommitted(db, p.status))
     .reduce((t, p) => t + (p.quantity || 0), 0);
   return Math.max(0, (b.quantity || 0) - committed);
 }
@@ -76,11 +76,11 @@ export function boqLineStatus(db, boqItemId) {
   if (prs.length === 0) return 'none';
   const b = db.boqItems.find((x) => x.id === boqItemId);
   if (b?.budgetBasis === 'allowance') {
-    return prs.some((p) => COMMITTED_STATUSES.includes(p.status)) ? 'ordered' : 'none';
+    return prs.some((p) => isCommitted(db, p.status)) ? 'ordered' : 'none';
   }
   const budget = b?.quantity || 0;
   const received = prs
-    .filter((p) => RECEIVED_STATUSES.includes(p.status))
+    .filter((p) => isReceived(db, p.status))
     .reduce((t, p) => t + (p.quantity || 0), 0);
   if (budget > 0 && received >= budget) return 'complete';
   return 'ordered';
@@ -103,8 +103,8 @@ export function summarizeProject(db, projectId) {
   const mkRow = (mid, kind, bItems, pItems) => {
     const allowance = kind === 'allowance';
     const isExtra = kind === 'extra';
-    const committed = pItems.filter((p) => COMMITTED_STATUSES.includes(p.status));
-    const received = pItems.filter((p) => RECEIVED_STATUSES.includes(p.status));
+    const committed = pItems.filter((p) => isCommitted(db, p.status));
+    const received = pItems.filter((p) => isReceived(db, p.status));
 
     const budgetQty = (allowance || isExtra) ? 0 : sum(bItems, (b) => b.quantity);
     const committedQty = qtyOf(committed);
@@ -179,7 +179,7 @@ export function checkProspectivePr(db, { boqItemId, quantity, excludePrId }) {
   const others = prsForProject(db, projectId).filter(
     (p) => p.materialId === materialId
       && p.id !== excludePrId
-      && COMMITTED_STATUSES.includes(p.status),
+      && isCommitted(db, p.status),
   );
   const committedOther = sum(others, (p) => p.quantity);
   const committedAfter = committedOther + (Number(quantity) || 0);
@@ -201,12 +201,12 @@ export function projectTotals(db, projectId) {
   const prs = prsForProject(db, projectId);
   return {
     budgetCost: sum(rows, (r) => r.budgetCost),
-    committedCost: sum(prs.filter((p) => COMMITTED_STATUSES.includes(p.status)),
+    committedCost: sum(prs.filter((p) => isCommitted(db, p.status)),
       (p) => p.quantity * (p.unitCost || 0)),
     actualCost: sum(rows, (r) => r.actualCost),
     materialsOver: rows.filter((r) => r.isOverCommitted).length,
-    openPrs: prs.filter((p) => !['received', 'cancelled'].includes(p.status)).length,
-    totalPrs: prs.filter((p) => p.status !== 'cancelled').length,
+    openPrs: prs.filter((p) => !isReceived(db, p.status) && !isVoid(db, p.status)).length,
+    totalPrs: prs.filter((p) => !isVoid(db, p.status)).length,
   };
 }
 
