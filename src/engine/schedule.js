@@ -13,7 +13,7 @@
 //   to-order + order date in next Mon–Fri              → "Heads-up: next week"
 // Snoozed late deliveries are hidden until their snooze expires.
 
-import { isCommitted, isReceived } from './status.js';
+import { isCommitted, isReceived, isVoid } from './status.js';
 import { prsForBoqItem, materialName } from './reconcile.js';
 
 // ---- date helpers ----
@@ -93,11 +93,43 @@ export function computeLine(db, b, today = todayLocal()) {
   const promisedDate = parseDate(b.promisedDate);
   const snoozedUntil = parseDate(b.snoozedUntil);
   const snoozedActive = !!(snoozedUntil && snoozedUntil > today);
+
+  // Per-PR breakdown — orders arrive in batches, so each PR gets its own expected
+  // arrival (its actual order date + lead, business days) and its own state/tone.
+  // A batch mirrors the line's late semantics: purple when its delivery is overdue OR
+  // when it's forecast to land after the planned (needed) date.
+  // Sorted: committed first by order date, then pre-order drafts, then void last.
+  const prDetails = prs.map((p) => {
+    const committed = isCommitted(db, p.status);
+    const received = isReceived(db, p.status);
+    const oDate = parseDate(p.orderDate);
+    const rDate = parseDate(p.receiptDate);
+    const expected = received ? rDate : (committed && oDate ? addBusinessDays(oDate, lead) : null);
+    const overdueNow = committed && !received && !!expected && expected < today;
+    const batchForecastLate = committed && !received && !!expected && !!neededDate && expected > neededDate;
+    const late = overdueNow || batchForecastLate;
+    const tone = received ? 'done' : late ? 'late' : committed ? 'awaiting' : 'neutral';
+    return { pr: p, qty: p.quantity || 0, status: p.status, committed, received, orderDate: oDate, receiptDate: rDate, expected, overdueNow, forecastLate: batchForecastLate, late, tone };
+  }).sort((a, c) => {
+    const rank = (x) => (x.committed ? 0 : isVoid(db, x.status) ? 2 : 1);
+    const r = rank(a) - rank(c);
+    if (r) return r;
+    const at = a.orderDate?.getTime() ?? Infinity, ct = c.orderDate?.getTime() ?? Infinity;
+    return at - ct || String(a.pr.createdAt).localeCompare(String(c.pr.createdAt));
+  });
+
   // Planned vs actual arrival. The plan is the needed date; but once ordered, the realistic
-  // arrival is the ACTUAL order date + lead time (a late order lands late — it does NOT snap
-  // back to plan). Push-date (promisedDate) is the PM's manual override; receipt finalizes it.
+  // arrival is per-batch: each order lands at ITS order date + lead. The line's projected
+  // arrival is the LATEST batch arrival, so the line bar encapsulates every batch.
+  // Push-date (promisedDate) is the PM's manual override; receipt finalizes it.
   const plannedArrival = neededDate;
-  const projectedArrival = actualOrderDate ? addBusinessDays(actualOrderDate, lead) : null;
+  const batchArrivals = prDetails
+    .filter((d) => d.committed)
+    .map((d) => (d.received ? d.receiptDate : d.expected))
+    .filter(Boolean);
+  const projectedArrival = batchArrivals.length
+    ? new Date(Math.max(...batchArrivals.map((d) => d.getTime())))
+    : (actualOrderDate ? addBusinessDays(actualOrderDate, lead) : null);
   const effectiveArrival = (state === 'received' ? actualReceiptDate : null)
     || promisedDate
     || (state === 'awaiting' ? (projectedArrival || neededDate) : neededDate);
@@ -140,6 +172,7 @@ export function computeLine(db, b, today = todayLocal()) {
     actualOrderDate, actualReceiptDate,
     orderOverdue, deliveryOverdue, orderBeforeStart, orderThisWeek, orderNextWeek, dueThisWeek,
     nextMilestoneDate, nextKind, urgency, tone,
+    prDetails, prCount: prDetails.length,
   };
 }
 
@@ -153,9 +186,21 @@ export function scheduleForProject(db, projectId, today = todayLocal()) {
   const start = projectStart(db, projectId);
   const curOff = start ? diffDays(today, start) : null;
 
-  // day-granular axis: 42 days, starting one week before today
-  const span = 42;
-  const baseDay = addDays(today, -7);
+  // day-granular axis. Default window is one week back + five ahead, but it EXTENDS
+  // backwards to cover real history (orders/receipts — so received lines keep their
+  // ordered→received tail, capped at 60 days back) and forwards to the latest arrival
+  // (total span capped at 110 days). dayColOf still clamps anything beyond the caps.
+  let earliest = addDays(today, -7);
+  let latest = addDays(today, 34);
+  for (const l of lines) {
+    const past = [l.actualOrderDate, l.orderDate, ...l.prDetails.map((d) => d.orderDate), ...l.prDetails.map((d) => d.receiptDate)];
+    for (const d of past) if (d && d < earliest) earliest = d;
+    const future = [l.effectiveArrival, l.neededDate, ...l.prDetails.map((d) => d.expected)];
+    for (const d of future) if (d && d > latest) latest = d;
+  }
+  const histFloor = addDays(today, -60);
+  const baseDay = addDays(earliest < histFloor ? histFloor : earliest, -2);
+  const span = Math.max(42, Math.min(110, diffDays(latest, baseDay) + 4));
   const columns = [];
   for (let i = 0; i < span; i++) {
     const d = addDays(baseDay, i);

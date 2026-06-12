@@ -3,11 +3,89 @@
 The source of truth for what files exist and where. **Updated every time we change something.**
 
 - **Last updated:** 5 Jun 2026
-- **Latest build:** Status section mover + name-first project labels everywhere
+- **Latest build:** Timeline clarity — sticky label column, collapsible mandor groups, Monday gridlines, hover tracking
 
 ---
 
-## ⚠ Latest build (2 minor changes)
+## ⚠ Latest build (timeline clarity)
+
+**Sticky left column.** The 200px label column (header cell, mandor bands, line labels, batch
+sub-row labels) is now `position: sticky; left: 0` — it stays put while the day grid scrolls
+horizontally, so you never lose which material a bar belongs to. Labels stretch full row height
+(solid background) so bars slide cleanly underneath.
+
+**Collapsible mandor groups.** Group bands toggle ▾/▸ on click. Collapsed bands still inform: item
+count + colour-coded tone tallies (e.g. ● 2 overdue · ● 1 late · ● 3 done), so you can fold away a
+mandor whose work is done and keep the noisy ones open. Band text is sticky too.
+
+**Visual rhythm (the "pulled apart" fix).** Faint vertical gridlines on every Monday now run through
+all rows (previously only the header showed week boundaries — bars floated in white space,
+disconnected from the dates). Plus a row hover highlight that spans the full row width, making it
+easy to track a line across 100+ day columns.
+
+**Storage unchanged — v10.** **Verified:** compile + clean-room installer extraction.
+
+**Changed:** `pages/SchedulePage.jsx`, `index.css`
+
+---
+
+## Previous build (schedule batch polish — 4 fixes)
+
+**1 · No more spill.** The batch sub-row label cell now clips (`overflow: hidden`) and the scaled
+StatusPill — which shrank visually but not in layout, the actual culprit — is replaced by a
+layout-true mini pill. Receive/Edit buttons stay inside the 200px label column.
+
+**2 · Batches mirror the line's colour semantics.** A batch now goes purple not just when its
+delivery is overdue, but when it's *forecast* to land after the planned (needed) date — same rule
+as the line's "Late order". Per-batch flags `overdueNow` / `forecastLate` exposed; Agenda wording
+distinguishes "late — expected" vs "late vs plan — expected".
+
+**3 · Line bars span ALL batches.** The line's projected arrival is now the LATEST batch arrival
+(receipt date for received batches, expected for outstanding), not earliest-order + lead. So the
+main bar encapsulates every sub-line. Also sharpens line-level `forecastLate`/`slipDays` (a late
+second batch now correctly flags the line).
+
+**4 · Received orders keep their tail.** The day axis now extends BACK over real history — to the
+earliest order/receipt among visible lines (capped 60 days back; total span capped 110 days) —
+instead of always starting at today−7, which was clamping past orders+receipts onto the left edge
+with no bar. Ordered→received now reads as dot → bar → diamond. The timeline auto-scrolls on load
+so today sits ~40% into the viewport; planned grey baselines untouched.
+
+**Storage unchanged — v10.** **Verified:** compile + 11-check harness (forecast-late mirroring,
+latest-batch span, received tails, axis bounds/caps) + clean-room installer extraction.
+
+**Changed:** `engine/schedule.js`, `pages/SchedulePage.jsx`
+
+---
+
+## Previous build (schedule batches)
+
+One BoQ item often gets ordered in batches (multiple PRs), but the schedule collapsed them into a
+single aggregate line. Now every line with PRs has a **dropdown** (▸ chevron, "{n} PRs · x/y in"):
+
+- **Engine** — `computeLine` now returns `prDetails`: each PR with its own expected arrival
+  (= its actual order date + lead, in business days), receipt date, and per-batch state — `done`
+  (green), `late` (purple — expected date passed, not received), `awaiting` (blue), or neutral
+  (drafts; void greyed last). Sorted committed-first by order date. Custom committed statuses
+  (e.g. Shipped) participate fully. Line-level aggregates are untouched.
+- **Timeline view** — expanding a row plots each batch on the same day grid as its own sub-row:
+  order dot → expected/receipt diamond in the batch's tone colour. So a 40/30/20 split shows three
+  small bars, with one purple if a batch is overdue while the others are fine.
+- **Agenda view** — same chevron; expansion lists each batch (qty, status pill, supplier,
+  expected/receipt date) inline.
+- **Per-batch actions** — each committed-not-received batch has its own **Receive** button (the
+  line-level button could only ever receive the *first* open PR — real bug with batches); drafts
+  get an **Edit** shortcut into the PR modal.
+
+**Storage unchanged — v10.** **Verified:** compile + 10-check harness (per-PR arrivals incl.
+business-day weekend skips, late detection, batch sort, custom-status participation) + clean-room
+installer extraction.
+
+**Changed:** `engine/schedule.js`, `pages/SchedulePage.jsx`
+
+---
+
+## Previous build (2 minor changes)
 
 **1 · Move statuses between sections.** Each unlocked status in the Manage statuses modal now has a
 section dropdown (Before ordering / After ordering / Closed) — so an existing status can be moved into

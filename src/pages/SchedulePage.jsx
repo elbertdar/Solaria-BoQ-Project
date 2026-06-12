@@ -1,6 +1,6 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect, Fragment } from 'react';
 import { TONE } from '../theme.js';
-import { isCommitted, isReceived } from '../engine/status.js';
+import { isCommitted, isReceived, statusDef } from '../engine/status.js';
 import { useStore, useProject } from '../store/StoreContext.jsx';
 import { ProjectBar } from '../components/ui.jsx';
 import PrModal from '../components/PrModal.jsx';
@@ -8,7 +8,7 @@ import ReceiveModal from '../components/ReceiveModal.jsx';
 import {
   scheduleForProject, scheduleCounts, matchesFilter, agendaBuckets, dayColOf, todayLocal,
 } from '../engine/schedule.js';
-import { fmtDate } from '../engine/format.js';
+import { fmtDate, num } from '../engine/format.js';
 
 const BORDER = '#E5E7EB';
 const WEEKEND = 'rgba(100,116,139,0.07)';
@@ -36,7 +36,15 @@ export default function SchedulePage() {
   const [filter, setFilter] = useState(null);
   const [view, setView] = useState('timeline');
   const [prFor, setPrFor] = useState(null);
+  const [editPr, setEditPr] = useState(null);
   const [receiveFor, setReceiveFor] = useState(null);
+
+  const supplierName = (id) => db.suppliers.find((s) => s.id === id)?.name || null;
+  const MiniStatus = ({ status }) => {
+    const s = statusDef(db, status);
+    return <span className={'pill ' + (s.pill || 'gray')} style={{ fontSize: 10, padding: '1px 6px', whiteSpace: 'nowrap' }}>{s.label}</span>;
+  };
+  const batchCtx = { supplierName, MiniStatus, onReceive: (pr, line) => setReceiveFor({ pr, line }), onEdit: (pr) => setEditPr(pr) };
 
   const visible = lines.filter((l) => matchesFilter(l, filter));
   const toggleFilter = (f) => setFilter((cur) => (cur === f ? null : f));
@@ -86,14 +94,15 @@ export default function SchedulePage() {
       {visible.length === 0 ? (
         <div className="card"><div className="empty">{lines.length === 0 ? 'No BoQ items on this project yet.' : 'Nothing matches this filter.'}</div></div>
       ) : view === 'timeline' ? (
-        <Timeline dayAxis={dayAxis} lines={visible} db={db} ActionButton={ActionButton} />
+        <Timeline dayAxis={dayAxis} lines={visible} db={db} ActionButton={ActionButton} batch={batchCtx} />
       ) : (
-        <Agenda lines={visible} today={today} db={db} ActionButton={ActionButton} />
+        <Agenda lines={visible} today={today} db={db} ActionButton={ActionButton} batch={batchCtx} />
       )}
 
       <Legend />
 
       {prFor && <PrModal boqItem={prFor} onClose={() => setPrFor(null)} />}
+      {editPr && <PrModal pr={editPr} onClose={() => setEditPr(null)} />}
       {receiveFor && (
         <ReceiveModal title={`Mark received · ${receiveFor.line.materialName}`} onClose={() => setReceiveFor(null)}
           onConfirm={(date) => { setPrStatus(receiveFor.pr.id, 'received', date); setReceiveFor(null); }} />
@@ -117,12 +126,26 @@ function Chip({ n, label, extra, active, onClick }) {
 }
 
 // ---------- Day-granular timeline ----------
-function Timeline({ dayAxis, lines, db, ActionButton }) {
+function Timeline({ dayAxis, lines, db, ActionButton, batch }) {
   const N = dayAxis.span;
   const cols = `200px repeat(${N}, minmax(22px, 1fr))`;
   const mandorName = (id) => db.mandors.find((m) => m.id === id)?.name || 'Unassigned';
   const weekendCols = dayAxis.columns.filter((c) => c.isWeekend).map((c) => c.index);
+  const mondayCols = dayAxis.columns.filter((c) => c.isMonday).map((c) => c.index);
   const todayCol = dayAxis.columns.findIndex((c) => c.isToday);
+  const [openIds, setOpenIds] = useState(() => new Set());
+  const toggle = (id) => setOpenIds((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const [closedGroups, setClosedGroups] = useState(() => new Set());
+  const toggleGroup = (k) => setClosedGroups((s) => { const n = new Set(s); n.has(k) ? n.delete(k) : n.add(k); return n; });
+
+  // With the axis extending back over history, park the viewport so today sits ~40% in.
+  const scrollRef = useRef(null);
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || todayCol < 0) return;
+    const colW = Math.max(22, (el.scrollWidth - 200) / N);
+    el.scrollLeft = Math.max(0, 200 + todayCol * colW - el.clientWidth * 0.4);
+  }, [todayCol, N]);
 
   const groups = [];
   const seen = new Map();
@@ -132,11 +155,15 @@ function Timeline({ dayAxis, lines, db, ActionButton }) {
     seen.get(k).rows.push(l);
   }
 
+  // Collapsed groups still inform: tone tallies shown in the band.
+  const TALLY = [['overdue', 'overdue'], ['late', 'late'], ['orderNow', 'order now'], ['awaiting', 'awaiting'], ['done', 'done']];
+  const tallies = (rows) => TALLY.map(([tone, lbl]) => [tone, lbl, rows.filter((r) => r.tone === tone).length]).filter(([, , n]) => n > 0);
+
   return (
-    <div style={{ overflowX: 'auto', border: '1px solid ' + BORDER, borderRadius: 10, background: '#fff' }}>
+    <div ref={scrollRef} style={{ overflowX: 'auto', border: '1px solid ' + BORDER, borderRadius: 10, background: '#fff' }}>
       <div style={{ minWidth: 200 + N * 22 }}>
         <div style={{ display: 'grid', gridTemplateColumns: cols, alignItems: 'stretch', borderBottom: '1px solid ' + BORDER }}>
-          <div style={{ padding: '8px 12px', fontSize: 12, fontWeight: 600, color: '#94A3B8', borderRight: '1px solid ' + BORDER }}>Material</div>
+          <div style={{ padding: '8px 12px', fontSize: 12, fontWeight: 600, color: '#94A3B8', borderRight: '1px solid ' + BORDER, position: 'sticky', left: 0, background: '#fff', zIndex: 6 }}>Material</div>
           {dayAxis.columns.map((c) => (
             <div key={c.index} style={{
               padding: '6px 0', textAlign: 'center', fontSize: 9.5, lineHeight: 1.2,
@@ -149,25 +176,41 @@ function Timeline({ dayAxis, lines, db, ActionButton }) {
           ))}
         </div>
 
-        {groups.map((g) => (
-          <div key={g.key}>
-            <div style={{
-              padding: '6px 12px', background: '#FBFBFC', fontSize: 11, fontWeight: 600,
-              textTransform: 'uppercase', letterSpacing: '0.05em', color: '#64748B',
-              borderTop: '1px solid ' + BORDER, borderBottom: '1px solid ' + BORDER,
-            }}>Mandor · {g.label}</div>
-            {g.rows.map((l) => (
-              <Row key={l.boqItem.id} l={l} N={N} cols={cols} baseDay={dayAxis.baseDay}
-                weekendCols={weekendCols} todayCol={todayCol} ActionButton={ActionButton} />
-            ))}
-          </div>
-        ))}
+        {groups.map((g) => {
+          const closed = closedGroups.has(g.key);
+          const t = tallies(g.rows);
+          return (
+            <div key={g.key}>
+              <div onClick={() => toggleGroup(g.key)} style={{
+                padding: '6px 12px', background: '#FBFBFC', fontSize: 11, fontWeight: 600,
+                textTransform: 'uppercase', letterSpacing: '0.05em', color: '#64748B',
+                borderTop: '1px solid ' + BORDER, borderBottom: '1px solid ' + BORDER, cursor: 'pointer',
+              }} title={closed ? 'Expand group' : 'Collapse group'}>
+                <span style={{ position: 'sticky', left: 12, display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 9 }}>{closed ? '▸' : '▾'}</span>
+                  <span>Mandor · {g.label}</span>
+                  <span style={{ fontWeight: 500, textTransform: 'none', letterSpacing: 0, color: '#94A3B8' }}>{g.rows.length} item{g.rows.length === 1 ? '' : 's'}</span>
+                  {t.map(([tone, lbl, n]) => (
+                    <span key={tone} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontWeight: 600, textTransform: 'none', letterSpacing: 0, fontSize: 11, color: TONE[tone] }}>
+                      <span style={{ width: 7, height: 7, borderRadius: '50%', background: TONE[tone] }} />{n} {lbl}
+                    </span>
+                  ))}
+                </span>
+              </div>
+              {!closed && g.rows.map((l) => (
+                <Row key={l.boqItem.id} l={l} N={N} cols={cols} baseDay={dayAxis.baseDay}
+                  weekendCols={weekendCols} mondayCols={mondayCols} todayCol={todayCol} ActionButton={ActionButton}
+                  open={openIds.has(l.boqItem.id)} onToggle={() => toggle(l.boqItem.id)} batch={batch} />
+              ))}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
 }
 
-function Row({ l, N, cols, baseDay, weekendCols, todayCol, ActionButton }) {
+function Row({ l, N, cols, baseDay, weekendCols, mondayCols, todayCol, ActionButton, open, onToggle, batch }) {
   const poc = dayColOf(l.orderDate, baseDay, N);   // planned order
   const pnc = dayColOf(l.neededDate, baseDay, N);  // planned delivery (needed)
   const ordered = l.state === 'awaiting' || l.state === 'received';
@@ -176,45 +219,107 @@ function Row({ l, N, cols, baseDay, weekendCols, todayCol, ActionButton }) {
   const aec = ordered ? dayColOf(arrivalDate, baseDay, N) : null;        // actual / expected arrival
   const color = TONE[l.tone];
   const PLANNED = '#CBD5E1';
+  const nPrs = l.prDetails.length;
 
   const tip = [
     l.orderOffset != null ? `Plan: order day ${l.orderOffset}` : null,
     l.neededOffset != null ? `needed day ${l.neededOffset}` : null,
     l.hasLead ? `lead ${l.lead}d${l.leadSource === 'line' ? ' (custom)' : ''}` : 'no lead time',
-    l.actualOrderDate ? `ordered ${fmtDate(l.actualOrderDate)}` : null,
+    l.actualOrderDate ? `first ordered ${fmtDate(l.actualOrderDate)}` : null,
     ordered && arrivalDate ? `${l.state === 'received' ? 'received' : 'expected'} ${fmtDate(arrivalDate)}` : null,
     (l.forecastLate && !l.deliveryOverdue) ? `→ +${l.slipDays}d vs plan` : null,
     l.promisedDate ? `supplier promised ${fmtDate(l.promisedDate)}` : null,
+    nPrs > 1 ? `${nPrs} PRs — expand for batches` : null,
   ].filter(Boolean).join('  ·  ');
 
   const dot = { gridRow: 1, alignSelf: 'center', justifySelf: 'center', zIndex: 3, width: 12, height: 12, border: '2px solid #fff', boxShadow: '0 0 0 1px rgba(15,23,42,0.2)' };
   const colspan = (a, b) => `${2 + Math.min(a, b)} / ${2 + Math.max(a, b) + 1}`;
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: cols, alignItems: 'center', minHeight: 46, borderBottom: '1px solid ' + BORDER }} title={tip}>
-      <div style={{ padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 5, borderRight: '1px solid ' + BORDER, zIndex: 4, background: '#fff' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, fontSize: 13, fontWeight: 600 }}>
-          <span>{l.materialName}</span><ActionButton line={l} />
+    <>
+      <div className="sched-row" style={{ display: 'grid', gridTemplateColumns: cols, alignItems: 'center', minHeight: 46, borderBottom: open ? 'none' : '1px solid ' + BORDER }} title={tip}>
+        <div style={{ padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 5, borderRight: '1px solid ' + BORDER, zIndex: 4, background: '#fff', position: 'sticky', left: 0, alignSelf: 'stretch', justifyContent: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, fontSize: 13, fontWeight: 600 }}>
+            <span onClick={nPrs > 0 ? onToggle : undefined}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 5, minWidth: 0, cursor: nPrs > 0 ? 'pointer' : 'default' }}
+              title={nPrs > 0 ? 'Show individual orders' : undefined}>
+              {nPrs > 0 && <span className="muted" style={{ fontSize: 10, width: 10, flexShrink: 0 }}>{open ? '▾' : '▸'}</span>}
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.materialName}</span>
+            </span>
+            <ActionButton line={l} />
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <LineTags l={l} />
+            {nPrs > 0 && (
+              <span className="muted" style={{ fontSize: 10.5, cursor: 'pointer', whiteSpace: 'nowrap' }} onClick={onToggle}>
+                {nPrs} PR{nPrs === 1 ? '' : 's'} · {num(l.receivedQty)}/{num(l.budget)} in
+              </span>
+            )}
+          </div>
         </div>
-        <LineTags l={l} />
+
+        {mondayCols.map((ci) => <span key={'m' + ci} style={{ gridColumn: 2 + ci, gridRow: 1, alignSelf: 'stretch', borderLeft: '1px solid #EFF2F5', zIndex: 0 }} />)}
+        {weekendCols.map((ci) => <span key={'w' + ci} style={{ gridColumn: 2 + ci, gridRow: 1, alignSelf: 'stretch', background: WEEKEND, zIndex: 0 }} />)}
+        {todayCol >= 0 && <span style={{ gridColumn: 2 + todayCol, gridRow: 1, alignSelf: 'stretch', background: TODAYBG, zIndex: 0 }} />}
+
+        {/* planned layer — faded baseline (order → needed) */}
+        {poc != null && pnc != null && (
+          <span style={{ gridColumn: colspan(poc, pnc), gridRow: 1, alignSelf: 'center', height: 6, borderRadius: 999, margin: '0 3px', background: PLANNED, opacity: 0.7, zIndex: 1 }} />
+        )}
+        {pnc != null && <span style={{ ...dot, gridColumn: 2 + pnc, borderRadius: 3, transform: 'rotate(45deg)', background: PLANNED, opacity: ordered ? 0.8 : 1 }} />}
+        {poc != null && <span style={{ ...dot, gridColumn: 2 + poc, borderRadius: '50%', background: ordered ? PLANNED : color, opacity: ordered ? 0.8 : 1 }} />}
+
+        {/* actual / expected layer — solid (actual order → expected/received) */}
+        {aoc != null && aec != null && (
+          <span style={{ gridColumn: colspan(aoc, aec), gridRow: 1, alignSelf: 'center', height: 8, borderRadius: 999, margin: '0 3px', background: color, zIndex: 2 }} />
+        )}
+        {aoc != null && <span style={{ ...dot, gridColumn: 2 + aoc, borderRadius: '50%', background: color }} />}
+        {aec != null && <span style={{ ...dot, gridColumn: 2 + aec, borderRadius: 3, transform: 'rotate(45deg)', background: color }} />}
       </div>
 
+      {open && l.prDetails.map((d, i) => (
+        <BatchRow key={d.pr.id} d={d} l={l} N={N} cols={cols} baseDay={baseDay}
+          weekendCols={weekendCols} mondayCols={mondayCols} todayCol={todayCol} batch={batch}
+          last={i === l.prDetails.length - 1} />
+      ))}
+    </>
+  );
+}
+
+// One sub-row per PR: its own order dot → expected/receipt diamond on the same day grid.
+function BatchRow({ d, l, N, cols, baseDay, weekendCols, mondayCols, todayCol, batch, last }) {
+  const oc = dayColOf(d.orderDate, baseDay, N);
+  const ec = dayColOf(d.received ? d.receiptDate : d.expected, baseDay, N);
+  const color = TONE[d.tone];
+  const sup = batch.supplierName(d.pr.supplierPrimaryId);
+  const dotS = { gridRow: 1, alignSelf: 'center', justifySelf: 'center', zIndex: 3, width: 9, height: 9, border: '2px solid #fff', boxShadow: '0 0 0 1px rgba(15,23,42,0.18)' };
+  const colspan = (a, b) => `${2 + Math.min(a, b)} / ${2 + Math.max(a, b) + 1}`;
+  const when = d.received ? `received ${fmtDate(d.receiptDate)}`
+    : d.expected ? `${d.late ? 'late — expected' : 'expected'} ${fmtDate(d.expected)}`
+    : d.orderDate ? `ordered ${fmtDate(d.orderDate)}` : 'not ordered yet';
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: cols, alignItems: 'center', minHeight: 34, background: '#FAFBFC', borderBottom: last ? '1px solid ' + BORDER : '1px dashed #EDF0F3' }}
+      title={`${num(d.qty)} ${l.unit}${sup ? ` · ${sup}` : ''} · ${when}`}>
+      <div style={{ padding: '4px 10px 4px 27px', display: 'flex', alignItems: 'center', gap: 5, borderRight: '1px solid ' + BORDER, zIndex: 4, background: '#FAFBFC', minWidth: 0, overflow: 'hidden', position: 'sticky', left: 0, alignSelf: 'stretch' }}>
+        <span style={{ fontSize: 11.5, fontWeight: 600, whiteSpace: 'nowrap' }}>{num(d.qty)} {l.unit}</span>
+        <batch.MiniStatus status={d.status} />
+        {d.committed && !d.received && (
+          <button className="btn sm ghost" style={{ marginLeft: 'auto', fontSize: 10.5, padding: '1px 6px', flexShrink: 0 }}
+            onClick={() => batch.onReceive(d.pr, l)}>Receive</button>
+        )}
+        {!d.committed && (
+          <button className="btn sm ghost" style={{ marginLeft: 'auto', fontSize: 10.5, padding: '1px 6px', flexShrink: 0 }}
+            onClick={() => batch.onEdit(d.pr)}>Edit</button>
+        )}
+      </div>
+      {mondayCols.map((ci) => <span key={'m' + ci} style={{ gridColumn: 2 + ci, gridRow: 1, alignSelf: 'stretch', borderLeft: '1px solid #EFF2F5', zIndex: 0 }} />)}
       {weekendCols.map((ci) => <span key={'w' + ci} style={{ gridColumn: 2 + ci, gridRow: 1, alignSelf: 'stretch', background: WEEKEND, zIndex: 0 }} />)}
       {todayCol >= 0 && <span style={{ gridColumn: 2 + todayCol, gridRow: 1, alignSelf: 'stretch', background: TODAYBG, zIndex: 0 }} />}
-
-      {/* planned layer — faded baseline (order → needed) */}
-      {poc != null && pnc != null && (
-        <span style={{ gridColumn: colspan(poc, pnc), gridRow: 1, alignSelf: 'center', height: 6, borderRadius: 999, margin: '0 3px', background: PLANNED, opacity: 0.7, zIndex: 1 }} />
+      {oc != null && ec != null && (
+        <span style={{ gridColumn: colspan(oc, ec), gridRow: 1, alignSelf: 'center', height: 5, borderRadius: 999, margin: '0 4px', background: color, opacity: 0.85, zIndex: 2 }} />
       )}
-      {pnc != null && <span style={{ ...dot, gridColumn: 2 + pnc, borderRadius: 3, transform: 'rotate(45deg)', background: PLANNED, opacity: ordered ? 0.8 : 1 }} />}
-      {poc != null && <span style={{ ...dot, gridColumn: 2 + poc, borderRadius: '50%', background: ordered ? PLANNED : color, opacity: ordered ? 0.8 : 1 }} />}
-
-      {/* actual / expected layer — solid (actual order → expected/received) */}
-      {aoc != null && aec != null && (
-        <span style={{ gridColumn: colspan(aoc, aec), gridRow: 1, alignSelf: 'center', height: 8, borderRadius: 999, margin: '0 3px', background: color, zIndex: 2 }} />
-      )}
-      {aoc != null && <span style={{ ...dot, gridColumn: 2 + aoc, borderRadius: '50%', background: color }} />}
-      {aec != null && <span style={{ ...dot, gridColumn: 2 + aec, borderRadius: 3, transform: 'rotate(45deg)', background: color }} />}
+      {oc != null && <span style={{ ...dotS, gridColumn: 2 + oc, borderRadius: '50%', background: color }} />}
+      {ec != null && <span style={{ ...dotS, gridColumn: 2 + ec, borderRadius: 2, transform: 'rotate(45deg)', background: color }} />}
     </div>
   );
 }
@@ -237,9 +342,11 @@ function LineTags({ l }) {
 }
 
 // ---------- Agenda ----------
-function Agenda({ lines, today, db, ActionButton }) {
+function Agenda({ lines, today, db, ActionButton, batch }) {
   const buckets = agendaBuckets(lines, today);
   const mandorName = (id) => db.mandors.find((m) => m.id === id)?.name || 'Unassigned';
+  const [openIds, setOpenIds] = useState(() => new Set());
+  const toggle = (id) => setOpenIds((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   return (
     <>
       {BUCKETS.map(({ key, label, sub, color }) => {
@@ -254,16 +361,57 @@ function Agenda({ lines, today, db, ActionButton }) {
               <div className="spacer" style={{ flex: 1 }} /><span className="pill gray">{rows.length}</span>
             </div>
             <div className="card-body flush">
-              {rows.map((l) => (
-                <div key={l.boqItem.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 16px', borderBottom: '1px solid ' + BORDER }}>
-                  <span style={{ width: 9, height: 9, borderRadius: '50%', flexShrink: 0, background: TONE[l.tone] }} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 600 }}>{l.materialName}</div>
-                    <div className="muted" style={{ fontSize: 12 }}>{mandorName(l.mandorId)} · {l.budget} {l.unit} planned</div>
-                  </div>
-                  <Milestone l={l} /><ActionButton line={l} />
-                </div>
-              ))}
+              {rows.map((l) => {
+                const nPrs = l.prDetails.length;
+                const open = openIds.has(l.boqItem.id);
+                return (
+                  <Fragment key={l.boqItem.id}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 16px', borderBottom: open ? 'none' : '1px solid ' + BORDER }}>
+                      <span style={{ width: 9, height: 9, borderRadius: '50%', flexShrink: 0, background: TONE[l.tone] }} />
+                      <div style={{ flex: 1, minWidth: 0, cursor: nPrs > 0 ? 'pointer' : 'default' }}
+                        onClick={nPrs > 0 ? () => toggle(l.boqItem.id) : undefined}
+                        title={nPrs > 0 ? 'Show individual orders' : undefined}>
+                        <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                          {nPrs > 0 && <span className="muted" style={{ fontSize: 10 }}>{open ? '▾' : '▸'}</span>}
+                          {l.materialName}
+                        </div>
+                        <div className="muted" style={{ fontSize: 12 }}>
+                          {mandorName(l.mandorId)} · {num(l.budget)} {l.unit} planned
+                          {nPrs > 0 && <> · {nPrs} PR{nPrs === 1 ? '' : 's'} · {num(l.receivedQty)}/{num(l.budget)} in</>}
+                        </div>
+                      </div>
+                      <Milestone l={l} /><ActionButton line={l} />
+                    </div>
+                    {open && (
+                      <div style={{ padding: '2px 16px 10px 37px', background: '#FAFBFC', borderBottom: '1px solid ' + BORDER }}>
+                        {l.prDetails.map((d) => {
+                          const sup = batch.supplierName(d.pr.supplierPrimaryId);
+                          const when = d.received ? `received ${fmtDate(d.receiptDate)}`
+                            : d.expected ? <span style={d.late ? { color: TONE.late, fontWeight: 600 } : undefined}>{d.overdueNow ? 'late — expected ' : d.forecastLate ? 'late vs plan — expected ' : 'expected '}{fmtDate(d.expected)}</span>
+                            : d.orderDate ? `ordered ${fmtDate(d.orderDate)}` : 'not ordered yet';
+                          return (
+                            <div key={d.pr.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', fontSize: 12.5, borderBottom: '1px dashed #EDF0F3' }}>
+                              <span style={{ width: 7, height: 7, borderRadius: '50%', flexShrink: 0, background: TONE[d.tone] }} />
+                              <span style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>{num(d.qty)} {l.unit}</span>
+                              <batch.MiniStatus status={d.status} />
+                              <span className="muted" style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {sup ? `${sup} · ` : ''}{when}
+                              </span>
+                              <span style={{ marginLeft: 'auto', flexShrink: 0 }}>
+                                {d.committed && !d.received
+                                  ? <button className="btn sm ghost" style={{ fontSize: 11, padding: '1px 8px' }} onClick={() => batch.onReceive(d.pr, l)}>Receive</button>
+                                  : !d.committed
+                                    ? <button className="btn sm ghost" style={{ fontSize: 11, padding: '1px 8px' }} onClick={() => batch.onEdit(d.pr)}>Edit</button>
+                                    : null}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </Fragment>
+                );
+              })}
             </div>
           </div>
         );
