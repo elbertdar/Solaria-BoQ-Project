@@ -1,14 +1,15 @@
 import { useState, useMemo } from 'react';
 import { useStore, useProject } from '../store/StoreContext.jsx';
+import PhaseTabs from '../components/PhaseTabs.jsx';
 import { summarizeProject, brandName, brandBreakdown } from '../engine/reconcile.js';
 import { ProjectBar, AlertBanner, StatusPill, FilterBar, FilterSearch, FilterSelect } from '../components/ui.jsx';
 import { idr, num, fmtDate } from '../engine/format.js';
 import { isCommitted } from '../engine/status.js';
 
 export default function ReconciliationPage() {
-  const { db, currentProjectId } = useStore();
+  const { db, currentProjectId, currentPhaseId } = useStore();
   const project = useProject();
-  const rows = useMemo(() => summarizeProject(db, currentProjectId), [db, currentProjectId]);
+  const rows = useMemo(() => summarizeProject(db, currentProjectId, currentPhaseId), [db, currentProjectId, currentPhaseId]);
   const [open, setOpen] = useState(null);
   const [q, setQ] = useState('');
   const [typeFilter, setTypeFilter] = useState([]);

@@ -39,7 +39,8 @@ export default function ProjectCataloguePage() {
     const estFinish = neededDates.length ? new Date(Math.max(...neededDates.map((d) => d.getTime()))) : null;
     const received = lines.filter((l) => l.state === 'received').length;
     const attention = lines.filter((l) => l.orderOverdue || l.deliveryOverdue).length;
-    return { p, totals, start, curOff, estFinish, items: lines.length, received, attention };
+    const working = (db.phases || []).some((ph) => ph.projectId === p.id && ph.boqStatus === 'working');
+    return { p, totals, start, curOff, estFinish, items: lines.length, received, attention, working };
   }), [db, today]);
 
   const open = (id) => { setCurrentProjectId(id); nav('/overview'); };
@@ -254,7 +255,7 @@ function ActiveTable({ rows, onOpen, onDelete, types, onUpdate, onAddType }) {
             </tr>
           </thead>
           <tbody>
-            {rows.map(({ p, totals, start, curOff, estFinish, items, received, attention }) => {
+            {rows.map(({ p, totals, start, curOff, estFinish, items, received, attention, working }) => {
               const pct = totals.budgetCost > 0 ? Math.round((totals.committedCost / totals.budgetCost) * 100) : 0;
               const overSpend = totals.committedCost > totals.budgetCost;
               return (
@@ -285,7 +286,7 @@ function ActiveTable({ rows, onOpen, onDelete, types, onUpdate, onAddType }) {
                     {received}/{items}
                     <div className="muted" style={{ fontSize: 12 }}>received</div>
                   </td>
-                  <td>{p.boqStatus !== 'working'
+                  <td>{!working
                     ? <span className="pill gray">Draft</span>
                     : attention > 0 ? pill(`⚠ ${attention} to act on`, 'risk') : pill('On track', 'ok')}</td>
                   <td className="num" onClick={(e) => e.stopPropagation()}>

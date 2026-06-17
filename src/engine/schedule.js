@@ -177,8 +177,9 @@ export function computeLine(db, b, today = todayLocal()) {
 }
 
 // ---- per-project schedule (timeline + agenda) ----
-export function scheduleForProject(db, projectId, today = todayLocal()) {
-  const items = db.boqItems.filter((b) => b.projectId === projectId && b.budgetBasis !== 'allowance');
+export function scheduleForProject(db, projectId, today = todayLocal(), phaseId = null) {
+  const all = (!phaseId || phaseId === '__all');
+  const items = db.boqItems.filter((b) => b.projectId === projectId && b.budgetBasis !== 'allowance' && (all || b.phaseId === phaseId));
   const lines = items.map((b) => computeLine(db, b, today));
   lines.sort((a, b) => a.urgency - b.urgency ||
     ((a.nextMilestoneDate?.getTime() ?? Infinity) - (b.nextMilestoneDate?.getTime() ?? Infinity)));
@@ -214,13 +215,16 @@ export function dayColOf(date, baseDay, span) {
   return Math.max(0, Math.min(span - 1, Math.round((atMidnight(date) - atMidnight(baseDay)) / 86400000)));
 }
 
+// A BoQ item is in active procurement iff ITS phase is finalized (working).
+export const phaseWorking = (db, phaseId) => (db.phases || []).find((ph) => ph.id === phaseId)?.boqStatus === 'working';
+
 // ---- portfolio worklist (the dashboard) ----
 export function portfolioWorklist(db, today = todayLocal()) {
   const proj = (id) => db.projects.find((p) => p.id === id);
   const lines = db.boqItems
     .filter((b) => b.budgetBasis !== 'allowance')   // allowances reorder on cadence, not a single order-by date
     .map((b) => ({ ...computeLine(db, b, today), project: proj(b.projectId) }))
-    .filter((l) => l.project && l.project.boqStatus === 'working'); // draft BoQs aren't in procurement yet
+    .filter((l) => l.project && phaseWorking(db, l.boqItem.phaseId)); // only finalized phases are in procurement
 
   const byOrder = (a, b) => (a.orderDate?.getTime() ?? Infinity) - (b.orderDate?.getTime() ?? Infinity);
   const byArrival = (a, b) => (a.effectiveArrival?.getTime() ?? Infinity) - (b.effectiveArrival?.getTime() ?? Infinity);
@@ -238,7 +242,7 @@ export function portfolioWorklist(db, today = todayLocal()) {
       lateDelivery: lateDelivery.length, lateArrival: lateArrival.length, orderNextWeek: orderNextWeek.length,
     },
     health: {
-      activeProjects: db.projects.filter((p) => p.boqStatus === 'working').length,
+      activeProjects: db.projects.filter((p) => (db.phases || []).some((ph) => ph.projectId === p.id && ph.boqStatus === 'working')).length,
       overBudget: lines.filter((l) => l.overBudget).length,
       openPos: db.prs.filter((p) => isCommitted(db, p.status) && !isReceived(db, p.status)).length,
       snoozed: lines.filter((l) => l.snoozedActive && l.state === 'awaiting').length,
@@ -291,8 +295,9 @@ export function agendaBuckets(lines, today = todayLocal()) {
 // planned order + lead time (i.e. the final planned delivery). Draft BoQs are excluded.
 export function portfolioGantt(db, today = todayLocal()) {
   const projects = [];
-  for (const p of db.projects.filter((x) => x.boqStatus === 'working')) {
-    const { lines } = scheduleForProject(db, p.id, today);
+  for (const p of db.projects.filter((x) => (db.phases || []).some((ph) => ph.projectId === x.id && ph.boqStatus === 'working'))) {
+    const { lines: allLines } = scheduleForProject(db, p.id, today);
+    const lines = allLines.filter((l) => phaseWorking(db, l.boqItem.phaseId));
     const orders = lines.map((l) => l.orderDate).filter(Boolean);
     const arrivals = lines.map((l) => l.neededDate).filter(Boolean);
     if (orders.length === 0 || arrivals.length === 0) continue; // no schedulable window → not shown

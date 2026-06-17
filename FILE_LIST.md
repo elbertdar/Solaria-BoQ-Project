@@ -3,11 +3,111 @@
 The source of truth for what files exist and where. **Updated every time we change something.**
 
 - **Last updated:** 5 Jun 2026
-- **Latest build:** New portfolio tab — All Purchase Requests (cross-project, fully filterable)
+- **Latest build:** BoQ page is now a single all-phases editor (edit every phase inline + add phases)
 
 ---
 
-## ⚠ Latest build (unified Purchase Requests)
+## ⚠ Latest build (one-page phase editor)
+
+Reworked the BoQ page per feedback: instead of phase **tabs** + a read-only roll-up where you had to
+"Open" each phase, **every phase is now an editable block on one page** — the old draft-spreadsheet
+look and feel, one block per phase, stacked.
+
+- **Edit every phase inline.** Draft phases render the live spreadsheet (Material · Description ·
+  Mandor · Qty · Unit · Exp. cost · Needed · Order by) with "+ Add row" / "+ Add allowance" and a
+  per-phase **Finalize phase** button. Finalized (working) phases render their committed + staged
+  table inline with the staged banner (Discard / Review &amp; commit), "+ Add item", and a
+  collapsible per-phase edit history.
+- **+ Add phase** lives at the bottom (name field + button) — create new phases right here.
+- **Removed the per-phase tabs** from the BoQ page; **Manage phases** (rename / reorder / delete) is
+  kept, now a header button. One shared filter bar (search · mandor · group-by-mandor) spans all
+  phase blocks.
+
+Internals: `ManagePhasesModal` extracted to its own component (shared by the BoQ header and the
+PhaseTabs bar still used on Overview/Schedule/PR/Balance). `BoqModal` now takes an explicit `phaseId`
+so inline edits/adds stage to the correct phase regardless of global scope.
+
+**Storage unchanged — v10.** **Verified:** full compile + clean-room installer extraction (43 files;
+new `components/ManagePhasesModal.jsx`). Engine untouched — the prior 23-check phase harness still
+holds.
+
+**Changed:** `pages/BoqPage.jsx`, `components/PhaseTabs.jsx`, `components/BoqModal.jsx`,
+`components/ManagePhasesModal.jsx` (new)
+
+---
+
+## ⚠ Latest build (BoQ phases) — structural
+
+The BoQ now works in **phases** within a project (e.g. Foundation, then Interior). Each phase is a
+separate entity that **drafts and finalizes independently**, and phases may overlap in time. Every
+project-specific section is now separable by phase.
+
+**Data model.** New `db.phases` (`{id, projectId, name, order, boqStatus, createdAt}`). `phaseId`
+added to BoQ items, staged edits, commit history, and PRs. `boqStatus` moved off the project onto
+the phase — each phase has its own draft → working lifecycle.
+
+**Migration (your real data is safe).** On load, every project gains a default **“Phase 1”** carrying
+its old `boqStatus`; all that project’s BoQ items, staged edits, history, and linked PRs are assigned
+to it. Storage key is unchanged — **still `solaria_boq_db_v10`**, no reseed.
+
+**Scope control.** A global `currentPhaseId` (`'__all'` = whole project) driven by a new **PhaseTabs**
+bar shown on every project page: *All phases · Foundation · Interior · … · Manage phases*. Switching
+project resets the phase to All. Manage phases = add / rename / reorder / delete (a project always
+keeps ≥1 phase; deleting a phase with items warns and cascades its items + linked PRs).
+
+**Per section.**
+- **BoQ** — drafts per phase: each phase has its own draft spreadsheet, Finalize, staging + commit,
+  and edit history. The *All phases* tab is a read-only roll-up (status, item count, planned value,
+  Open) per phase.
+- **Overview / Balance / PR / Schedule** — scope to the selected phase (or the whole project under
+  *All phases*); the “finalize first” banners are now phase-aware.
+- **Project catalogue** — a project’s status is derived from its phases (working if any phase is
+  finalized).
+- **Portfolio (This Week / portfolio Gantt)** — the procurement “working” gate is now per-phase:
+  only items in finalized phases enter procurement, so a project can be ordering Foundation while
+  Interior is still a draft.
+
+**Engine.** `boqForProject / prsForProject / summarizeProject / projectTotals / stagedForProject /
+boqDisplayRows / scheduleForProject` gained an optional `phaseId` (additive, backward-compatible —
+`null`/`'__all'` = all phases). New `phaseWorking(db, phaseId)` helper.
+
+**Storage unchanged — v10.** **Verified:** full compile + 23-check engine harness (phase filters on
+boq/prs incl. extras, per-phase working gate, staged scope, summarize/totals budgets, the data
+migration, deletePhase cascade + last-phase guard) + clean-room installer extraction (42 files; new
+`components/PhaseTabs.jsx`).
+
+**Changed:** `data/seed.js`, `store/StoreContext.jsx`, `engine/reconcile.js`, `engine/schedule.js`,
+`components/PhaseTabs.jsx` (new), `components/PrModal.jsx`, `components/BoqModal.jsx`,
+`pages/BoqPage.jsx`, `pages/Overview.jsx`, `pages/SchedulePage.jsx`, `pages/PurchaseRequestsPage.jsx`,
+`pages/ReconciliationPage.jsx`, `pages/ProjectCataloguePage.jsx`, `index.css`
+
+---
+
+## ⚠ Latest build (PR preset filters)
+
+Decoded from a terse note ("preset filter for supplier — add KPI cards with filter function"):
+turned the All Purchase Requests cards into one-click filters.
+
+- **Status KPIs are now clickable presets.** "Open commitments" filters to all committed-not-received
+  statuses (custom committed statuses like Shipped included); "Received" filters to the received
+  phase. Click again to clear; active cards highlight in the info accent. "Value shown" stays a
+  live readout of the filtered total.
+- **Supplier quick-filter strip.** A row of cards — top suppliers by spend, each showing PR count +
+  value — that toggle that supplier into the filter on click (multi-select: click several for OR).
+  Counts are computed within the current non-supplier context (so they respect the project / status /
+  PIC / mandor filters already applied), sorted by spend, top 8 shown with a "+N more in the dropdown"
+  hint. Cards share state with the existing supplier dropdown, so the two stay in sync, and there's a
+  Clear shortcut.
+
+**Storage unchanged — v10.** **Verified:** compile + 12-check harness (status-preset toggles incl.
+custom committed statuses, supplier aggregation primary+secondary, sort, toggle semantics) +
+clean-room installer extraction.
+
+**Changed:** `pages/AllPurchaseRequestsPage.jsx`
+
+---
+
+## Previous build (unified Purchase Requests)
 
 New page under **Portfolio → All Purchase Requests** (below Projects): every PR across every project
 in one table. Columns: Project · Material · Status · Qty · Unit cost · Line total · Mandor · PIC ·

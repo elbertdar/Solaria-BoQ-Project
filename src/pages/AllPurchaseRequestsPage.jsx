@@ -38,18 +38,22 @@ export default function AllPurchaseRequestsPage() {
     .sort((a, b) => new Date(b.p.createdAt) - new Date(a.p.createdAt)),
     [db.prs, db.boqItems]);
 
-  const filtered = rows.filter(({ p, mandorId }) => {
+  // Everything except the supplier filter — reused so the supplier preset cards can show
+  // PR counts/value within the current (non-supplier) context.
+  const passBase = ({ p, mandorId }) => {
     if (projectFilter.length && !projectFilter.includes(p.projectId)) return false;
     if (statusFilter.length && !statusFilter.includes(p.status)) return false;
     if (picFilter.length && !picFilter.includes(p.picId || '')) return false;
     if (mandorFilter.length && !mandorFilter.includes(mandorId)) return false;
-    if (supplierFilter.length && !supplierFilter.includes(p.supplierPrimaryId) && !supplierFilter.includes(p.supplierSecondaryId)) return false;
     if (q) {
       const hay = `${materialName(db, p.materialId)} ${projName(p.projectId)} ${p.comment || ''}`.toLowerCase();
       if (!hay.includes(q.toLowerCase())) return false;
     }
     return true;
-  });
+  };
+  const matchesSupplier = (p) => !(supplierFilter.length && !supplierFilter.includes(p.supplierPrimaryId) && !supplierFilter.includes(p.supplierSecondaryId));
+  const baseRows = rows.filter(passBase);
+  const filtered = baseRows.filter(({ p }) => matchesSupplier(p));
 
   // Filter option lists. PIC / mandor are built from what's actually present (incl. an
   // "Unassigned" bucket when relevant) so the lists stay relevant, not cluttered.
@@ -68,6 +72,29 @@ export default function AllPurchaseRequestsPage() {
     if (ids.has('')) opts.push({ value: '', label: 'Unassigned' });
     return opts;
   }, [rows, db.mandors]);
+
+  // Supplier preset cards — aggregate over the non-supplier-filtered set, sorted by spend.
+  // A PR with both primary + secondary counts toward both suppliers (both are "involved").
+  const supplierStats = (() => {
+    const m = new Map();
+    for (const { p } of baseRows) {
+      for (const sid of [p.supplierPrimaryId, p.supplierSecondaryId]) {
+        if (!sid) continue;
+        const e = m.get(sid) || { id: sid, count: 0, value: 0 };
+        e.count++; e.value += (p.quantity || 0) * (p.unitCost || 0);
+        m.set(sid, e);
+      }
+    }
+    return [...m.values()].sort((a, b) => b.value - a.value);
+  })();
+  const toggleSupplier = (sid) => setSupplierFilter(supplierFilter.includes(sid) ? supplierFilter.filter((x) => x !== sid) : [...supplierFilter, sid]);
+
+  // Status presets behind the KPI tiles. "Open commitments" = committed-not-received phase;
+  // "Received" = received phase. Click sets the status filter to that set; click again clears.
+  const committedOpenIds = activeStatuses(db).filter((s) => s.phase === 'committed').map((s) => s.id);
+  const receivedIds = activeStatuses(db).filter((s) => s.phase === 'received').map((s) => s.id);
+  const isPreset = (ids) => ids.length > 0 && statusFilter.length === ids.length && ids.every((id) => statusFilter.includes(id));
+  const togglePreset = (ids) => setStatusFilter(isPreset(ids) ? [] : ids);
 
   // Headline tallies across the filtered set.
   const tally = useMemo(() => {
@@ -95,11 +122,29 @@ export default function AllPurchaseRequestsPage() {
         <p className="sub">Every purchase request across all projects · {db.prs.length} total. Raise new PRs from a project’s BoQ.</p>
       </div>
 
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', margin: '0 0 14px' }}>
-        <Kpi label="Open commitments" value={tally.committed} hint="ordered, not yet received" />
-        <Kpi label="Received" value={tally.received} hint="goods in" />
-        <Kpi label="Value shown" value={idr(tally.value)} hint="qty × unit cost" />
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', margin: '0 0 12px' }}>
+        <Kpi label="Open commitments" value={tally.committed} active={isPreset(committedOpenIds)}
+          hint={isPreset(committedOpenIds) ? 'filtering · click to clear' : 'ordered, not yet received'}
+          onClick={committedOpenIds.length ? () => togglePreset(committedOpenIds) : undefined} />
+        <Kpi label="Received" value={tally.received} active={isPreset(receivedIds)}
+          hint={isPreset(receivedIds) ? 'filtering · click to clear' : 'goods in'}
+          onClick={receivedIds.length ? () => togglePreset(receivedIds) : undefined} />
+        <Kpi label="Value shown" value={idr(tally.value)} hint="qty × unit cost (filtered)" />
       </div>
+
+      {supplierStats.length > 0 && (
+        <div style={{ margin: '0 0 16px' }}>
+          <div className="lbl" style={{ marginBottom: 7 }}>Filter by supplier{supplierFilter.length ? ` · ${supplierFilter.length} selected` : ''}</div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            {supplierStats.slice(0, 8).map((s) => (
+              <SupplierChip key={s.id} name={supplierName(s.id)} count={s.count} value={idr(s.value)}
+                active={supplierFilter.includes(s.id)} onClick={() => toggleSupplier(s.id)} />
+            ))}
+            {supplierStats.length > 8 && <span className="muted" style={{ fontSize: 12 }}>+{supplierStats.length - 8} more in the dropdown</span>}
+            {supplierFilter.length > 0 && <button className="btn sm ghost" onClick={() => setSupplierFilter([])}>Clear</button>}
+          </div>
+        </div>
+      )}
 
       <FilterBar shown={filtered.length} total={rows.length} unit="PRs">
         <FilterSearch value={q} onChange={setQ} placeholder="Search material, project, note…" width={240} />
@@ -189,12 +234,28 @@ export default function AllPurchaseRequestsPage() {
   );
 }
 
-function Kpi({ label, value, hint }) {
+function Kpi({ label, value, hint, onClick, active }) {
+  const clickable = typeof onClick === 'function';
   return (
-    <div style={{ flex: '1 1 160px', minWidth: 150, border: '1px solid var(--border)', borderRadius: 10, padding: '10px 14px', background: 'var(--surface)' }}>
+    <div onClick={onClick} role={clickable ? 'button' : undefined} tabIndex={clickable ? 0 : undefined}
+      onKeyDown={clickable ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } } : undefined}
+      style={{ flex: '1 1 160px', minWidth: 150, border: '1px solid ' + (active ? 'var(--info)' : 'var(--border)'),
+        borderRadius: 10, padding: '10px 14px', background: active ? 'var(--info-bg)' : 'var(--surface)',
+        cursor: clickable ? 'pointer' : 'default' }}>
       <div className="muted" style={{ fontSize: 11.5, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</div>
-      <div style={{ fontSize: 20, fontWeight: 700, margin: '2px 0' }}>{value}</div>
+      <div style={{ fontSize: 20, fontWeight: 700, margin: '2px 0', color: active ? 'var(--info)' : 'var(--ink)' }}>{value}</div>
       <div className="muted" style={{ fontSize: 11.5 }}>{hint}</div>
     </div>
+  );
+}
+
+function SupplierChip({ name, count, value, active, onClick }) {
+  return (
+    <button type="button" onClick={onClick} title={active ? 'Click to remove from filter' : 'Click to filter to this supplier'}
+      style={{ textAlign: 'left', font: 'inherit', cursor: 'pointer', borderRadius: 10, padding: '8px 12px', minWidth: 130,
+        border: '1px solid ' + (active ? 'var(--info)' : 'var(--border)'), background: active ? 'var(--info-bg)' : 'var(--surface)' }}>
+      <div style={{ fontSize: 12.5, fontWeight: 600, maxWidth: 160, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: active ? 'var(--info)' : 'var(--ink)' }}>{name}</div>
+      <div className="muted" style={{ fontSize: 11 }}>{count} PR{count === 1 ? '' : 's'} · {value}</div>
+    </button>
   );
 }

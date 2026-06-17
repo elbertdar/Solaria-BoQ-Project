@@ -1,5 +1,6 @@
 import { useState, Fragment, useEffect, useRef } from 'react';
-import { useStore, useProject } from '../store/StoreContext.jsx';
+import { useStore, useProject, useCurrentPhase } from '../store/StoreContext.jsx';
+import PhaseTabs from '../components/PhaseTabs.jsx';
 import { prsForProject, materialName, isExtraPr, brandName } from '../engine/reconcile.js';
 import { ProjectBar, StatusPill, FilterBar, FilterSearch, FilterSelect } from '../components/ui.jsx';
 import PrModal from '../components/PrModal.jsx';
@@ -9,10 +10,12 @@ import { nextStatusId, activeStatuses, statusDef } from '../engine/status.js';
 import ManageStatusesModal from '../components/ManageStatusesModal.jsx';
 
 export default function PurchaseRequestsPage() {
-  const { db, currentProjectId, setPrStatus, updatePr } = useStore();
+  const { db, currentProjectId, currentPhaseId, setPrStatus, updatePr } = useStore();
   const project = useProject();
-  const draft = project?.boqStatus !== 'working';
-  const prs = [...prsForProject(db, currentProjectId)]
+  const phase = useCurrentPhase();
+  const phases = (db.phases || []).filter((p) => p.projectId === currentProjectId);
+  const draft = phase ? phase.boqStatus !== 'working' : !phases.some((p) => p.boqStatus === 'working');
+  const prs = [...prsForProject(db, currentProjectId, currentPhaseId)]
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
   const [modal, setModal] = useState(undefined); // undefined=closed, null=new, obj=edit
@@ -54,6 +57,8 @@ export default function PurchaseRequestsPage() {
           <button className="btn primary" disabled={draft} onClick={() => setModal(null)}>+ New PR</button>
         </div>
       </div>
+
+      <PhaseTabs />
 
       <FilterBar shown={filtered.length} total={prs.length} unit="PRs">
         <ProjectBar embedded />

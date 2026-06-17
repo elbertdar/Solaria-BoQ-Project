@@ -30,10 +30,27 @@ function normalize(d) {
   // Deletion becomes permanent after 7 days: drop expired trash on load.
   { const cutoff = Date.now() - 7 * 86400000; d.trash = d.trash.filter((t) => t && t.deletedAt && new Date(t.deletedAt).getTime() > cutoff); }
   if (Array.isArray(d.projects)) for (const p of d.projects) if (!p.boqStatus) p.boqStatus = 'draft';
+  // Phases: every project gets at least one. Pre-phase data migrates to a single "Phase 1"
+  // carrying the project's old boqStatus; all that project's BoQ items land in it.
+  if (!Array.isArray(d.phases)) d.phases = [];
+  if (Array.isArray(d.projects)) for (const p of d.projects) {
+    if (!d.phases.some((ph) => ph.projectId === p.id)) {
+      d.phases.push({ id: 'ph-' + p.id, projectId: p.id, name: 'Phase 1', order: 0, boqStatus: p.boqStatus || 'draft', createdAt: nowISO() });
+    }
+  }
+  const firstPhaseOf = {};
+  for (const p of (d.projects || [])) {
+    firstPhaseOf[p.id] = d.phases.filter((x) => x.projectId === p.id).sort((a, b) => (a.order ?? 0) - (b.order ?? 0))[0]?.id;
+  }
   if (Array.isArray(d.boqItems)) for (const b of d.boqItems) {
     if (!b.budgetBasis) b.budgetBasis = 'quantity';
     if (b.allowanceAmount == null) b.allowanceAmount = 0;
+    if (!b.phaseId) b.phaseId = firstPhaseOf[b.projectId];
   }
+  const phaseOfItem = Object.fromEntries((d.boqItems || []).map((b) => [b.id, b.phaseId]));
+  for (const s of (d.boqStaged || [])) if (!s.phaseId) s.phaseId = (s.boqItemId && phaseOfItem[s.boqItemId]) || firstPhaseOf[s.projectId];
+  for (const e of (d.boqEdits || [])) if (!e.phaseId) e.phaseId = firstPhaseOf[e.projectId];
+  if (Array.isArray(d.prs)) for (const p of d.prs) if (p.phaseId == null) p.phaseId = (p.boqItemId && phaseOfItem[p.boqItemId]) || null;
   if (Array.isArray(d.prs) && Array.isArray(d.boqItems)) {
     const projOf = Object.fromEntries(d.boqItems.map((b) => [b.id, b.projectId]));
     for (const p of d.prs) if (p.projectId == null && p.boqItemId) p.projectId = projOf[p.boqItemId] || null;
@@ -72,7 +89,9 @@ const makeCrud = (setDb, key, prefix, defaults) => ({
 
 export function StoreProvider({ children }) {
   const [db, setDb] = useState(load);
-  const [currentProjectId, setCurrentProjectId] = useState(() => load().projects[0]?.id);
+  const [currentProjectId, setCurrentProjectIdRaw] = useState(() => load().projects[0]?.id);
+  const [currentPhaseId, setCurrentPhaseId] = useState('__all');   // '__all' = whole project
+  const setCurrentProjectId = useCallback((id) => { setCurrentProjectIdRaw(id); setCurrentPhaseId('__all'); }, []);
 
   useEffect(() => {
     try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) { /* quota */ }
@@ -214,61 +233,64 @@ export function StoreProvider({ children }) {
       prs: d.prs.filter((pr) => pr.boqItemId !== id), // drop any orders tied to the removed line
     }));
   }, []);
-  // Finalize a project's BoQ: draft → working (one-way). Enables deliberate edits + ordering.
-  const finalizeBoq = useCallback((projectId) => {
-    setDb((d) => ({ ...d, projects: d.projects.map((pj) => pj.id === projectId ? { ...pj, boqStatus: 'working' } : pj) }));
+  // Finalize a phase's BoQ: draft → working (one-way). Each phase finalizes independently.
+  const finalizePhase = useCallback((phaseId) => {
+    setDb((d) => ({ ...d, phases: d.phases.map((ph) => ph.id === phaseId ? { ...ph, boqStatus: 'working' } : ph) }));
   }, []);
 
-  // ---- Phase 2: staged BoQ edits (working phase) + commit to append-only history ----
-  const stageBoqModify = useCallback((projectId, boqItemId, patch) => {
+  // ---- staged BoQ edits (per phase) + commit to append-only history ----
+  const projOfPhase = (d, phaseId) => d.phases.find((ph) => ph.id === phaseId)?.projectId || null;
+
+  const stageBoqModify = useCallback((phaseId, boqItemId, patch) => {
     setDb((d) => {
       const base = d.boqItems.find((b) => b.id === boqItemId);
       if (!base) return d;
-      const existing = d.boqStaged.find((s) => s.projectId === projectId && s.type === 'modify' && s.boqItemId === boqItemId);
+      const existing = d.boqStaged.find((s) => s.phaseId === phaseId && s.type === 'modify' && s.boqItemId === boqItemId);
       const merged = { ...(existing?.patch || {}), ...patch };
       const net = {};
       for (const k of Object.keys(merged)) if ((base[k] ?? null) !== (merged[k] ?? null)) net[k] = merged[k];
-      const others = d.boqStaged.filter((s) => !(s.projectId === projectId && s.type === 'modify' && s.boqItemId === boqItemId));
-      const deleted = d.boqStaged.some((s) => s.projectId === projectId && s.type === 'delete' && s.boqItemId === boqItemId);
+      const others = d.boqStaged.filter((s) => !(s.phaseId === phaseId && s.type === 'modify' && s.boqItemId === boqItemId));
+      const deleted = d.boqStaged.some((s) => s.phaseId === phaseId && s.type === 'delete' && s.boqItemId === boqItemId);
       if (deleted || Object.keys(net).length === 0) return { ...d, boqStaged: others };
-      return { ...d, boqStaged: [...others, { projectId, type: 'modify', boqItemId, patch: net }] };
+      return { ...d, boqStaged: [...others, { phaseId, projectId: projOfPhase(d, phaseId), type: 'modify', boqItemId, patch: net }] };
     });
   }, []);
 
-  const stageBoqAdd = useCallback((projectId, fields) => {
+  const stageBoqAdd = useCallback((phaseId, fields) => {
     const tempId = uid('stg');
-    setDb((d) => ({ ...d, boqStaged: [...d.boqStaged, { projectId, type: 'add', tempId, fields: pickFields(fields, BOQ_FIELD_KEYS) }] }));
+    setDb((d) => ({ ...d, boqStaged: [...d.boqStaged, { phaseId, projectId: projOfPhase(d, phaseId), type: 'add', tempId, fields: pickFields(fields, BOQ_FIELD_KEYS) }] }));
     return tempId;
   }, []);
 
-  const editStagedAdd = useCallback((projectId, tempId, patch) => {
+  const editStagedAdd = useCallback((phaseId, tempId, patch) => {
     setDb((d) => ({ ...d, boqStaged: d.boqStaged.map((s) =>
-      (s.projectId === projectId && s.type === 'add' && s.tempId === tempId) ? { ...s, fields: { ...s.fields, ...patch } } : s) }));
+      (s.phaseId === phaseId && s.type === 'add' && s.tempId === tempId) ? { ...s, fields: { ...s.fields, ...patch } } : s) }));
   }, []);
 
-  const stageBoqDelete = useCallback((projectId, boqItemId, { deletePrs = false } = {}) => {
+  const stageBoqDelete = useCallback((phaseId, boqItemId, { deletePrs = false } = {}) => {
     setDb((d) => {
-      const others = d.boqStaged.filter((s) => !(s.projectId === projectId && s.boqItemId === boqItemId && (s.type === 'modify' || s.type === 'delete')));
-      return { ...d, boqStaged: [...others, { projectId, type: 'delete', boqItemId, deletePrs }] };
+      const others = d.boqStaged.filter((s) => !(s.phaseId === phaseId && s.boqItemId === boqItemId && (s.type === 'modify' || s.type === 'delete')));
+      return { ...d, boqStaged: [...others, { phaseId, projectId: projOfPhase(d, phaseId), type: 'delete', boqItemId, deletePrs }] };
     });
   }, []);
 
-  const unstageBoq = useCallback((projectId, ref) => {
+  const unstageBoq = useCallback((phaseId, ref) => {
     setDb((d) => ({ ...d, boqStaged: d.boqStaged.filter((s) => {
-      if (s.projectId !== projectId) return true;
+      if (s.phaseId !== phaseId) return true;
       if (ref.tempId) return s.tempId !== ref.tempId;
       return !(s.type === ref.type && s.boqItemId === ref.boqItemId);
     }) }));
   }, []);
 
-  const discardBoqStaged = useCallback((projectId) => {
-    setDb((d) => ({ ...d, boqStaged: d.boqStaged.filter((s) => s.projectId !== projectId) }));
+  const discardBoqStaged = useCallback((phaseId) => {
+    setDb((d) => ({ ...d, boqStaged: d.boqStaged.filter((s) => s.phaseId !== phaseId) }));
   }, []);
 
-  const commitBoqStaged = useCallback((projectId, message) => {
+  const commitBoqStaged = useCallback((phaseId, message) => {
     setDb((d) => {
-      const staged = d.boqStaged.filter((s) => s.projectId === projectId);
+      const staged = d.boqStaged.filter((s) => s.phaseId === phaseId);
       if (staged.length === 0) return d;
+      const projectId = projOfPhase(d, phaseId);
       const byId = Object.fromEntries(d.boqItems.map((b) => [b.id, b]));
       const changes = [];
       let boqItems = [...d.boqItems];
@@ -277,7 +299,7 @@ export function StoreProvider({ children }) {
         if (sg.type === 'add') {
           const id = uid('b');
           const fields = pickFields(sg.fields, BOQ_FIELD_KEYS);
-          boqItems = [...boqItems, { id, projectId, ...fields, audit: [{ at: nowISO(), change: 'added' }] }];
+          boqItems = [...boqItems, { id, projectId, phaseId, ...fields, audit: [{ at: nowISO(), change: 'added' }] }];
           changes.push({ type: 'add', boqItemId: id, after: fields });
         } else if (sg.type === 'modify') {
           const base = byId[sg.boqItemId];
@@ -290,21 +312,63 @@ export function StoreProvider({ children }) {
           const base = byId[sg.boqItemId];
           boqItems = boqItems.filter((b) => b.id !== sg.boqItemId);
           if (sg.deletePrs) {
-            prs = prs.filter((p) => p.boqItemId !== sg.boqItemId);     // remove its orders too
+            prs = prs.filter((p) => p.boqItemId !== sg.boqItemId);
           } else {
             prs = prs.map((p) => p.boqItemId === sg.boqItemId
-              ? { ...p, boqItemId: null, projectId: p.projectId || projectId }  // keep, now extra
+              ? { ...p, boqItemId: null, projectId: p.projectId || projectId }
               : p);
           }
           changes.push({ type: 'delete', boqItemId: sg.boqItemId, before: pickFields(base || {}, BOQ_FIELD_KEYS), keptPrs: !sg.deletePrs });
         }
       }
       const entry = {
-        id: uid('edit'), projectId, at: nowISO(),
+        id: uid('edit'), projectId, phaseId, at: nowISO(),
         author: { id: d.currentUser?.id, name: d.currentUser?.name },
         message: (message || '').trim(), changes,
       };
-      return { ...d, boqItems, prs, boqStaged: d.boqStaged.filter((s) => s.projectId !== projectId), boqEdits: [...d.boqEdits, entry] };
+      return { ...d, boqItems, prs, boqStaged: d.boqStaged.filter((s) => s.phaseId !== phaseId), boqEdits: [...d.boqEdits, entry] };
+    });
+  }, []);
+
+  // ---- Phase CRUD ----
+  const addPhase = useCallback((projectId, name) => {
+    const id = uid('ph');
+    setDb((d) => {
+      const order = Math.max(-1, ...d.phases.filter((p) => p.projectId === projectId).map((p) => p.order ?? 0)) + 1;
+      return { ...d, phases: [...d.phases, { id, projectId, name: (name || 'New phase').trim(), order, boqStatus: 'draft', createdAt: nowISO() }] };
+    });
+    return id;
+  }, []);
+  const updatePhase = useCallback((id, patch) => {
+    setDb((d) => ({ ...d, phases: d.phases.map((p) => p.id === id ? { ...p, ...patch, name: patch.name != null ? (patch.name.trim() || p.name) : p.name } : p) }));
+  }, []);
+  const reorderPhase = useCallback((id, dir) => {
+    setDb((d) => {
+      const ph = d.phases.find((p) => p.id === id);
+      if (!ph) return d;
+      const sibs = d.phases.filter((p) => p.projectId === ph.projectId).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+      const i = sibs.findIndex((p) => p.id === id);
+      const j = i + dir;
+      if (j < 0 || j >= sibs.length) return d;
+      const a = sibs[i], b = sibs[j];
+      return { ...d, phases: d.phases.map((p) => p.id === a.id ? { ...p, order: b.order ?? 0 } : p.id === b.id ? { ...p, order: a.order ?? 0 } : p) };
+    });
+  }, []);
+  // Delete a phase: blocked if it's the last one in a project. Cascades its BoQ items,
+  // their PRs, and any staged/committed history (kept simple — hard delete, with UI confirm).
+  const deletePhase = useCallback((id) => {
+    setDb((d) => {
+      const ph = d.phases.find((p) => p.id === id);
+      if (!ph) return d;
+      if (d.phases.filter((p) => p.projectId === ph.projectId).length <= 1) return d; // keep ≥1
+      const itemIds = new Set(d.boqItems.filter((b) => b.phaseId === id).map((b) => b.id));
+      return {
+        ...d,
+        phases: d.phases.filter((p) => p.id !== id),
+        boqItems: d.boqItems.filter((b) => b.phaseId !== id),
+        prs: d.prs.filter((p) => !(p.boqItemId && itemIds.has(p.boqItemId))),
+        boqStaged: d.boqStaged.filter((s) => s.phaseId !== id),
+      };
     });
   }, []);
 
@@ -374,15 +438,17 @@ export function StoreProvider({ children }) {
       const prIds = new Set(prs.map((pr) => pr.id));
       const boqStaged = (d.boqStaged || []).filter((sg) => sg.projectId === id);
       const boqEdits = (d.boqEdits || []).filter((e) => e.projectId === id);
+      const phases = (d.phases || []).filter((ph) => ph.projectId === id);
       const summary = `Project · ${proj.code || proj.name}${proj.code ? ` — ${proj.name}` : ''}`;
       return {
         ...d,
         projects: d.projects.filter((x) => x.id !== id),
+        phases: (d.phases || []).filter((ph) => ph.projectId !== id),
         boqItems: d.boqItems.filter((b) => b.projectId !== id),
         prs: d.prs.filter((pr) => !prIds.has(pr.id)),
         boqStaged: (d.boqStaged || []).filter((sg) => sg.projectId !== id),
         boqEdits: (d.boqEdits || []).filter((e) => e.projectId !== id),
-        trash: [trashEntry('project', summary, { projects: [proj], boqItems, prs, boqStaged, boqEdits }), ...(d.trash || [])],
+        trash: [trashEntry('project', summary, { projects: [proj], phases, boqItems, prs, boqStaged, boqEdits }), ...(d.trash || [])],
       };
     });
   }, []);
@@ -437,6 +503,7 @@ export function StoreProvider({ children }) {
       const rec = {
         id,
         projectId,
+        phaseId: boqItem ? boqItem.phaseId : (pr.phaseId && pr.phaseId !== '__all' ? pr.phaseId : null),
         boqItemId: pr.boqItemId || null,              // null = extra (not in the BoQ plan)
         brandId: pr.brandId || null,                  // which brand was actually bought (optional)
         materialId: boqItem ? boqItem.materialId : pr.materialId,  // inherited if linked, else explicit
@@ -534,9 +601,10 @@ export function StoreProvider({ children }) {
   }, []);
 
   const value = useMemo(() => ({
-    db, currentProjectId, setCurrentProjectId,
+    db, currentProjectId, setCurrentProjectId, currentPhaseId, setCurrentPhaseId,
     addMaterial, updateMaterial, addAlias, removeAlias,
-    addBoqItem, updateBoqItem, patchBoqItem, deleteBoqItem, finalizeBoq,
+    addBoqItem, updateBoqItem, patchBoqItem, deleteBoqItem, finalizePhase,
+    addPhase, updatePhase, reorderPhase, deletePhase,
     stageBoqModify, stageBoqAdd, editStagedAdd, stageBoqDelete, unstageBoq, discardBoqStaged, commitBoqStaged,
     addSupplier,
     addBrand, updateBrand, deleteBrand,
@@ -548,8 +616,9 @@ export function StoreProvider({ children }) {
     addPr, updatePr, setPrStatus, deletePr,
     importData,
     resetDb,
-  }), [db, currentProjectId, addMaterial, updateMaterial, addAlias, removeAlias,
-    addBoqItem, updateBoqItem, patchBoqItem, deleteBoqItem, finalizeBoq,
+  }), [db, currentProjectId, currentPhaseId, addMaterial, updateMaterial, addAlias, removeAlias,
+    addBoqItem, updateBoqItem, patchBoqItem, deleteBoqItem, finalizePhase,
+    addPhase, updatePhase, reorderPhase, deletePhase,
     stageBoqModify, stageBoqAdd, editStagedAdd, stageBoqDelete, unstageBoq, discardBoqStaged, commitBoqStaged, addSupplier, addBrand, updateBrand, deleteBrand, softDeletePr, softDeleteMaterial, softDeleteMaterialType, softDeleteProject, restoreTrash, purgeTrash, addMaterialType, updateMaterialType, addProject, updateProject, addProjectType, deleteProjectType, addPrStatus, updatePrStatus, reorderPrStatus, retirePrStatus, restorePrStatus, addMandor, updateMandor, deleteMandor,
     addUser, updateUser, deleteUser,
     addPr, updatePr, setPrStatus, deletePr, importData, resetDb]);
@@ -567,4 +636,15 @@ export function useStore() {
 export function useProject() {
   const { db, currentProjectId } = useStore();
   return db.projects.find((p) => p.id === currentProjectId) || db.projects[0];
+}
+
+// Phases of the current project, ordered. `currentPhaseId` may be '__all'.
+export function useProjectPhases() {
+  const { db, currentProjectId } = useStore();
+  return (db.phases || []).filter((ph) => ph.projectId === currentProjectId).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+}
+export function useCurrentPhase() {
+  const { db, currentPhaseId } = useStore();
+  if (!currentPhaseId || currentPhaseId === '__all') return null;
+  return (db.phases || []).find((ph) => ph.id === currentPhaseId) || null;
 }

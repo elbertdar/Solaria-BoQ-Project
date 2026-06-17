@@ -9,8 +9,9 @@ import NumberInput from './NumberInput.jsx';
 import ComboBox from './ComboBox.jsx';
 import { dnum } from './boqShared.jsx';
 
-export default function BoqModal({ item, onClose }) {
-  const { db, currentProjectId, addMaterial, addMandor, stageBoqAdd, stageBoqModify, editStagedAdd, stageBoqDelete, unstageBoq } = useStore();
+export default function BoqModal({ item, phaseId: phaseIdProp = null, onClose }) {
+  const { db, currentProjectId, currentPhaseId, addMaterial, addMandor, stageBoqAdd, stageBoqModify, editStagedAdd, stageBoqDelete, unstageBoq } = useStore();
+  const phaseId = phaseIdProp || item?.phaseId || currentPhaseId;
   const editing = !!item;
   const isAdd = !!item?.__isAdd;
   const linkedPrs = (editing && !isAdd) ? prsForBoqItem(db, item.id) : [];
@@ -83,10 +84,10 @@ export default function BoqModal({ item, onClose }) {
       leadTimeDays: allowance ? null : (leadOverride === '' ? null : Number(leadOverride)),
     };
     if (editing) {
-      if (isAdd) editStagedAdd(currentProjectId, item.id, patch);
-      else stageBoqModify(currentProjectId, item.id, patch);
+      if (isAdd) editStagedAdd(phaseId, item.id, patch);
+      else stageBoqModify(phaseId, item.id, patch);
     } else {
-      stageBoqAdd(currentProjectId, patch);
+      stageBoqAdd(phaseId, patch);
     }
     onClose();
   }
@@ -107,8 +108,8 @@ export default function BoqModal({ item, onClose }) {
             </span>
             <button className="btn ghost" onClick={() => setConfirmingDelete(false)}>Keep</button>
             <button className="btn danger" onClick={() => {
-              if (isAdd) unstageBoq(currentProjectId, { tempId: item.id });
-              else stageBoqDelete(currentProjectId, item.id, { deletePrs: deleteLinkedPrs });
+              if (isAdd) unstageBoq(phaseId, { tempId: item.id });
+              else stageBoqDelete(phaseId, item.id, { deletePrs: deleteLinkedPrs });
               onClose();
             }}>{isAdd ? 'Discard row' : 'Stage removal'}</button>
           </>

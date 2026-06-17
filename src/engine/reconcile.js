@@ -38,12 +38,18 @@ export function brandBreakdown(db, prs) {
   return [...by.values()].sort((a, b) => b.qty - a.qty);
 }
 
-export function boqForProject(db, projectId) {
-  return db.boqItems.filter((b) => b.projectId === projectId);
+// Phase scope: phaseId null / '__all' = whole project; a specific id narrows to that phase.
+const allPhases = (phaseId) => !phaseId || phaseId === '__all';
+export function boqForProject(db, projectId, phaseId = null) {
+  return db.boqItems.filter((b) => b.projectId === projectId && (allPhases(phaseId) || b.phaseId === phaseId));
 }
-export function prsForProject(db, projectId) {
-  const ids = new Set(boqForProject(db, projectId).map((b) => b.id));
-  return db.prs.filter((p) => p.projectId === projectId || (p.boqItemId && ids.has(p.boqItemId)));
+export function prsForProject(db, projectId, phaseId = null) {
+  const ids = new Set(boqForProject(db, projectId, phaseId).map((b) => b.id));
+  if (allPhases(phaseId)) {
+    return db.prs.filter((p) => p.projectId === projectId || (p.boqItemId && ids.has(p.boqItemId)));
+  }
+  // a PR belongs to a phase via its BoQ line; extras (no line) via their own phaseId
+  return db.prs.filter((p) => (p.boqItemId ? ids.has(p.boqItemId) : (p.projectId === projectId && p.phaseId === phaseId)));
 }
 // A PR is "extra" (not in the BoQ plan) when it has no BoQ line — either created standalone
 // or its line was deleted and the PR kept.
@@ -87,9 +93,9 @@ export function boqLineStatus(db, boqItemId) {
 }
 
 // One reconciliation row per canonical material that appears in this project.
-export function summarizeProject(db, projectId) {
-  const boq = boqForProject(db, projectId);
-  const all = prsForProject(db, projectId);
+export function summarizeProject(db, projectId, phaseId = null) {
+  const boq = boqForProject(db, projectId, phaseId);
+  const all = prsForProject(db, projectId, phaseId);
   const linked = all.filter((p) => !isExtraPr(db, p));
   const extra = all.filter((p) => isExtraPr(db, p));
 
@@ -196,9 +202,9 @@ export function checkProspectivePr(db, { boqItemId, quantity, excludePrId }) {
 }
 
 // Rolled-up project totals for the overview KPIs.
-export function projectTotals(db, projectId) {
-  const rows = summarizeProject(db, projectId);
-  const prs = prsForProject(db, projectId);
+export function projectTotals(db, projectId, phaseId = null) {
+  const rows = summarizeProject(db, projectId, phaseId);
+  const prs = prsForProject(db, projectId, phaseId);
   return {
     budgetCost: sum(rows, (r) => r.budgetCost),
     committedCost: sum(prs.filter((p) => isCommitted(db, p.status)),
@@ -224,26 +230,26 @@ export const BOQ_FIELDS = [
   { key: 'leadTimeDays', label: 'Lead override', kind: 'num' },
 ];
 
-export function stagedForProject(db, projectId) {
-  return (db.boqStaged || []).filter((s) => s.projectId === projectId);
+export function stagedForProject(db, projectId, phaseId = null) {
+  return (db.boqStaged || []).filter((s) => (!phaseId || phaseId === '__all') ? s.projectId === projectId : s.phaseId === phaseId);
 }
-export function stagedCount(db, projectId) {
-  return stagedForProject(db, projectId).length;
+export function stagedCount(db, projectId, phaseId = null) {
+  return stagedForProject(db, projectId, phaseId).length;
 }
 
 // Committed BoQ rows with any staged changes overlaid, for the working table.
-export function boqDisplayRows(db, projectId) {
-  const staged = stagedForProject(db, projectId);
+export function boqDisplayRows(db, projectId, phaseId = null) {
+  const staged = stagedForProject(db, projectId, phaseId);
   const modifyOf = (id) => staged.find((s) => s.type === 'modify' && s.boqItemId === id);
   const deleteOf = (id) => staged.find((s) => s.type === 'delete' && s.boqItemId === id);
-  const committed = boqForProject(db, projectId).map((b) => {
+  const committed = boqForProject(db, projectId, phaseId).map((b) => {
     if (deleteOf(b.id)) return { key: b.id, id: b.id, status: 'deleted', fields: b, base: b, changedKeys: [], ref: { type: 'delete', boqItemId: b.id } };
     const mod = modifyOf(b.id);
     if (mod) return { key: b.id, id: b.id, status: 'modified', fields: { ...b, ...mod.patch }, base: b, changedKeys: Object.keys(mod.patch), ref: { type: 'modify', boqItemId: b.id } };
     return { key: b.id, id: b.id, status: 'unchanged', fields: b, base: b, changedKeys: [], ref: null };
   });
   const added = staged.filter((s) => s.type === 'add').map((s) => ({
-    key: s.tempId, id: s.tempId, status: 'added', fields: { ...s.fields, id: s.tempId, projectId }, base: null, changedKeys: [], ref: { tempId: s.tempId }, isStagedAdd: true,
+    key: s.tempId, id: s.tempId, status: 'added', fields: { ...s.fields, id: s.tempId, projectId, phaseId: s.phaseId }, base: null, changedKeys: [], ref: { tempId: s.tempId }, isStagedAdd: true,
   }));
   return [...committed, ...added];
 }

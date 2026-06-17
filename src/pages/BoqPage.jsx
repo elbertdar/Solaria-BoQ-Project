@@ -1,8 +1,8 @@
-import { useMemo, useState } from 'react';
-import { useStore, useProject } from '../store/StoreContext.jsx';
+import { useState } from 'react';
+import { useStore, useProject, useProjectPhases } from '../store/StoreContext.jsx';
 import { boqForProject, boqLineStatus, materialName, boqDisplayRows, stagedForProject } from '../engine/reconcile.js';
 import { leadTimeFor, projectStart, addDays, addBusinessDays } from '../engine/schedule.js';
-import { ProjectBar, FilterBar, FilterSearch, FilterSelect } from '../components/ui.jsx';
+import { FilterBar, FilterSearch, FilterSelect, ProjectBar } from '../components/ui.jsx';
 import Modal from '../components/Modal.jsx';
 import PrModal from '../components/PrModal.jsx';
 import NumberInput from '../components/NumberInput.jsx';
@@ -11,201 +11,224 @@ import { idr, fmtDate, num } from '../engine/format.js';
 import BoqModal from '../components/BoqModal.jsx';
 import CommitModal from '../components/CommitModal.jsx';
 import HistoryView from '../components/HistoryView.jsx';
+import ManagePhasesModal from '../components/ManagePhasesModal.jsx';
 
+const plannedOf = (b) => b.budgetBasis === 'allowance' ? (b.allowanceAmount || 0) : (b.quantity || 0) * (b.expectedUnitCost || 0);
+
+// The BoQ is drafted in phases, all on this one page: each phase is its own editable block
+// (draft spreadsheet, or staged working table once finalized), with "+ Add phase" at the
+// bottom and "Manage phases" (rename / reorder / delete) in the header. One filter bar spans
+// every block.
 export default function BoqPage() {
-  const { db, currentProjectId, patchBoqItem, addBoqItem, deleteBoqItem, finalizeBoq,
-    unstageBoq, discardBoqStaged, commitBoqStaged } = useStore();
+  const { db, currentProjectId, patchBoqItem, addBoqItem, deleteBoqItem, finalizePhase,
+    unstageBoq, discardBoqStaged, commitBoqStaged, addPhase } = useStore();
   const project = useProject();
-  const draft = project?.boqStatus !== 'working';
-  const items = boqForProject(db, currentProjectId);
+  const phases = useProjectPhases();
   const start = projectStart(db, currentProjectId);
-  const staged = stagedForProject(db, currentProjectId);
-  const projectEdits = (db.boqEdits || []).filter((e) => e.projectId === currentProjectId).slice().reverse();
-
-  const [grouped, setGrouped] = useState(true);
-  const [editItem, setEditItem] = useState(undefined);
-  const [prFor, setPrFor] = useState(null);
-  const [q, setQ] = useState('');
-  const [mandorFilter, setMandorFilter] = useState([]);
-  const [confirmingFinalize, setConfirmingFinalize] = useState(false);
-  const [showHistory, setShowHistory] = useState(false);
-  const [committing, setCommitting] = useState(false);
-  const [discardArmed, setDiscardArmed] = useState(false);
-
   const mandorName = (id) => db.mandors.find((m) => m.id === id)?.name || 'Unassigned';
 
-  const filtered = items.filter((b) => {
-    if (mandorFilter.length && !mandorFilter.includes(b.mandorId || '')) return false;
-    if (q) {
-      const hay = (materialName(db, b.materialId) + ' ' + (b.description || '')).toLowerCase();
-      if (!hay.includes(q.toLowerCase())) return false;
-    }
-    return true;
-  });
+  const [q, setQ] = useState('');
+  const [mandorFilter, setMandorFilter] = useState([]);
+  const [grouped, setGrouped] = useState(true);
 
-  // Working view rows come from the staged-overlay display set (committed + pending changes).
-  const work = useMemo(() => {
-    const rows = boqDisplayRows(db, currentProjectId).filter((r) => {
-      if (mandorFilter.length && !mandorFilter.includes(r.fields.mandorId || '')) return false;
-      if (q) {
-        const hay = (materialName(db, r.fields.materialId) + ' ' + (r.fields.description || '')).toLowerCase();
-        if (!hay.includes(q.toLowerCase())) return false;
-      }
-      return true;
-    });
-    if (!grouped) return { rows, groups: [{ key: '__all', label: null, rows }] };
-    const map = new Map();
-    for (const r of rows) { const k = r.fields.mandorId || '__none'; if (!map.has(k)) map.set(k, []); map.get(k).push(r); }
-    return { rows, groups: [...map.entries()].map(([k, rs]) => ({ key: k, label: mandorName(k), rows: rs })) };
-  }, [db.boqItems, db.boqStaged, db.materials, db.mandors, currentProjectId, q, mandorFilter, grouped]);
+  const [boqModal, setBoqModal] = useState(null);        // { item, phaseId } | null
+  const [prFor, setPrFor] = useState(null);
+  const [committingPhase, setCommittingPhase] = useState(null);
+  const [finalizingPhase, setFinalizingPhase] = useState(null);
+  const [managePhases, setManagePhases] = useState(false);
+  const [newPhaseName, setNewPhaseName] = useState('');
 
-  if (draft) {
-    return (
-      <>
-        <div className="page-head" style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-          <div>
-            <h1>Bill of Quantities</h1>
-            <p className="sub">{project.name} · Draft — shape the plan like a spreadsheet, then finalize</p>
-          </div>
-          <button className="btn primary" onClick={() => setConfirmingFinalize(true)}>Finalize BoQ</button>
-        </div>
+  const addPhaseNow = () => { const n = newPhaseName.trim(); if (!n) return; addPhase(currentProjectId, n); setNewPhaseName(''); };
 
-        <FilterBar shown={filtered.length} total={items.length} unit="items">
-          <ProjectBar embedded />
-          <FilterSearch value={q} onChange={setQ} placeholder="Search material or description…" />
-        </FilterBar>
+  const norm = q.trim().toLowerCase();
+  const matchF = (f) => (!mandorFilter.length || mandorFilter.includes(f.mandorId || ''))
+    && (!norm || (materialName(db, f.materialId) + ' ' + (f.description || '')).toLowerCase().includes(norm));
 
-        <div className="banner" style={{ background: '#FFFBEB', border: '1px solid #FDE9C8', color: '#92660C', borderRadius: 10, padding: '11px 14px', marginBottom: 14, fontSize: 13.3 }}>
-          <b>Draft.</b> Add, edit, and delete rows freely — changes apply as you type. Finalize to lock this as the project’s BoQ and begin raising purchase orders. Ordering stays disabled until then.
-        </div>
+  // page-wide counts across every phase (committed + staged display rows)
+  const allRows = phases.flatMap((ph) => boqDisplayRows(db, currentProjectId, ph.id));
+  const shownCount = allRows.filter((r) => matchF(r.fields)).length;
 
-        <div className="card">
-          <div className="card-body flush">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Material</th><th>Description</th><th>Mandor</th>
-                  <th className="num">Qty</th><th>Unit</th><th className="num">Exp. unit cost</th>
-                  <th className="num">Needed (day)</th><th className="num">Order by</th><th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((b) => (
-                  <DraftRow key={b.id} b={b} db={db} start={start} onPatch={patchBoqItem} onDelete={deleteBoqItem} />
-                ))}
-                {filtered.length === 0 && (
-                  <tr><td colSpan={9}><div className="empty">{items.length === 0 ? 'Empty BoQ — add the first row.' : 'No rows match your search.'}</div></td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
-          <button className="btn" onClick={() => addBoqItem({ projectId: currentProjectId, budgetBasis: 'quantity', materialId: '', description: '', quantity: 0, unit: '', expectedUnitCost: 0, neededDayOffset: 0, mandorId: '' })}>+ Add row</button>
-          <button className="btn ghost" onClick={() => addBoqItem({ projectId: currentProjectId, budgetBasis: 'allowance', materialId: '', description: '', quantity: 0, unit: '', expectedUnitCost: 0, allowanceAmount: 0, neededDayOffset: null, mandorId: '' })}>+ Add allowance</button>
-        </div>
-
-        {confirmingFinalize && (
-          <Modal title="Finalize BoQ" onClose={() => setConfirmingFinalize(false)}
-            footer={<>
-              <button className="btn ghost" onClick={() => setConfirmingFinalize(false)}>Cancel</button>
-              <button className="btn primary" onClick={() => { finalizeBoq(currentProjectId); setConfirmingFinalize(false); }}>Finalize</button>
-            </>}>
-            <p style={{ marginTop: 0 }}>Lock <b>{project.name}</b>’s BoQ as the working plan?</p>
-            <p className="help" style={{ marginBottom: 0 }}>After finalizing, editing becomes deliberate (via the Edit button) and you can start raising purchase orders against these lines. You can’t return to draft.</p>
-          </Modal>
-        )}
-      </>
-    );
-  }
+  const committingStaged = committingPhase ? stagedForProject(db, currentProjectId, committingPhase) : [];
+  const finalizing = finalizingPhase ? phases.find((p) => p.id === finalizingPhase) : null;
 
   return (
     <>
       <div className="page-head" style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
         <div>
           <h1>Bill of Quantities</h1>
-          <p className="sub">{project.name} · the material plan — edits are staged, then committed together</p>
+          <p className="sub">{project.name} · drafted in phases — edit each below, finalize when ready</p>
         </div>
-        {!showHistory && <button className="btn primary" onClick={() => setEditItem(null)}>+ Add BoQ item</button>}
+        <button className="btn ghost" onClick={() => setManagePhases(true)}>Manage phases</button>
       </div>
 
-      <div className="seg" style={{ marginBottom: 14 }}>
-        <button className={!showHistory ? 'active' : ''} onClick={() => setShowHistory(false)}>Items</button>
-        <button className={showHistory ? 'active' : ''} onClick={() => setShowHistory(true)}>Edit history{projectEdits.length ? ` (${projectEdits.length})` : ''}</button>
+      <FilterBar shown={shownCount} total={allRows.length} unit="items">
+        <ProjectBar embedded />
+        <FilterSearch value={q} onChange={setQ} placeholder="Search material or description…" />
+        <FilterSelect value={mandorFilter} onChange={setMandorFilter} allLabel="All mandors"
+          options={db.mandors.map((m) => ({ value: m.id, label: m.name }))} />
+        <label className="toggle" style={{ whiteSpace: 'nowrap' }}>
+          <input type="checkbox" checked={grouped} onChange={(e) => setGrouped(e.target.checked)} />
+          Group by mandor
+        </label>
+      </FilterBar>
+
+      {phases.map((ph) => (
+        <PhaseBlock key={ph.id} phase={ph} db={db} start={start} matchF={matchF} grouped={grouped} mandorName={mandorName}
+          onPatch={patchBoqItem} onAddItem={addBoqItem} onDeleteItem={deleteBoqItem}
+          onEdit={(item) => setBoqModal({ item, phaseId: ph.id })}
+          onAdd={() => setBoqModal({ item: null, phaseId: ph.id })}
+          onRaisePr={(item) => setPrFor(item)}
+          onUndo={(ref) => unstageBoq(ph.id, ref)}
+          onDiscard={() => discardBoqStaged(ph.id)}
+          onCommit={() => setCommittingPhase(ph.id)}
+          onFinalize={() => setFinalizingPhase(ph.id)} />
+      ))}
+
+      <div style={{ display: 'flex', gap: 6, marginTop: 4, marginBottom: 30, maxWidth: 440 }}>
+        <input className="input" value={newPhaseName} placeholder="New phase name — e.g. Interior fit-out" style={{ flex: 1 }}
+          onChange={(e) => setNewPhaseName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') addPhaseNow(); }} />
+        <button className="btn primary" onClick={addPhaseNow} disabled={!newPhaseName.trim()}>+ Add phase</button>
       </div>
 
-      {showHistory ? (
-        <HistoryView edits={projectEdits} db={db} />
-      ) : (
-        <>
-          <FilterBar shown={work.rows.length} total={boqDisplayRows(db, currentProjectId).length} unit="items">
-            <ProjectBar embedded />
-            <FilterSearch value={q} onChange={setQ} placeholder="Search material or description…" />
-            <FilterSelect value={mandorFilter} onChange={setMandorFilter} allLabel="All mandors"
-              options={db.mandors.map((m) => ({ value: m.id, label: m.name }))} />
-            <label className="toggle" style={{ whiteSpace: 'nowrap' }}>
-              <input type="checkbox" checked={grouped} onChange={(e) => setGrouped(e.target.checked)} />
-              Group by mandor
-            </label>
-          </FilterBar>
-
-          {staged.length > 0 && (
-            <div className="banner" style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', color: '#1E40AF', borderRadius: 10, padding: '10px 14px', marginBottom: 14, fontSize: 13.3, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-              <b>{staged.length} uncommitted change{staged.length > 1 ? 's' : ''}</b>
-              <span style={{ opacity: 0.85 }}>— staged on the plan, not yet committed.</span>
-              <span style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
-                {discardArmed ? (
-                  <>
-                    <span style={{ color: 'var(--risk)' }}>Discard all?</span>
-                    <button className="btn sm danger" onClick={() => { discardBoqStaged(currentProjectId); setDiscardArmed(false); }}>Confirm discard</button>
-                    <button className="btn sm ghost" onClick={() => setDiscardArmed(false)}>Keep</button>
-                  </>
-                ) : (
-                  <>
-                    <button className="btn sm ghost" onClick={() => setDiscardArmed(true)}>Discard</button>
-                    <button className="btn sm primary" onClick={() => setCommitting(true)}>Review &amp; commit</button>
-                  </>
-                )}
-              </span>
-            </div>
-          )}
-
-          <div className="card">
-            <div className="card-body flush">
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Material</th><th>Description</th>
-                    <th className="num">Qty</th><th>Unit</th><th className="num">Exp. unit cost</th>
-                    <th className="num">Needed</th><th className="num">Order by</th><th>Status</th><th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {work.groups.map((g) => (
-                    <Group key={g.key} g={g} db={db} grouped={grouped} start={start}
-                      onEdit={(r) => setEditItem({ ...r.fields, __ref: r.ref, __isAdd: !!r.isStagedAdd })}
-                      onRaisePr={(r) => setPrFor(db.boqItems.find((b) => b.id === r.id))}
-                      onUndo={(r) => unstageBoq(currentProjectId, r.ref)} />
-                  ))}
-                  {work.rows.length === 0 && (
-                    <tr><td colSpan={9}><div className="empty">{items.length === 0 && staged.length === 0 ? 'No BoQ items yet. Add the first line item to begin.' : 'No items match these filters.'}</div></td></tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </>
-      )}
-
-      {editItem !== undefined && <BoqModal item={editItem} onClose={() => setEditItem(undefined)} />}
+      {boqModal && <BoqModal item={boqModal.item} phaseId={boqModal.phaseId} onClose={() => setBoqModal(null)} />}
       {prFor && <PrModal boqItem={prFor} onClose={() => setPrFor(null)} />}
-      {committing && <CommitModal db={db} staged={staged} projectId={currentProjectId}
-        onCommit={(msg) => { commitBoqStaged(currentProjectId, msg); setCommitting(false); }}
-        onClose={() => setCommitting(false)} />}
+      {committingPhase && <CommitModal db={db} staged={committingStaged} projectId={currentProjectId}
+        onCommit={(msg) => { commitBoqStaged(committingPhase, msg); setCommittingPhase(null); }}
+        onClose={() => setCommittingPhase(null)} />}
+      {managePhases && <ManagePhasesModal onClose={() => setManagePhases(false)} />}
+      {finalizing && (
+        <Modal title="Finalize phase" onClose={() => setFinalizingPhase(null)}
+          footer={<>
+            <button className="btn ghost" onClick={() => setFinalizingPhase(null)}>Cancel</button>
+            <button className="btn primary" onClick={() => { finalizePhase(finalizing.id); setFinalizingPhase(null); }}>Finalize</button>
+          </>}>
+          <p style={{ marginTop: 0 }}>Lock <b>{project.name} &middot; {finalizing.name}</b> as a working plan?</p>
+          <p className="help" style={{ marginBottom: 0 }}>After finalizing, edits to this phase are staged then committed, and you can raise purchase orders against its lines. You can&rsquo;t return it to draft.</p>
+        </Modal>
+      )}
     </>
   );
 }
+
+// One phase, fully editable inline. Draft → live spreadsheet; Working → committed + staged table.
+function PhaseBlock({ phase, db, start, matchF, grouped, mandorName, onPatch, onAddItem, onDeleteItem, onEdit, onAdd, onRaisePr, onUndo, onDiscard, onCommit, onFinalize }) {
+  const draft = phase.boqStatus !== 'working';
+  const [showHistory, setShowHistory] = useState(false);
+  const [discardArmed, setDiscardArmed] = useState(false);
+  const pid = phase.projectId;
+
+  const allItems = boqForProject(db, pid, phase.id);
+  const planned = allItems.reduce((s, b) => s + plannedOf(b), 0);
+
+  const head = (
+    <div className="card-head" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+      <span className="pdot" style={{ width: 8, height: 8, borderRadius: '50%', background: draft ? 'var(--muted)' : 'var(--ok)' }} />
+      <h2 style={{ margin: 0 }}>{phase.name}</h2>
+      <span className={'pill ' + (draft ? 'gray' : 'ok')}>{draft ? 'Draft' : 'Working'}</span>
+      <span className="muted" style={{ fontSize: 12.5 }}>{allItems.length} item{allItems.length === 1 ? '' : 's'} &middot; {idr(planned)} planned</span>
+      <span style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+        {draft
+          ? <button className="btn sm primary" disabled={allItems.length === 0} onClick={onFinalize} title={allItems.length === 0 ? 'Add at least one item first' : 'Finalize this phase'}>Finalize phase</button>
+          : <button className="btn sm primary" onClick={onAdd}>+ Add item</button>}
+      </span>
+    </div>
+  );
+
+  if (draft) {
+    const items = allItems.filter((b) => matchF(b));
+    return (
+      <div className="card" style={{ marginBottom: 16 }}>
+        {head}
+        <div className="card-body flush">
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Material</th><th>Description</th><th>Mandor</th>
+                <th className="num">Qty</th><th>Unit</th><th className="num">Exp. unit cost</th>
+                <th className="num">Needed (day)</th><th className="num">Order by</th><th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((b) => (
+                <DraftRow key={b.id} b={b} db={db} start={start} onPatch={onPatch} onDelete={onDeleteItem} />
+              ))}
+              {items.length === 0 && (
+                <tr><td colSpan={9}><div className="empty">{allItems.length === 0 ? 'Empty phase — add the first row.' : 'No rows match your search.'}</div></td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        <div style={{ display: 'flex', gap: 8, padding: '10px 14px' }}>
+          <button className="btn" onClick={() => onAddItem({ projectId: pid, phaseId: phase.id, budgetBasis: 'quantity', materialId: '', description: '', quantity: 0, unit: '', expectedUnitCost: 0, neededDayOffset: 0, mandorId: '' })}>+ Add row</button>
+          <button className="btn ghost" onClick={() => onAddItem({ projectId: pid, phaseId: phase.id, budgetBasis: 'allowance', materialId: '', description: '', quantity: 0, unit: '', expectedUnitCost: 0, allowanceAmount: 0, neededDayOffset: null, mandorId: '' })}>+ Add allowance</button>
+        </div>
+      </div>
+    );
+  }
+
+  // working phase
+  const staged = stagedForProject(db, pid, phase.id);
+  const rows = boqDisplayRows(db, pid, phase.id).filter((r) => matchF(r.fields));
+  const groups = grouped
+    ? (() => { const m = new Map(); for (const r of rows) { const k = r.fields.mandorId || '__none'; if (!m.has(k)) m.set(k, []); m.get(k).push(r); } return [...m.entries()].map(([k, rs]) => ({ key: k, label: mandorName(k), rows: rs })); })()
+    : [{ key: '__all', label: null, rows }];
+  const phaseEdits = (db.boqEdits || []).filter((e) => e.phaseId === phase.id).slice().reverse();
+
+  return (
+    <div className="card" style={{ marginBottom: 16 }}>
+      {head}
+      {staged.length > 0 && (
+        <div className="banner" style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', color: '#1E40AF', borderRadius: 10, padding: '9px 14px', margin: '0 14px 12px', fontSize: 13.3, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <b>{staged.length} uncommitted change{staged.length > 1 ? 's' : ''}</b>
+          <span style={{ opacity: 0.85 }}>— staged, not yet committed.</span>
+          <span style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
+            {discardArmed ? (
+              <>
+                <span style={{ color: 'var(--risk)' }}>Discard all?</span>
+                <button className="btn sm danger" onClick={() => { onDiscard(); setDiscardArmed(false); }}>Confirm discard</button>
+                <button className="btn sm ghost" onClick={() => setDiscardArmed(false)}>Keep</button>
+              </>
+            ) : (
+              <>
+                <button className="btn sm ghost" onClick={() => setDiscardArmed(true)}>Discard</button>
+                <button className="btn sm primary" onClick={onCommit}>Review &amp; commit</button>
+              </>
+            )}
+          </span>
+        </div>
+      )}
+      <div className="card-body flush">
+        <table className="table">
+          <thead>
+            <tr>
+              <th>Material</th><th>Description</th>
+              <th className="num">Qty</th><th>Unit</th><th className="num">Exp. unit cost</th>
+              <th className="num">Needed</th><th className="num">Order by</th><th>Status</th><th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {groups.map((g) => (
+              <Group key={g.key} g={g} db={db} grouped={grouped} start={start}
+                onEdit={(r) => onEdit({ ...r.fields, __ref: r.ref, __isAdd: !!r.isStagedAdd })}
+                onRaisePr={(r) => onRaisePr(db.boqItems.find((b) => b.id === r.id))}
+                onUndo={(r) => onUndo(r.ref)} />
+            ))}
+            {rows.length === 0 && (
+              <tr><td colSpan={9}><div className="empty">{allItems.length === 0 && staged.length === 0 ? 'No items yet. Use “+ Add item”.' : 'No items match these filters.'}</div></td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      {phaseEdits.length > 0 && (
+        <div style={{ padding: '8px 14px 12px' }}>
+          <button className="btn sm ghost" onClick={() => setShowHistory((v) => !v)}>{showHistory ? 'Hide' : 'Show'} edit history ({phaseEdits.length})</button>
+          {showHistory && <div style={{ marginTop: 10 }}><HistoryView edits={phaseEdits} db={db} /></div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 
 function Group({ g, db, grouped, start, onEdit, onRaisePr, onUndo }) {
   return (

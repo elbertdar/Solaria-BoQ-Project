@@ -8,7 +8,7 @@ import NumberInput from './NumberInput.jsx';
 import ComboBox from './ComboBox.jsx';
 
 export default function PrModal({ pr = null, boqItem = null, onClose }) {
-  const { db, currentProjectId, addPr, updatePr, softDeletePr, addBrand, addSupplier, addMaterial, addUser } = useStore();
+  const { db, currentProjectId, currentPhaseId, addPr, updatePr, softDeletePr, addBrand, addSupplier, addMaterial, addUser } = useStore();
   const editing = !!pr;
   const raising = !editing && !!boqItem;
   const editingExtra = editing && !db.boqItems.some((b) => b.id === pr.boqItemId); // editing a PR with no live line
@@ -89,6 +89,7 @@ export default function PrModal({ pr = null, boqItem = null, onClose }) {
     const payload = {
       boqItemId: extra ? null : boqItemId,
       projectId: currentProjectId,
+      phaseId: currentPhaseId,
       materialId: effMatId,
       unit: effUnit,
       brandId: brandId || null,

@@ -2,6 +2,7 @@ import { useState, useMemo, useRef, useEffect, Fragment } from 'react';
 import { TONE } from '../theme.js';
 import { isCommitted, isReceived, statusDef } from '../engine/status.js';
 import { useStore, useProject } from '../store/StoreContext.jsx';
+import PhaseTabs from '../components/PhaseTabs.jsx';
 import { ProjectBar } from '../components/ui.jsx';
 import PrModal from '../components/PrModal.jsx';
 import ReceiveModal from '../components/ReceiveModal.jsx';
@@ -27,10 +28,10 @@ const BUCKETS = [
 const dayLabel = (o) => (o == null ? '—' : `Day ${o}`);
 
 export default function SchedulePage() {
-  const { db, currentProjectId, setPrStatus, updateProject } = useStore();
+  const { db, currentProjectId, currentPhaseId, setPrStatus, updateProject } = useStore();
   const project = useProject();
   const today = useMemo(() => todayLocal(), []);
-  const { lines, start, curOff, dayAxis } = useMemo(() => scheduleForProject(db, currentProjectId, today), [db, currentProjectId, today]);
+  const { lines, start, curOff, dayAxis } = useMemo(() => scheduleForProject(db, currentProjectId, today, currentPhaseId), [db, currentProjectId, currentPhaseId, today]);
   const counts = useMemo(() => scheduleCounts(lines), [lines]);
 
   const [filter, setFilter] = useState(null);
@@ -65,6 +66,7 @@ export default function SchedulePage() {
       </div>
 
       <ProjectBar />
+      <PhaseTabs />
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', margin: '0 0 18px', fontSize: 13, color: '#64748B' }}>
         <span>Project start</span>

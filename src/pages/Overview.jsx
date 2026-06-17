@@ -1,18 +1,22 @@
 import { useNavigate } from 'react-router-dom';
-import { useStore, useProject } from '../store/StoreContext.jsx';
+import { useStore, useProject, useCurrentPhase } from '../store/StoreContext.jsx';
+import PhaseTabs from '../components/PhaseTabs.jsx';
 import { projectTotals, projectWarnings, prsForProject, materialName } from '../engine/reconcile.js';
 import { KpiCard, AlertBanner, StatusPill, ProjectBar } from '../components/ui.jsx';
 import { idrShort, idr, fmtDate } from '../engine/format.js';
 
 export default function Overview() {
-  const { db, currentProjectId } = useStore();
+  const { db, currentProjectId, currentPhaseId } = useStore();
   const project = useProject();
-  const draft = project?.boqStatus !== 'working';
+  const phase = useCurrentPhase();
+  // 'draft' banner: a specific phase that isn't finalized, or (all phases) none finalized.
+  const phases = (db.phases || []).filter((p) => p.projectId === currentProjectId);
+  const draft = phase ? phase.boqStatus !== 'working' : !phases.some((p) => p.boqStatus === 'working');
   const nav = useNavigate();
 
-  const t = projectTotals(db, currentProjectId);
+  const t = projectTotals(db, currentProjectId, currentPhaseId);
   const warnings = projectWarnings(db, currentProjectId);
-  const recent = [...prsForProject(db, currentProjectId)]
+  const recent = [...prsForProject(db, currentProjectId, currentPhaseId)]
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
     .slice(0, 6);
 
@@ -24,6 +28,7 @@ export default function Overview() {
       </div>
 
       <ProjectBar />
+      <PhaseTabs />
 
       {warnings.length > 0 && (
         <div style={{ marginBottom: 18 }}>

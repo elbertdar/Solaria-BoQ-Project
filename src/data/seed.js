@@ -147,3 +147,13 @@ seed.projects.forEach((p, i) => { p.projectTypeId = seed.projectTypes[i % seed.p
 // Customizable PR statuses — 'ordered' and 'received' are locked (engine semantics);
 // the rest can be added / renamed / recolored / reordered / retired in the PR page.
 seed.prStatuses = DEFAULT_PR_STATUSES.map((s) => ({ ...s }));
+
+// Phases — each project's BoQ is organised into phases (e.g. Foundation, Interior) that
+// draft + finalize independently and may overlap in time. Existing data migrates to a
+// single "Phase 1" per project (see normalize). The demo seeds one phase per project and,
+// for the flagship project p-1, a second phase to show the feature; items are split across.
+seed.phases = seed.projects.map((p) => ({ id: 'ph-' + p.id, projectId: p.id, name: 'Phase 1', order: 0, boqStatus: p.boqStatus || 'draft', createdAt: '2026-04-01T00:00:00.000Z' }));
+seed.phases.push({ id: 'ph-p-1-b', projectId: 'p-1', name: 'Interior fit-out', order: 1, boqStatus: 'draft', createdAt: '2026-04-01T00:00:00.000Z' });
+seed.boqItems.forEach((b) => { b.phaseId = 'ph-' + b.projectId; });
+// move p-1's finishing items into the second phase to illustrate
+['b-3', 'b-4', 'b-5', 'b-7'].forEach((id) => { const b = seed.boqItems.find((x) => x.id === id); if (b) b.phaseId = 'ph-p-1-b'; });
