@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useStore } from '../store/StoreContext.jsx';
 import Modal from '../components/Modal.jsx';
 import { FilterBar, FilterSearch, FilterSelect } from '../components/ui.jsx';
+import ExportButton from '../components/ExportButton.jsx';
 
 export default function SuppliersPage() {
   const { db, addSupplier } = useStore();
@@ -39,7 +40,18 @@ export default function SuppliersPage() {
           <h1>Supplier Registry</h1>
           <p className="sub">Who to request quotes from — filterable by material type and location</p>
         </div>
-        <button className="btn primary" onClick={() => setAdding(true)}>+ Add supplier</button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <ExportButton table="suppliers" rows={rows} columns={[
+            { header: 'Supplier', value: (s) => s.name },
+            { header: 'Material types', value: (s) => s.materialTypeIds.map(typeName).join('; ') },
+            { header: 'Location', value: (s) => s.location },
+            { header: 'Phone', value: (s) => s.contact?.phone },
+            { header: 'Email', value: (s) => s.contact?.email },
+            { header: 'Address', value: (s) => s.contact?.address },
+            { header: 'ID', value: (s) => s.id },
+          ]} />
+          <button className="btn primary" onClick={() => setAdding(true)}>+ Add supplier</button>
+        </div>
       </div>
 
       <FilterBar shown={rows.length} total={db.suppliers.length} unit="suppliers">
