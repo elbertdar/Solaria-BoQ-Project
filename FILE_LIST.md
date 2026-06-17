@@ -3,11 +3,38 @@
 The source of truth for what files exist and where. **Updated every time we change something.**
 
 - **Last updated:** 5 Jun 2026
-- **Latest build:** All filters are now multi-select (checkbox dropdowns)
+- **Latest build:** New portfolio tab — All Purchase Requests (cross-project, fully filterable)
 
 ---
 
-## ⚠ Latest build (multi-select filters)
+## ⚠ Latest build (unified Purchase Requests)
+
+New page under **Portfolio → All Purchase Requests** (below Projects): every PR across every project
+in one table. Columns: Project · Material · Status · Qty · Unit cost · Line total · Mandor · PIC ·
+Supplier · Order · Receipt · actions, plus the expandable status-history row (now also surfaces the
+PR's note).
+
+**Filters (all multi-select):** Project, Status, PIC, **Mandor**, Supplier, plus a free-text search
+over material / project / note. Mandor isn't stored on the PR — it lives on the linked BoQ item — so
+it's resolved PR → boqItem → mandorId (extras with no line show "Unassigned"). PIC and Mandor option
+lists are built from what's actually present (with an Unassigned bucket only when relevant), so they
+stay relevant rather than listing every record. Three KPI tiles up top tally the filtered set: open
+commitments, received, and total value.
+
+Actions work cross-project: **Advance** (walks the custom status flow, routes into the receipt-date
+modal for Received) and **Edit** (sets the current project first, so PrModal loads the right BoQ /
+supplier context, then opens). Creation stays per-project (it needs BoQ context) — the subtitle says
+so. Reuses StatusPill, the multi-select FilterSelect, PrModal, and the shared ReceiveModal.
+
+**Storage unchanged — v10.** **Verified:** compile + 19-check harness (mandor-via-BoQ resolution,
+cross-project AND/OR filtering, option-list building, KPI tallies) + clean-room installer extraction
+(now 41 files; new `pages/AllPurchaseRequestsPage.jsx`).
+
+**Changed:** `App.jsx`, `components/Sidebar.jsx`, `pages/AllPurchaseRequestsPage.jsx` (new)
+
+---
+
+## Previous build (multi-select filters)
 
 Every dropdown filter across the app now lets you select **multiple values at once** (OR within a
 filter — e.g. show PRs that are Ordered *or* Received; suppliers in Jakarta *or* Surabaya).

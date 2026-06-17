@@ -1,0 +1,200 @@
+import { useState, useMemo, Fragment } from 'react';
+import { useStore } from '../store/StoreContext.jsx';
+import { materialName, isExtraPr, brandName } from '../engine/reconcile.js';
+import { StatusPill, FilterBar, FilterSearch, FilterSelect } from '../components/ui.jsx';
+import PrModal from '../components/PrModal.jsx';
+import ReceiveModal from '../components/ReceiveModal.jsx';
+import { idr, fmtDate, num } from '../engine/format.js';
+import { nextStatusId, activeStatuses, statusDef, isCommitted, isReceived } from '../engine/status.js';
+
+// Portfolio-wide PR view: every purchase request across every project in one table,
+// with cross-project filters (project, status, PIC, mandor, supplier). Mandor isn't on
+// the PR — it lives on the linked BoQ item — so it's resolved PR → boqItem → mandorId.
+// Creation stays per-project (needs BoQ context); this page is for monitoring + acting:
+// edit, advance, receive. Editing sets the current project first so PrModal has context.
+export default function AllPurchaseRequestsPage() {
+  const { db, setCurrentProjectId, setPrStatus } = useStore();
+
+  const [modal, setModal] = useState(undefined);     // undefined=closed, obj=edit
+  const [receiveFor, setReceiveFor] = useState(null);
+  const [open, setOpen] = useState(null);
+  const [q, setQ] = useState('');
+  const [projectFilter, setProjectFilter] = useState([]);
+  const [statusFilter, setStatusFilter] = useState([]);
+  const [picFilter, setPicFilter] = useState([]);
+  const [mandorFilter, setMandorFilter] = useState([]);
+  const [supplierFilter, setSupplierFilter] = useState([]);
+
+  const projName = (id) => db.projects.find((p) => p.id === id)?.name || '— no project —';
+  const supplierName = (id) => db.suppliers.find((s) => s.id === id)?.name || '—';
+  const picName = (id) => db.users.find((u) => u.id === id)?.name || '—';
+  const mandorName = (id) => db.mandors.find((m) => m.id === id)?.name || 'Unassigned';
+  const boqOf = (p) => (p.boqItemId ? db.boqItems.find((b) => b.id === p.boqItemId) : null);
+  const mandorOf = (p) => boqOf(p)?.mandorId || '';
+
+  // Rows: all live PRs (trash is a separate collection), newest first, with resolved context.
+  const rows = useMemo(() => db.prs
+    .map((p) => ({ p, mandorId: mandorOf(p) }))
+    .sort((a, b) => new Date(b.p.createdAt) - new Date(a.p.createdAt)),
+    [db.prs, db.boqItems]);
+
+  const filtered = rows.filter(({ p, mandorId }) => {
+    if (projectFilter.length && !projectFilter.includes(p.projectId)) return false;
+    if (statusFilter.length && !statusFilter.includes(p.status)) return false;
+    if (picFilter.length && !picFilter.includes(p.picId || '')) return false;
+    if (mandorFilter.length && !mandorFilter.includes(mandorId)) return false;
+    if (supplierFilter.length && !supplierFilter.includes(p.supplierPrimaryId) && !supplierFilter.includes(p.supplierSecondaryId)) return false;
+    if (q) {
+      const hay = `${materialName(db, p.materialId)} ${projName(p.projectId)} ${p.comment || ''}`.toLowerCase();
+      if (!hay.includes(q.toLowerCase())) return false;
+    }
+    return true;
+  });
+
+  // Filter option lists. PIC / mandor are built from what's actually present (incl. an
+  // "Unassigned" bucket when relevant) so the lists stay relevant, not cluttered.
+  const projectOptions = db.projects.map((p) => ({ value: p.id, label: p.name }));
+  const statusOptions = activeStatuses(db).map((s) => ({ value: s.id, label: s.label }));
+  const supplierOptions = db.suppliers.map((s) => ({ value: s.id, label: s.name }));
+  const picOptions = useMemo(() => {
+    const ids = new Set(rows.map((r) => r.p.picId || ''));
+    const opts = db.users.filter((u) => ids.has(u.id)).map((u) => ({ value: u.id, label: u.name }));
+    if (ids.has('')) opts.push({ value: '', label: 'Unassigned' });
+    return opts;
+  }, [rows, db.users]);
+  const mandorOptions = useMemo(() => {
+    const ids = new Set(rows.map((r) => r.mandorId));
+    const opts = db.mandors.filter((m) => ids.has(m.id)).map((m) => ({ value: m.id, label: m.name }));
+    if (ids.has('')) opts.push({ value: '', label: 'Unassigned' });
+    return opts;
+  }, [rows, db.mandors]);
+
+  // Headline tallies across the filtered set.
+  const tally = useMemo(() => {
+    let committed = 0, received = 0, value = 0;
+    for (const { p } of filtered) {
+      if (isReceived(db, p.status)) received++;
+      else if (isCommitted(db, p.status)) committed++;
+      value += (p.quantity || 0) * (p.unitCost || 0);
+    }
+    return { committed, received, value };
+  }, [filtered, db.prStatuses]);
+
+  function editPr(p) { setCurrentProjectId(p.projectId); setModal(p); }
+  function advance(p) {
+    const next = nextStatusId(db, p.status);
+    if (!next) return;
+    if (next === 'received') { setReceiveFor(p); return; }
+    setPrStatus(p.id, next);
+  }
+
+  return (
+    <>
+      <div className="page-head">
+        <h1>All Purchase Requests</h1>
+        <p className="sub">Every purchase request across all projects · {db.prs.length} total. Raise new PRs from a project’s BoQ.</p>
+      </div>
+
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', margin: '0 0 14px' }}>
+        <Kpi label="Open commitments" value={tally.committed} hint="ordered, not yet received" />
+        <Kpi label="Received" value={tally.received} hint="goods in" />
+        <Kpi label="Value shown" value={idr(tally.value)} hint="qty × unit cost" />
+      </div>
+
+      <FilterBar shown={filtered.length} total={rows.length} unit="PRs">
+        <FilterSearch value={q} onChange={setQ} placeholder="Search material, project, note…" width={240} />
+        <FilterSelect value={projectFilter} onChange={setProjectFilter} allLabel="All projects" width={180} options={projectOptions} />
+        <FilterSelect value={statusFilter} onChange={setStatusFilter} allLabel="All statuses" options={statusOptions} />
+        <FilterSelect value={picFilter} onChange={setPicFilter} allLabel="All PICs" width={170} options={picOptions} />
+        <FilterSelect value={mandorFilter} onChange={setMandorFilter} allLabel="All mandors" width={170} options={mandorOptions} />
+        <FilterSelect value={supplierFilter} onChange={setSupplierFilter} allLabel="All suppliers" width={180} options={supplierOptions} />
+      </FilterBar>
+
+      <div className="card">
+        <div className="card-body flush">
+          <table className="table compact">
+            <thead>
+              <tr>
+                <th style={{ width: 28 }}></th>
+                <th>Project</th><th>Material</th><th>Status</th>
+                <th className="num">Qty</th><th className="num">Unit cost</th><th className="num">Line total</th>
+                <th>Mandor</th><th>PIC</th><th>Supplier</th><th>Order</th><th>Receipt</th><th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map(({ p, mandorId }) => {
+                const isOpen = open === p.id;
+                const hist = p.statusHistory || [];
+                const next = nextStatusId(db, p.status);
+                return (
+                  <Fragment key={p.id}>
+                    <tr>
+                      <td className="num clickable" style={{ cursor: 'pointer', color: 'var(--muted, #94A3B8)' }} onClick={() => setOpen(isOpen ? null : p.id)} title="Status history">{isOpen ? '▾' : '▸'}</td>
+                      <td style={{ fontWeight: 600, whiteSpace: 'nowrap', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis' }} title={projName(p.projectId)}>{projName(p.projectId)}</td>
+                      <td className="mat-link">{materialName(db, p.materialId)}{isExtraPr(db, p) && <span className="pill" style={{ background: '#FEF3C7', color: '#92660C', border: '1px solid #FDE68A', marginLeft: 6, fontSize: 11 }}>Extra</span>}{p.brandId && <div className="muted" style={{ fontSize: 11 }}>{brandName(db, p.brandId)}</div>}</td>
+                      <td><StatusPill status={p.status} /></td>
+                      <td className="num">{num(p.quantity)} <span className="muted" style={{ fontSize: 11 }}>{p.unit}</span></td>
+                      <td className="num">{idr(p.unitCost)}</td>
+                      <td className="num">{idr(p.quantity * (p.unitCost || 0))}</td>
+                      <td style={{ whiteSpace: 'nowrap' }}>{mandorId ? mandorName(mandorId) : <span className="muted">—</span>}</td>
+                      <td style={{ whiteSpace: 'nowrap' }}>{picName(p.picId)}</td>
+                      <td>{supplierName(p.supplierPrimaryId)}{p.supplierSecondaryId && <div className="muted" style={{ fontSize: 11 }}>{supplierName(p.supplierSecondaryId)}</div>}</td>
+                      <td style={{ whiteSpace: 'nowrap' }}>{fmtDate(p.orderDate)}</td>
+                      <td style={{ whiteSpace: 'nowrap' }}>{fmtDate(p.receiptDate)}</td>
+                      <td className="num" style={{ whiteSpace: 'nowrap' }}>
+                        <button className="btn sm ghost" onClick={() => editPr(p)}>Edit</button>{' '}
+                        {next && <button className="btn sm" onClick={() => advance(p)} title={`→ ${statusDef(db, next).label}`}>Advance</button>}
+                      </td>
+                    </tr>
+                    {isOpen && (
+                      <tr><td colSpan={13} style={{ background: '#F8FAFC' }}>
+                        <div style={{ padding: '8px 10px 10px' }}>
+                          <div className="lbl" style={{ marginBottom: 6 }}>Status history{p.comment ? ' · note' : ''}</div>
+                          {p.comment && <div style={{ fontSize: 13, marginBottom: 8, color: 'var(--ink-soft)' }}>“{p.comment}”</div>}
+                          {hist.length ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                              {[...hist].reverse().map((h, i) => (
+                                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, flexWrap: 'wrap' }}>
+                                  <span className="muted" style={{ minWidth: 152, whiteSpace: 'nowrap' }}>
+                                    {fmtDate(h.at)} · {new Date(h.at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                                  </span>
+                                  {h.from ? <><StatusPill status={h.from} /><span className="muted">→</span></> : <span className="muted">created as</span>}
+                                  <StatusPill status={h.to} />
+                                  <span className="muted">· by {h.by?.name || '—'}</span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : <div className="muted" style={{ fontSize: 13 }}>No status changes recorded yet.</div>}
+                        </div>
+                      </td></tr>
+                    )}
+                  </Fragment>
+                );
+              })}
+              {filtered.length === 0 && (
+                <tr><td colSpan={13}><div className="empty">{rows.length === 0 ? 'No purchase requests anywhere yet. Raise one from a project’s BoQ.' : 'No PRs match these filters.'}</div></td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {modal !== undefined && <PrModal pr={modal} onClose={() => setModal(undefined)} />}
+      {receiveFor && (
+        <ReceiveModal title={`Mark received · ${materialName(db, receiveFor.materialId)}`}
+          onClose={() => setReceiveFor(null)}
+          onConfirm={(date) => { setPrStatus(receiveFor.id, 'received', date); setReceiveFor(null); }} />
+      )}
+    </>
+  );
+}
+
+function Kpi({ label, value, hint }) {
+  return (
+    <div style={{ flex: '1 1 160px', minWidth: 150, border: '1px solid var(--border)', borderRadius: 10, padding: '10px 14px', background: 'var(--surface)' }}>
+      <div className="muted" style={{ fontSize: 11.5, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</div>
+      <div style={{ fontSize: 20, fontWeight: 700, margin: '2px 0' }}>{value}</div>
+      <div className="muted" style={{ fontSize: 11.5 }}>{hint}</div>
+    </div>
+  );
+}
