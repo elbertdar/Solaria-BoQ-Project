@@ -15,12 +15,12 @@ export default function CataloguePage() {
   const [brandFor, setBrandFor] = useState(null);
   const [delFor, setDelFor] = useState(null);
   const [q, setQ] = useState('');
-  const [typeFilter, setTypeFilter] = useState('');
+  const [typeFilter, setTypeFilter] = useState([]);
 
   const typeName = (id) => db.materialTypes.find((t) => t.id === id)?.name || id;
 
   const filtered = db.materials.filter((m) => {
-    if (typeFilter && m.materialTypeId !== typeFilter) return false;
+    if (typeFilter.length && !typeFilter.includes(m.materialTypeId)) return false;
     if (q) {
       const hay = (m.canonicalName + ' ' + (m.aliases || []).join(' ')).toLowerCase();
       if (!hay.includes(q.toLowerCase())) return false;

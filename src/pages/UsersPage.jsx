@@ -9,12 +9,12 @@ export default function UsersPage() {
   const { db, addUser, updateUser, deleteUser } = useStore();
   const [editing, setEditing] = useState(undefined); // undefined = closed, null = new, object = edit
   const [q, setQ] = useState('');
-  const [roleFilter, setRoleFilter] = useState('');
+  const [roleFilter, setRoleFilter] = useState([]);
 
   const meId = db.currentUser?.id;
   const prCount = (id) => db.prs.filter((p) => p.picId === id).length;
   const filtered = db.users.filter((u) => {
-    if (roleFilter && u.role !== roleFilter) return false;
+    if (roleFilter.length && !roleFilter.includes(u.role)) return false;
     if (q && !u.name.toLowerCase().includes(q.toLowerCase())) return false;
     return true;
   });

@@ -18,8 +18,8 @@ export default function PurchaseRequestsPage() {
   const [modal, setModal] = useState(undefined); // undefined=closed, null=new, obj=edit
   const [receiveFor, setReceiveFor] = useState(null);
   const [q, setQ] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
-  const [supplierFilter, setSupplierFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState([]);
+  const [supplierFilter, setSupplierFilter] = useState([]);
   const [open, setOpen] = useState(null);
   const [manageStatuses, setManageStatuses] = useState(false);
 
@@ -27,8 +27,8 @@ export default function PurchaseRequestsPage() {
   const picName = (id) => db.users.find((u) => u.id === id)?.name || '—';
 
   const filtered = prs.filter((p) => {
-    if (statusFilter && p.status !== statusFilter) return false;
-    if (supplierFilter && p.supplierPrimaryId !== supplierFilter && p.supplierSecondaryId !== supplierFilter) return false;
+    if (statusFilter.length && !statusFilter.includes(p.status)) return false;
+    if (supplierFilter.length && !supplierFilter.includes(p.supplierPrimaryId) && !supplierFilter.includes(p.supplierSecondaryId)) return false;
     if (q && !materialName(db, p.materialId).toLowerCase().includes(q.toLowerCase())) return false;
     return true;
   });

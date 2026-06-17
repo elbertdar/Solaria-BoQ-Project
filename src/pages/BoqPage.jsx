@@ -8,7 +8,6 @@ import PrModal from '../components/PrModal.jsx';
 import NumberInput from '../components/NumberInput.jsx';
 import ComboBox from '../components/ComboBox.jsx';
 import { idr, fmtDate, num } from '../engine/format.js';
-import { dnum } from '../components/boqShared.jsx';
 import BoqModal from '../components/BoqModal.jsx';
 import CommitModal from '../components/CommitModal.jsx';
 import HistoryView from '../components/HistoryView.jsx';
@@ -27,7 +26,7 @@ export default function BoqPage() {
   const [editItem, setEditItem] = useState(undefined);
   const [prFor, setPrFor] = useState(null);
   const [q, setQ] = useState('');
-  const [mandorFilter, setMandorFilter] = useState('');
+  const [mandorFilter, setMandorFilter] = useState([]);
   const [confirmingFinalize, setConfirmingFinalize] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [committing, setCommitting] = useState(false);
@@ -36,7 +35,7 @@ export default function BoqPage() {
   const mandorName = (id) => db.mandors.find((m) => m.id === id)?.name || 'Unassigned';
 
   const filtered = items.filter((b) => {
-    if (mandorFilter && (b.mandorId || '') !== mandorFilter) return false;
+    if (mandorFilter.length && !mandorFilter.includes(b.mandorId || '')) return false;
     if (q) {
       const hay = (materialName(db, b.materialId) + ' ' + (b.description || '')).toLowerCase();
       if (!hay.includes(q.toLowerCase())) return false;
@@ -47,7 +46,7 @@ export default function BoqPage() {
   // Working view rows come from the staged-overlay display set (committed + pending changes).
   const work = useMemo(() => {
     const rows = boqDisplayRows(db, currentProjectId).filter((r) => {
-      if (mandorFilter && (r.fields.mandorId || '') !== mandorFilter) return false;
+      if (mandorFilter.length && !mandorFilter.includes(r.fields.mandorId || '')) return false;
       if (q) {
         const hay = (materialName(db, r.fields.materialId) + ' ' + (r.fields.description || '')).toLowerCase();
         if (!hay.includes(q.toLowerCase())) return false;
@@ -230,7 +229,6 @@ function Row({ r, db, start, onEdit, onRaisePr, onUndo }) {
   const needed = f.neededDayOffset;
   const neededDate = (start && needed != null) ? addDays(start, needed) : null;
   const orderDate = (neededDate && lead != null) ? addBusinessDays(neededDate, -lead) : null;
-  const orderDay = dnum(start, orderDate);
   const rowStyle = r.status === 'added' ? { background: '#F0FDF4' } : deleted ? { opacity: 0.55 } : undefined;
   const strike = deleted ? { textDecoration: 'line-through' } : undefined;
   const wasNum = (k, prev) => changed(k) && base && (base[k] ?? null) !== (f[k] ?? null)
@@ -258,8 +256,8 @@ function Row({ r, db, start, onEdit, onRaisePr, onUndo }) {
         </>}
       </td>
       <td className="num" style={strike}>
-        {allow ? <span className="muted">—</span> : orderDay != null
-          ? <>Day {orderDay}<div className="muted" style={{ fontSize: 11 }}>{lead}d lead{f.leadTimeDays != null ? '*' : ''}</div></>
+        {allow ? <span className="muted">—</span> : orderDate
+          ? <>{fmtDate(orderDate)}<div className="muted" style={{ fontSize: 11 }}>{lead}d lead{f.leadTimeDays != null ? '*' : ''}</div></>
           : <span className="muted">set lead time</span>}
       </td>
       <td>
@@ -299,7 +297,6 @@ function DraftRow({ b, db, start, onPatch, onDelete }) {
   const lead = b.leadTimeDays != null ? b.leadTimeDays : leadTimeFor(db, b.materialId);
   const neededDate = (start && b.neededDayOffset != null) ? addDays(start, b.neededDayOffset) : null;
   const orderDate = (neededDate && lead != null) ? addBusinessDays(neededDate, -lead) : null;
-  const orderDay = dnum(start, orderDate);
   const numOrNull = (v) => (v === '' ? null : Number(v));
   const dash = <span className="muted">—</span>;
   return (
@@ -339,7 +336,7 @@ function DraftRow({ b, db, start, onPatch, onDelete }) {
             onChange={(v) => onPatch(b.id, { expectedUnitCost: v === '' ? 0 : v })} />}</td>
       <td className="num">{allow ? dash : <input type="number" style={{ ...CELL, width: 72, textAlign: 'right' }} value={b.neededDayOffset ?? ''}
         onChange={(e) => onPatch(b.id, { neededDayOffset: numOrNull(e.target.value) })} />}</td>
-      <td className="num">{allow ? dash : orderDay != null ? <>Day {orderDay}</> : <span className="muted">—</span>}</td>
+      <td className="num">{allow ? dash : orderDate ? <>{fmtDate(orderDate)}</> : <span className="muted">—</span>}</td>
       <td className="num"><button className="btn sm ghost" style={{ color: 'var(--risk)' }} title="Delete row" onClick={() => onDelete(b.id)}>✕</button></td>
     </tr>
   );

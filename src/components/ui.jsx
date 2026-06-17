@@ -237,11 +237,50 @@ export function FilterSearch({ value, onChange, placeholder = 'Search…', width
 }
 
 // options: [{ value, label }]; allLabel renders the default "" option (e.g. "All statuses").
-export function FilterSelect({ value, onChange, options, allLabel, width = 170 }) {
+export function FilterSelect({ value = [], onChange, options, allLabel = 'All', width = 170 }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    const onKey = (e) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('mousedown', onDoc); document.removeEventListener('keydown', onKey); };
+  }, [open]);
+
+  const sel = Array.isArray(value) ? value : (value ? [value] : []);   // tolerate legacy string
+  const selSet = new Set(sel);
+  const toggle = (v) => onChange(selSet.has(v) ? sel.filter((x) => x !== v) : [...sel, v]);
+  const labelFor = (v) => options.find((o) => o.value === v)?.label ?? v;
+  const text = sel.length === 0 ? allLabel : sel.length === 1 ? labelFor(sel[0]) : `${sel.length} selected`;
+
   return (
-    <select className="input" value={value} onChange={(e) => onChange(e.target.value)} style={{ width }}>
-      {allLabel != null && <option value="">{allLabel}</option>}
-      {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-    </select>
+    <div ref={ref} style={{ position: 'relative', width }}>
+      <button type="button" className="input" onClick={() => setOpen((o) => !o)}
+        style={{ width: '100%', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', color: sel.length ? 'var(--ink)' : 'var(--muted)' }}>
+        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{text}</span>
+        {sel.length > 0 && (
+          <span role="button" title="Clear" onClick={(e) => { e.stopPropagation(); onChange([]); }}
+            style={{ color: 'var(--muted)', fontSize: 15, lineHeight: 1, padding: '0 2px' }}>×</span>
+        )}
+        <span style={{ fontSize: 9, color: 'var(--muted)' }}>▾</span>
+      </button>
+      {open && (
+        <div className="filter-pop">
+          <div className="filter-pop-item" onClick={() => onChange([])}
+            style={{ fontWeight: sel.length ? 400 : 600, color: sel.length ? 'var(--muted)' : 'var(--ink)' }}>
+            {allLabel}
+          </div>
+          {options.map((o) => (
+            <label key={o.value} className="filter-pop-item">
+              <input type="checkbox" checked={selSet.has(o.value)} onChange={() => toggle(o.value)} />
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o.label}</span>
+            </label>
+          ))}
+          {options.length === 0 && <div className="filter-pop-item" style={{ color: 'var(--muted)' }}>No options</div>}
+        </div>
+      )}
+    </div>
   );
 }

@@ -18,12 +18,12 @@ function daysLeft(deletedAt) {
 export default function TrashPage() {
   const { db, restoreTrash, purgeTrash } = useStore();
   const [q, setQ] = useState('');
-  const [entityFilter, setEntityFilter] = useState('');
+  const [entityFilter, setEntityFilter] = useState([]);
   const [confirmPurge, setConfirmPurge] = useState(null);
 
   const entries = [...(db.trash || [])].sort((a, b) => new Date(b.deletedAt) - new Date(a.deletedAt));
   const filtered = entries.filter((e) => {
-    if (entityFilter && e.entity !== entityFilter) return false;
+    if (entityFilter.length && !entityFilter.includes(e.entity)) return false;
     if (q && !e.summary.toLowerCase().includes(q.toLowerCase())) return false;
     return true;
   });

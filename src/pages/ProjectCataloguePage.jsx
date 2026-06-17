@@ -28,9 +28,9 @@ export default function ProjectCataloguePage() {
   const [manageTypes, setManageTypes] = useState(false);
   const [delFor, setDelFor] = useState(null);
   const [q, setQ] = useState('');
-  const [projectFilter, setProjectFilter] = useState('');
-  const [overFilter, setOverFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
+  const [projectFilter, setProjectFilter] = useState([]);
+  const [overFilter, setOverFilter] = useState([]);
+  const [statusFilter, setStatusFilter] = useState([]);
 
   const rows = useMemo(() => db.projects.map((p) => {
     const totals = projectTotals(db, p.id);
@@ -45,10 +45,9 @@ export default function ProjectCataloguePage() {
   const open = (id) => { setCurrentProjectId(id); nav('/overview'); };
 
   const filteredRows = rows.filter(({ p, totals, attention }) => {
-    if (projectFilter && p.id !== projectFilter) return false;
-    if (overFilter === 'over' && !(totals.materialsOver > 0)) return false;
-    if (statusFilter === 'attention' && !(attention > 0)) return false;
-    if (statusFilter === 'ontrack' && attention > 0) return false;
+    if (projectFilter.length && !projectFilter.includes(p.id)) return false;
+    if (overFilter.includes('over') && !(totals.materialsOver > 0)) return false;
+    if (statusFilter.length && !statusFilter.some((v) => (v === 'attention' ? attention > 0 : attention === 0))) return false;
     if (q) {
       const hay = (p.name + ' ' + (p.code || '') + ' ' + (p.location || '')).toLowerCase();
       if (!hay.includes(q.toLowerCase())) return false;

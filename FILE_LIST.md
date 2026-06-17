@@ -3,11 +3,51 @@
 The source of truth for what files exist and where. **Updated every time we change something.**
 
 - **Last updated:** 5 Jun 2026
-- **Latest build:** Timeline clarity — sticky label column, collapsible mandor groups, Monday gridlines, hover tracking
+- **Latest build:** All filters are now multi-select (checkbox dropdowns)
 
 ---
 
-## ⚠ Latest build (timeline clarity)
+## ⚠ Latest build (multi-select filters)
+
+Every dropdown filter across the app now lets you select **multiple values at once** (OR within a
+filter — e.g. show PRs that are Ordered *or* Received; suppliers in Jakarta *or* Surabaya).
+
+`FilterSelect` (the one shared component, used in 13 places) was rewritten from a native `<select>`
+into a checkbox **popover**: a button showing the active selection ("All …" / the single label /
+"N selected") with an inline ✕ to clear, opening a checklist that closes on outside-click or Esc.
+The "All" row at top resets. Affected filters: BoQ mandor · Catalogue material-type · Project
+catalogue (project, budget, status) · Purchase Requests (status, supplier) · Reconciliation (type,
+budget) · Suppliers (material-type, location) · Trash (entity), Team (role).
+
+Under the hood each filter's state went from a string (`''` = all) to an **array** (`[]` = all),
+with match logic switched to membership/OR. Note the JS gotcha handled throughout: an empty array
+is truthy, so every guard is now an explicit `.length` check. Multi-field cases preserved: supplier
+matches primary OR secondary; a supplier passes the type filter if it carries *any* selected
+category; the project-status filter ORs its needs-attention / on-track predicates.
+
+**Storage unchanged — v10.** **Verified:** compile + 15-check harness (membership, OR, supplier
+dual-field, semantic predicates, empty-array truthiness) + clean-room installer extraction.
+
+**Changed:** `components/ui.jsx`, `index.css`, `pages/BoqPage.jsx`, `pages/CataloguePage.jsx`,
+`pages/ProjectCataloguePage.jsx`, `pages/PurchaseRequestsPage.jsx`, `pages/ReconciliationPage.jsx`,
+`pages/SuppliersPage.jsx`, `pages/TrashPage.jsx`, `pages/UsersPage.jsx`
+
+---
+
+## Previous build (BoQ order-by date)
+
+The BoQ table's **Order by** column now shows the real calendar date (e.g. "28 Apr 2026") instead of
+"Day N". The date was already computed (project start + needed offset − lead, in business days) — the
+cells just rendered the day-offset label. Applies to both the live rows and the staged draft rows;
+the "Nd lead" sub-line is unchanged. Removed the now-dead `orderDay`/`dnum` plumbing from the page.
+
+**Storage unchanged — v10.** **Verified:** compile + clean-room installer extraction.
+
+**Changed:** `pages/BoqPage.jsx`
+
+---
+
+## Previous build (timeline clarity)
 
 **Sticky left column.** The 200px label column (header cell, mandor bands, line labels, batch
 sub-row labels) is now `position: sticky; left: 0` — it stays put while the day grid scrolls

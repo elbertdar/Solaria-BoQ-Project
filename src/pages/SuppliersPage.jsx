@@ -5,8 +5,8 @@ import { FilterBar, FilterSearch, FilterSelect } from '../components/ui.jsx';
 
 export default function SuppliersPage() {
   const { db, addSupplier } = useStore();
-  const [typeFilter, setTypeFilter] = useState('');
-  const [locationFilter, setLocationFilter] = useState('');
+  const [typeFilter, setTypeFilter] = useState([]);
+  const [locationFilter, setLocationFilter] = useState([]);
   const [q, setQ] = useState('');
   const [selected, setSelected] = useState(new Set());
   const [adding, setAdding] = useState(false);
@@ -15,8 +15,8 @@ export default function SuppliersPage() {
   const locations = useMemo(() => [...new Set(db.suppliers.map((s) => s.location).filter(Boolean))].sort(), [db.suppliers]);
 
   const rows = useMemo(() => db.suppliers.filter((s) => {
-    if (typeFilter && !s.materialTypeIds.includes(typeFilter)) return false;
-    if (locationFilter && s.location !== locationFilter) return false;
+    if (typeFilter.length && !typeFilter.some((t) => s.materialTypeIds.includes(t))) return false;
+    if (locationFilter.length && !locationFilter.includes(s.location)) return false;
     if (q) {
       const hay = (s.name + ' ' + s.location).toLowerCase();
       if (!hay.includes(q.toLowerCase())) return false;

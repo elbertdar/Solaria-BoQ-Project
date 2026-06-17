@@ -11,14 +11,14 @@ export default function ReconciliationPage() {
   const rows = useMemo(() => summarizeProject(db, currentProjectId), [db, currentProjectId]);
   const [open, setOpen] = useState(null);
   const [q, setQ] = useState('');
-  const [typeFilter, setTypeFilter] = useState('');
-  const [overFilter, setOverFilter] = useState('');
+  const [typeFilter, setTypeFilter] = useState([]);
+  const [overFilter, setOverFilter] = useState([]);
 
   const overCount = rows.filter((r) => r.isOverCommitted).length;
   const matType = (mid) => db.materials.find((m) => m.id === mid)?.materialTypeId;
   const filtered = rows.filter((r) => {
-    if (typeFilter && matType(r.materialId) !== typeFilter) return false;
-    if (overFilter === 'over' && !r.isOverCommitted) return false;
+    if (typeFilter.length && !typeFilter.includes(matType(r.materialId))) return false;
+    if (overFilter.includes('over') && !r.isOverCommitted) return false;
     if (q && !r.materialName.toLowerCase().includes(q.toLowerCase())) return false;
     return true;
   });
