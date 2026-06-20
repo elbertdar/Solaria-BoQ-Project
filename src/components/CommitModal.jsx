@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { ArrowRight, TriangleAlert } from 'lucide-react';
 import { materialName, prsForBoqItem, BOQ_FIELDS } from '../engine/reconcile.js';
 import { idr, num } from '../engine/format.js';
 import Modal from './Modal.jsx';
@@ -30,7 +31,7 @@ export default function CommitModal({ db, staged, projectId, onCommit, onClose }
                     <div key={k} style={{ display: 'flex', gap: 6, alignItems: 'baseline' }}>
                       <span className="muted" style={{ minWidth: 112 }}>{fieldMap[k].label}</span>
                       <span style={{ textDecoration: 'line-through', opacity: 0.6 }}>{fmtVal(db, fieldMap[k].kind, b?.[k])}</span>
-                      <span>→</span>
+                      <ArrowRight size={13} className="muted" style={{ alignSelf: 'center' }} />
                       <b>{fmtVal(db, fieldMap[k].kind, s.patch[k])}</b>
                     </div>
                   ))}
@@ -59,7 +60,7 @@ export default function CommitModal({ db, staged, projectId, onCommit, onClose }
               <div key={s.boqItemId} className="chip" style={{ display: 'block', padding: '8px 10px', marginBottom: 6 }}>
                 <b style={{ textDecoration: 'line-through' }}>{materialName(db, b?.materialId)}</b>
                 {prs.length > 0 && (s.deletePrs
-                  ? <span style={{ marginLeft: 8, color: 'var(--risk)', fontSize: 13 }}>⚠ also removes {prs.length} linked PR{prs.length > 1 ? 's' : ''}</span>
+                  ? <span style={{ marginLeft: 8, color: 'var(--risk)', fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 4 }}><TriangleAlert size={13} /> also removes {prs.length} linked PR{prs.length > 1 ? 's' : ''}</span>
                   : <span className="muted" style={{ marginLeft: 8, fontSize: 13 }}>{prs.length} linked PR{prs.length > 1 ? 's' : ''} kept as extra</span>)}
               </div>
             ); })}

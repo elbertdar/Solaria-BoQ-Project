@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Check, TriangleAlert, ArrowRight } from 'lucide-react';
 import { useStore } from '../store/StoreContext.jsx';
 import { materialName, prsForBoqItem } from '../engine/reconcile.js';
 import { suggestMaterials, resolveMaterial } from '../engine/match.js';
@@ -135,10 +136,10 @@ export default function BoqModal({ item, phaseId: phaseIdProp = null, onClose })
             resolveId={(q) => resolveMaterial(db.materials, q)?.id || null}
             onPick={pickMaterialId} onTextChange={setMatQuery}
             onCreate={createMaterial}
-            createLabel={(q) => `➕ Create “${q}” as a new canonical material`} />
+            createLabel={(q) => `Create “${q}” as a new canonical material`} />
           {materialId && (
-            <div className="help" style={{ color: 'var(--ok)' }}>
-              ✓ {materialName(db, materialId)}{matLead != null ? ` · material lead time ${matLead} days` : ' · no lead time set (Catalogue)'}
+            <div className="help" style={{ color: 'var(--ok)', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+              <Check size={13} /> {materialName(db, materialId)}{matLead != null ? ` · material lead time ${matLead} days` : ' · no lead time set (Catalogue)'}
             </div>
           )}
         </div>
@@ -184,7 +185,7 @@ export default function BoqModal({ item, phaseId: phaseIdProp = null, onClose })
           <label className="lbl">Mandor</label>
           <ComboBox value={mandorId} onPick={setMandor}
             options={db.mandors.map((m) => ({ id: m.id, label: m.name }))}
-            onCreate={(q) => addMandor(q.trim())} createLabel={(q) => `➕ Add mandor “${q}”`}
+            onCreate={(q) => addMandor(q.trim())} createLabel={(q) => `Add mandor “${q}”`}
             placeholder="Search or add a mandor…" />
         </div>
 
@@ -208,9 +209,9 @@ export default function BoqModal({ item, phaseId: phaseIdProp = null, onClose })
             <div className="help" style={{ marginTop: 2 }}>
               {orderDay != null ? (
                 <span style={orderDate && start && orderDate < start ? { color: 'var(--risk)' } : {}}>
-                  → <b>Order by day {orderDay}</b> · {lead}d lead{leadOverride !== '' ? ' (custom)' : ''}, business days
+                  <ArrowRight size={12} style={{ verticalAlign: '-2px' }} /> <b>Order by day {orderDay}</b> · {lead}d lead{leadOverride !== '' ? ' (custom)' : ''}, business days
                   {start && <> · needed ≈ {fmtDate(neededDate)}, order ≈ {fmtDate(orderDate)}</>}
-                  {orderDate && start && orderDate < start && <> — ⚠ order falls before project start; shorten lead or push the needed day.</>}
+                  {orderDate && start && orderDate < start && <> — <TriangleAlert size={12} style={{ verticalAlign: '-2px' }} /> order falls before project start; shorten lead or push the needed day.</>}
                 </span>
               ) : (
                 <span className="muted">

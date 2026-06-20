@@ -53,7 +53,7 @@ export default function NewProjectModal({ onClose, onCreate }) {
           <ComboBox value={typeId} onPick={setTypeId} onTextChange={setTypeText}
             options={types.map((t) => ({ id: t.id, label: t.name }))}
             onCreate={(q) => addProjectType({ name: q.trim() })}
-            createLabel={(q) => `➕ Add “${q}” as a new type`}
+            createLabel={(q) => `Add “${q}” as a new type`}
             placeholder="Search or add a type — e.g. Mall, New store…" />
           <div className="help">Pick an existing type or type a new one — used types are remembered.</div>
         </div>

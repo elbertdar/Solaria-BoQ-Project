@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
+import { Plus } from 'lucide-react';
 
 // Unified "pick an existing record or create a new one" combobox.
 // Replaces the app's scattered patterns (plain <select>, select→expand-to-input,
@@ -11,9 +12,9 @@ import { useState, useRef, useEffect, useMemo } from 'react';
 //   options        [{ id, label, sublabel?, group?, score? }] — the choosable set
 //                  (ignored when `provider` is supplied)
 //   onCreate(name) optional → create a record from typed text, return its new id.
-//                  When present, a "➕ Add …" row appears for novel text; ComboBox
-//                  then calls onPick(newId) so the freshly created record is selected.
-//   createLabel(q) optional label for the create row (default: ➕ Add “q”)
+//                  When present, an "Add …" row (with a + icon) appears for novel text;
+//                  ComboBox then calls onPick(newId) so the freshly created record is selected.
+//   createLabel(q) optional label for the create row (default: Add “q”)
 //   provider(q)    optional → return Option[] for a query (e.g. fuzzy match). Overrides
 //                  substring filtering; return [] for empty q to avoid "browse all".
 //   resolveId(q)   optional → id of an exact existing match for q, else null. Used to
@@ -111,7 +112,7 @@ export default function ComboBox({
             if (r.kind === 'create') return (
               <div className={'suggest-item create' + (active ? ' active' : '')} key="create"
                 onMouseDown={doCreate} onMouseEnter={() => setHi(idx)}>
-                <span>{createLabel ? createLabel(q) : `➕ Add “${q}”`}</span>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Plus size={14} />{createLabel ? createLabel(q) : `Add “${q}”`}</span>
               </div>
             );
             const o = r.o;

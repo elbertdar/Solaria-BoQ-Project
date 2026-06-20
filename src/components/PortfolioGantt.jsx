@@ -1,4 +1,5 @@
 import { Fragment } from 'react';
+import { ArrowRight } from 'lucide-react';
 import { fmtDate } from '../engine/format.js';
 
 // One distinct hue per region group, so bars read as families at a glance.
@@ -57,7 +58,7 @@ export default function PortfolioGantt({ gantt, onOpen }) {
                 <div className="pg-row" key={p.id}>
                   <div className="pg-label">
                     <div className="pg-code" title={p.code ? `${p.name} (${p.code})` : p.name}>{p.name}</div>
-                    <div className="muted pg-dates">{fmtDate(p.start)} → {fmtDate(p.end)} · {p.durationDays}d</div>
+                    <div className="muted pg-dates" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>{fmtDate(p.start)} <ArrowRight size={11} /> {fmtDate(p.end)} · {p.durationDays}d</div>
                   </div>
                   <div className="pg-track">
                     {months.map((m, i) => <div key={i} className="pg-grid" style={{ left: m.leftPct + '%' }} />)}

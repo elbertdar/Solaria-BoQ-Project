@@ -1,4 +1,8 @@
 import { NavLink } from 'react-router-dom';
+import {
+  CalendarDays, Building2, ClipboardList, LayoutDashboard, CalendarClock,
+  ListChecks, ShoppingCart, Scale, Truck, Package, Layers, HardHat, Users, Trash2,
+} from 'lucide-react';
 import { useStore } from '../store/StoreContext.jsx';
 import { projectWarnings } from '../engine/reconcile.js';
 import { scheduleForProject, scheduleCounts, portfolioWorklist } from '../engine/schedule.js';
@@ -7,40 +11,40 @@ const GROUPS = [
   {
     label: 'Portfolio',
     items: [
-      { to: '/', ico: '◧', label: 'This Week', end: true, badgeKey: 'portfolio' },
-      { to: '/projects', ico: '▦', label: 'Projects' },
-      { to: '/all-purchase-requests', ico: '⛁', label: 'All Purchase Requests' },
+      { to: '/', ico: CalendarDays, label: 'This Week', end: true, badgeKey: 'portfolio' },
+      { to: '/projects', ico: Building2, label: 'Projects' },
+      { to: '/all-purchase-requests', ico: ClipboardList, label: 'All Purchase Requests' },
     ],
   },
   {
     label: 'Project',
     items: [
-      { to: '/overview', ico: '◳', label: 'Overview' },
-      { to: '/schedule', ico: '◷', label: 'Schedule', badgeKey: 'sched' },
-      { to: '/boq', ico: '☰', label: 'Bill of Quantities' },
-      { to: '/purchase-requests', ico: '⛁', label: 'Purchase Requests' },
-      { to: '/reconciliation', ico: '⇄', label: 'Balance', badgeKey: 'warn' },
+      { to: '/overview', ico: LayoutDashboard, label: 'Overview' },
+      { to: '/schedule', ico: CalendarClock, label: 'Schedule', badgeKey: 'sched' },
+      { to: '/boq', ico: ListChecks, label: 'Bill of Quantities' },
+      { to: '/purchase-requests', ico: ShoppingCart, label: 'Purchase Requests' },
+      { to: '/reconciliation', ico: Scale, label: 'Balance', badgeKey: 'warn' },
     ],
   },
   {
     label: 'Library',
     items: [
-      { to: '/suppliers', ico: '⌂', label: 'Suppliers' },
-      { to: '/catalogue', ico: '✦', label: 'Material Catalogue' },
-      { to: '/material-types', ico: '⊞', label: 'Material Types' },
+      { to: '/suppliers', ico: Truck, label: 'Suppliers' },
+      { to: '/catalogue', ico: Package, label: 'Material Catalogue' },
+      { to: '/material-types', ico: Layers, label: 'Material Types' },
     ],
   },
   {
     label: 'People',
     items: [
-      { to: '/mandors', ico: '⚑', label: 'Mandors' },
-      { to: '/users', ico: '◎', label: 'Team' },
+      { to: '/mandors', ico: HardHat, label: 'Mandors' },
+      { to: '/users', ico: Users, label: 'Team' },
     ],
   },
   {
     label: 'System',
     items: [
-      { to: '/trash', ico: '🗑', label: 'Trash', badgeKey: 'trash' },
+      { to: '/trash', ico: Trash2, label: 'Trash', badgeKey: 'trash' },
     ],
   },
 ];
@@ -75,10 +79,11 @@ export default function Sidebar() {
             {g.items.map((it) => {
               const isTrash = it.badgeKey === 'trash';
               const n = isTrash ? trashCount : badgeFor(it.badgeKey);
+              const Icon = it.ico;
               return (
                 <NavLink key={it.to} to={it.to} end={it.end}
                   className={({ isActive }) => 'nav-item' + (isActive ? ' active' : '')}>
-                  <span className="ico">{it.ico}</span>
+                  <span className="ico"><Icon size={16} strokeWidth={1.75} /></span>
                   <span>{it.label}</span>
                   {n > 0 && <span className={'badge' + (isTrash ? '' : ' risk')}>{n}</span>}
                 </NavLink>

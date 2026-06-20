@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { ChevronUp, ChevronDown } from 'lucide-react';
 import Modal from './Modal.jsx';
 import { useStore, useProjectPhases } from '../store/StoreContext.jsx';
 
@@ -38,8 +39,8 @@ export default function ManagePhasesModal({ onClose }) {
                 style={{ flex: 1, fontWeight: 600 }} />
               <span className="muted" style={{ fontSize: 12, whiteSpace: 'nowrap' }}>{n} item{n === 1 ? '' : 's'} · {ph.boqStatus === 'working' ? 'working' : 'draft'}</span>
               <span style={{ display: 'inline-flex', gap: 4 }}>
-                <button className="btn sm ghost" disabled={i === 0} onClick={() => reorderPhase(ph.id, -1)} title="Move up" style={{ padding: '2px 7px' }}>↑</button>
-                <button className="btn sm ghost" disabled={i === phases.length - 1} onClick={() => reorderPhase(ph.id, 1)} title="Move down" style={{ padding: '2px 7px' }}>↓</button>
+                <button className="btn sm ghost" disabled={i === 0} onClick={() => reorderPhase(ph.id, -1)} title="Move up" style={{ padding: '2px 7px' }}><ChevronUp size={14} /></button>
+                <button className="btn sm ghost" disabled={i === phases.length - 1} onClick={() => reorderPhase(ph.id, 1)} title="Move down" style={{ padding: '2px 7px' }}><ChevronDown size={14} /></button>
                 <button className="btn sm ghost" disabled={phases.length <= 1} style={{ color: phases.length <= 1 ? undefined : 'var(--risk)' }}
                   title={phases.length <= 1 ? 'A project needs at least one phase' : 'Delete phase'} onClick={() => remove(ph)}>Delete</button>
               </span>

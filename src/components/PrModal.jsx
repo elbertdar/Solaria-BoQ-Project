@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { TriangleAlert, Star } from 'lucide-react';
 import Modal from './Modal.jsx';
 import { useStore } from '../store/StoreContext.jsx';
 import { checkProspectivePr, materialName, boqForProject, remainingQty, brandsForMaterial } from '../engine/reconcile.js';
@@ -54,7 +55,7 @@ export default function PrModal({ pr = null, boqItem = null, onClose }) {
   // Unified ComboBox option lists. New suppliers created here are auto-tagged with the
   // material's category, so they show under ★ Recommended for this material next time.
   const supplierOptions = [
-    ...recommendedSuppliers.map((s) => ({ id: s.id, label: s.name, group: `★ Recommended${recTypeLabel ? ` · ${recTypeLabel}` : ''}` })),
+    ...recommendedSuppliers.map((s) => ({ id: s.id, label: s.name, group: `Recommended${recTypeLabel ? ` · ${recTypeLabel}` : ''}` })),
     ...otherSuppliers.map((s) => ({ id: s.id, label: s.name, group: recommendedSuppliers.length ? 'Other suppliers' : undefined })),
   ];
   const createSupplier = (q) => addSupplier({
@@ -183,7 +184,7 @@ export default function PrModal({ pr = null, boqItem = null, onClose }) {
                 setBrandId('');
                 return id;
               }}
-              createLabel={(q) => `➕ Create material “${q}”`} />
+              createLabel={(q) => `Create material “${q}”`} />
           ) : (
             <div className="readonly-val">{matName}</div>
           )}
@@ -203,7 +204,7 @@ export default function PrModal({ pr = null, boqItem = null, onClose }) {
             options={matBrands.map((b) => ({ id: b.id, label: b.name }))}
             onPick={setBrandId}
             onCreate={(q) => addBrand({ materialId: effMatId, name: q.trim() })}
-            createLabel={(q) => `➕ Add brand “${q}”`} />
+            createLabel={(q) => `Add brand “${q}”`} />
           {!effMatId && <div className="help">Pick a material first to choose a brand.</div>}
         </div>
 
@@ -228,23 +229,23 @@ export default function PrModal({ pr = null, boqItem = null, onClose }) {
         <div>
           <label className="lbl">Supplier 1</label>
           <ComboBox value={supplierPrimaryId} onPick={setSup1} options={supplierOptions}
-            onCreate={createSupplier} createLabel={(q) => `➕ Add supplier “${q}”`}
+            onCreate={createSupplier} createLabel={(q) => `Add supplier “${q}”`}
             noneLabel="None" placeholder="Search or add a supplier…" />
           {recommendedSuppliers.length > 0 ? (
-            <div className="help">★ Recommended = suppliers tagged for {recTypeLabel}</div>
+            <div className="help" style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Star size={12} /> Recommended = suppliers tagged for {recTypeLabel}</div>
           ) : (matTypeId && <div className="help">New suppliers added here get tagged for {recTypeLabel}.</div>)}
         </div>
         <div>
           <label className="lbl">Supplier 2 (comparison)</label>
           <ComboBox value={supplierSecondaryId} onPick={setSup2} options={supplierOptions}
-            onCreate={createSupplier} createLabel={(q) => `➕ Add supplier “${q}”`}
+            onCreate={createSupplier} createLabel={(q) => `Add supplier “${q}”`}
             noneLabel="None" placeholder="Search or add a supplier…" />
         </div>
 
         <div>
           <label className="lbl">Purchasing PIC</label>
           <ComboBox value={picId} onPick={setPic} options={picOptions}
-            onCreate={(q) => addUser({ name: q.trim() })} createLabel={(q) => `➕ Add PIC “${q}”`}
+            onCreate={(q) => addUser({ name: q.trim() })} createLabel={(q) => `Add PIC “${q}”`}
             noneLabel="None" placeholder="Search team…" />
         </div>
         <div>
@@ -287,7 +288,7 @@ export default function PrModal({ pr = null, boqItem = null, onClose }) {
 
       {wouldExceed && (
         <div className="inline-warn">
-          <span>⚠</span>
+          <TriangleAlert size={15} style={{ flexShrink: 0 }} />
           <div>
             <b>Over budget.</b> Committing {check.committedAfter} {check.unit} of {check.materialName} exceeds
             the BoQ budget of {check.budgetQty} {check.unit} by <b>{check.overBy} {check.unit}</b>.

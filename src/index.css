@@ -43,6 +43,8 @@
 }
 
 * { box-sizing: border-box; }
+/* Lucide icons render as inline SVG — keep them optically centered with adjacent text. */
+svg.lucide { vertical-align: middle; }
 
 html, body, #root { height: 100%; }
 
@@ -116,7 +118,7 @@ button { font-family: inherit; }
   color: var(--ink-soft); font-size: 13.5px; font-weight: 500;
   cursor: pointer; margin-bottom: 1px; user-select: none;
 }
-.nav-item .ico { width: 17px; text-align: center; opacity: .8; flex-shrink: 0; }
+.nav-item .ico { width: 17px; display: inline-flex; align-items: center; justify-content: center; opacity: .8; flex-shrink: 0; }
 .nav-item:hover { background: var(--surface-2); color: var(--ink); }
 .nav-item.active { background: #EEF2F7; color: var(--ink); font-weight: 600; }
 .nav-item .badge {

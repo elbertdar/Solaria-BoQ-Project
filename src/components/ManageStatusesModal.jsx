@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { ChevronUp, ChevronDown, X, Lock } from 'lucide-react';
 import Modal from './Modal.jsx';
 import { useStore } from '../store/StoreContext.jsx';
 import { allStatuses, STATUS_PILLS, PHASE_LABEL } from '../engine/status.js';
@@ -27,7 +28,7 @@ export default function ManageStatusesModal({ onClose }) {
       footer={<button className="btn ghost" onClick={onClose}>Done</button>}>
       <p className="help" style={{ marginTop: 0 }}>
         Statuses before ordering don’t count against the budget; <b>Ordered</b> and everything after it
-        count as committed. <b>Ordered</b> and <b>Received</b> are locked 🔒 — the budget and receipt logic
+        count as committed. <b>Ordered</b> and <b>Received</b> are locked <Lock size={12} /> — the budget and receipt logic
         run on them — but you can still recolor them. Use the section dropdown on a status to move it
         between phases (e.g. into the Ordered→Received zone — its PRs start counting as committed the
         moment you do). Removing a status retires it (its history stays readable, and it can be restored below).
@@ -71,7 +72,7 @@ function Section({ phase, addable, rows, usage, db, onAdd, onUpdate, onReorder, 
               onChange={(e) => setNewLabel(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') commitAdd(); if (e.key === 'Escape') { setAdding(false); setNewLabel(''); } }} />
             <button className="btn sm" onClick={commitAdd}>Add</button>
-            <button className="btn sm ghost" onClick={() => { setAdding(false); setNewLabel(''); }}>✕</button>
+            <button className="btn sm ghost" onClick={() => { setAdding(false); setNewLabel(''); }}><X size={14} /></button>
           </div>
         )}
       </div>
@@ -114,7 +115,7 @@ function StatusRow({ s, used, db, first, last, onUpdate, onReorder, onRetire }) 
           <span className={'pill ' + (s.pill || 'gray')} style={{ cursor: s.locked ? 'default' : 'text' }}
             title={s.locked ? 'Locked — budget/receipt logic runs on this status' : 'Click to rename'}
             onClick={() => { if (!s.locked) { setDraft(s.label); setEditing(true); } }}>
-            {s.label}{s.locked && ' 🔒'}
+            {s.label}{s.locked && <Lock size={11} style={{ marginLeft: 4 }} />}
           </span>
         )}
 
@@ -128,8 +129,8 @@ function StatusRow({ s, used, db, first, last, onUpdate, onReorder, onRetire }) 
               {PHASES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
             </select>
           )}
-          <button className="btn sm ghost" disabled={first} title="Move up" onClick={() => onReorder(s.id, -1)} style={{ padding: '2px 7px' }}>↑</button>
-          <button className="btn sm ghost" disabled={last} title="Move down" onClick={() => onReorder(s.id, 1)} style={{ padding: '2px 7px' }}>↓</button>
+          <button className="btn sm ghost" disabled={first} title="Move up" onClick={() => onReorder(s.id, -1)} style={{ padding: '2px 7px' }}><ChevronUp size={14} /></button>
+          <button className="btn sm ghost" disabled={last} title="Move down" onClick={() => onReorder(s.id, 1)} style={{ padding: '2px 7px' }}><ChevronDown size={14} /></button>
           {!s.locked && !retiring && (
             <button className="btn sm ghost" style={{ color: 'var(--risk)' }} onClick={() => {
               if (used === 0) onRetire(s.id, null);

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { TONE } from '../theme.js';
 import { isCommitted, isReceived } from '../engine/status.js';
 import { useStore } from '../store/StoreContext.jsx';
+import { Building2, Check } from 'lucide-react';
 import { KpiCard, EmptyState } from '../components/ui.jsx';
 import Modal from '../components/Modal.jsx';
 import ReceiveModal from '../components/ReceiveModal.jsx';
@@ -54,7 +55,7 @@ export default function DashboardPage() {
           <p className="sub">Procurement control · balance your plan (BoQ) against actual orders (PR)</p>
         </div>
         <EmptyState
-          icon="◧"
+          icon={Building2}
           title="Start your first project"
           message="There’s nothing here yet. Create a project to build its bill of quantities, then raise purchase requests and track delivery from this dashboard."
           action={<button className="btn primary" onClick={() => setNewProject(true)}>+ New project</button>}
@@ -123,7 +124,7 @@ export default function DashboardPage() {
 
       <Bucket
         title="Overdue — order now" tone="overdue"
-        empty="Nothing overdue to order. 👍"
+        empty="Nothing overdue to order."
         rows={wl.overdueToOrder} doneRows={doneFor('overdue')} onUndo={undo}
         renderWhen={(l) => <span style={{ color: TONE.overdue, fontWeight: 600 }}>{Math.max(1, Math.round((today - l.orderDate) / 86400000))}d overdue · was due {fmtDate(l.orderDate)}</span>}
         action={(l) => <button className="btn sm" onClick={() => markOrdered(l, 'overdue')}>Mark ordered</button>}
@@ -224,7 +225,7 @@ function Bucket({ title, subtitle, tone = 'neutral', rows, doneRows = [], empty,
               <div key={'done-' + entry.prId} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 16px', borderBottom: '1px solid ' + BORDER, background: '#FCFCFD' }}>
                 <div style={{ flex: 1, minWidth: 0, color: '#94A3B8' }}>
                   <span style={{ textDecoration: 'line-through' }}>{entry.materialName}</span>
-                  <span style={{ marginLeft: 8, color: TONE.done, fontWeight: 600 }}>✓ ordered</span>
+                  <span style={{ marginLeft: 8, color: TONE.done, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}><Check size={14} strokeWidth={2.5} /> ordered</span>
                 </div>
                 <button className="btn sm ghost" onClick={() => onUndo(entry)}>Undo</button>
               </div>

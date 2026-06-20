@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { TriangleAlert } from 'lucide-react';
 import { useStore } from '../store/StoreContext.jsx';
 import { suggestMaterials } from '../engine/match.js';
 import { idr } from '../engine/format.js';
@@ -191,7 +192,7 @@ function MaterialModal({ title, material, onClose, onSave, types, materials }) {
           <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Gypsum" />
           {dupes.length > 0 && (
             <div className="inline-warn" style={{ background: 'var(--pending-bg)', borderColor: '#FCE3B0', color: 'var(--pending)' }}>
-              <span>⚠</span><div>Possible duplicate of: {dupes.map((d) => d.material.canonicalName).join(', ')}. Consider an alias instead.</div>
+              <TriangleAlert size={15} style={{ flexShrink: 0 }} /><div>Possible duplicate of: {dupes.map((d) => d.material.canonicalName).join(', ')}. Consider an alias instead.</div>
             </div>
           )}
         </div>
@@ -204,7 +205,7 @@ function MaterialModal({ title, material, onClose, onSave, types, materials }) {
           <ComboBox value={typeId} onPick={setTypeId} placeholder="Search or add a type…"
             options={types.map((t) => ({ id: t.id, label: t.name }))}
             onCreate={(q) => addMaterialType({ name: q.trim() })}
-            createLabel={(q) => `➕ Add type “${q}”`} />
+            createLabel={(q) => `Add type “${q}”`} />
         </div>
         <div>
           <label className="lbl">Estimated unit cost (IDR)</label>

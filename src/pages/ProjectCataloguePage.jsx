@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { TriangleAlert, ArrowRight } from 'lucide-react';
 import { useStore } from '../store/StoreContext.jsx';
 import { projectTotals } from '../engine/reconcile.js';
 import { scheduleForProject, todayLocal } from '../engine/schedule.js';
@@ -155,7 +156,7 @@ function TypeCell({ value, types, onSave, onAddType }) {
         onBlur={() => { if (goingNew.current) { goingNew.current = false; return; } setMode('view'); }}>
         <option value="">— None —</option>
         {types.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-        <option value="__new">➕ New type…</option>
+        <option value="__new">+ New type…</option>
       </select>
     );
   }
@@ -271,7 +272,7 @@ function ActiveTable({ rows, onOpen, onDelete, types, onUpdate, onAddType }) {
                     <RegionCell value={p.location} onSave={(v) => onUpdate(p.id, { location: v })} />
                   </td>
                   <td>
-                    <span style={{ whiteSpace: 'nowrap' }}>{start ? fmtDate(start) : '—'}</span> <span className="muted">→</span> <span style={{ whiteSpace: 'nowrap' }}>{estFinish ? fmtDate(estFinish) : '—'}</span>
+                    <span style={{ whiteSpace: 'nowrap' }}>{start ? fmtDate(start) : '—'}</span> <ArrowRight size={12} className="muted" /> <span style={{ whiteSpace: 'nowrap' }}>{estFinish ? fmtDate(estFinish) : '—'}</span>
                     <div className="muted" style={{ fontSize: 12 }}>{curOff != null ? `currently day ${curOff}` : 'no start date'}</div>
                   </td>
                   <td className="num">{idr(totals.budgetCost)}</td>
@@ -288,7 +289,7 @@ function ActiveTable({ rows, onOpen, onDelete, types, onUpdate, onAddType }) {
                   </td>
                   <td>{!working
                     ? <span className="pill gray">Draft</span>
-                    : attention > 0 ? pill(`⚠ ${attention} to act on`, 'risk') : pill('On track', 'ok')}</td>
+                    : attention > 0 ? pill(<span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><TriangleAlert size={12} /> {attention} to act on</span>, 'risk') : pill('On track', 'ok')}</td>
                   <td className="num" onClick={(e) => e.stopPropagation()}>
                     <button className="btn sm ghost" style={{ color: 'var(--risk)' }} onClick={() => onDelete(p)}>Delete</button>
                   </td>

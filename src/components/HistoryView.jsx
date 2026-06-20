@@ -1,4 +1,5 @@
 import { useState, Fragment } from 'react';
+import { ChevronDown, ChevronRight, ArrowRight } from 'lucide-react';
 import { materialName, changeFields } from '../engine/reconcile.js';
 import { idr, num, fmtDate } from '../engine/format.js';
 import { fmtVal } from './boqShared.jsx';
@@ -26,7 +27,7 @@ export default function HistoryView({ edits, db }) {
                     <td>{e.author?.name || '—'}</td>
                     <td>{e.message ? e.message : <span className="muted">{summary || 'No message'}</span>}</td>
                     <td className="num">{e.changes.length}</td>
-                    <td className="num">{isOpen ? '▾' : '▸'}</td>
+                    <td className="num">{isOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}</td>
                   </tr>
                   {isOpen && (
                     <tr><td colSpan={5} style={{ background: '#F8FAFC' }}>
@@ -40,7 +41,7 @@ export default function HistoryView({ edits, db }) {
                               <span style={{ marginLeft: 8 }}>
                                 {changeFields(c).map((f) => (
                                   <span key={f.key} style={{ marginRight: 10 }}>
-                                    {f.label}: <span style={{ textDecoration: 'line-through', opacity: 0.6 }}>{fmtVal(db, f.kind, f.before)}</span> → <b>{fmtVal(db, f.kind, f.after)}</b>
+                                    {f.label}: <span style={{ textDecoration: 'line-through', opacity: 0.6 }}>{fmtVal(db, f.kind, f.before)}</span> <ArrowRight size={12} style={{ verticalAlign: '-2px' }} /> <b>{fmtVal(db, f.kind, f.after)}</b>
                                   </span>
                                 ))}
                               </span>

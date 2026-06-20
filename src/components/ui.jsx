@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Inbox, ChevronDown, Check, ArrowRight, LayoutGrid, X } from 'lucide-react';
 import { useStore } from '../store/StoreContext.jsx';
 import Modal from './Modal.jsx';
 import { statusDef } from '../engine/status.js';
@@ -14,18 +15,18 @@ export function KpiCard({ label, value, tone = '', sub, subTone = '', onClick })
       style={clickable ? { cursor: 'pointer' } : undefined}>
       <div className="label">{label}</div>
       <div className={'value ' + tone}>{value}</div>
-      {sub != null && <div className={'sub ' + subTone}>{sub}{clickable ? ' →' : ''}</div>}
+      {sub != null && <div className={'sub ' + subTone} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>{sub}{clickable && <ArrowRight size={12} />}</div>}
     </div>
   );
 }
 
 // Full-card empty / onboarding state: a centered icon, heading, one line of guidance,
 // and an optional call-to-action. Used for first-run screens (no projects yet) and any
-// page whose collection is empty.
-export function EmptyState({ icon = '◦', title, message, action }) {
+// page whose collection is empty. `icon` is a Lucide icon component.
+export function EmptyState({ icon: Icon = Inbox, title, message, action }) {
   return (
     <div className="empty-state">
-      <div className="empty-state-icon">{icon}</div>
+      <div className="empty-state-icon">{Icon && <Icon size={26} strokeWidth={1.5} />}</div>
       <h2>{title}</h2>
       {message && <p>{message}</p>}
       {action && <div className="empty-state-action">{action}</div>}
@@ -155,7 +156,7 @@ export function ProjectBar({ children, embedded }) {
           <b style={{ color: PB.ink }}>{proj?.name || 'Select…'}</b>
           {proj?.code && <span style={{ color: PB.muted }}> ({proj.code})</span>}
         </span>
-        <span style={{ color: PB.faint, fontSize: 11 }}>▾</span>
+        <ChevronDown size={14} style={{ color: PB.faint, flexShrink: 0 }} />
       </button>
       {!embedded && <span className="meta" style={{ color: PB.faint, fontSize: 12.5, marginLeft: 10 }}>{proj?.location}</span>}
       {!embedded && <div className="spacer" style={{ flex: 1 }} />}
@@ -173,7 +174,7 @@ export function ProjectBar({ children, embedded }) {
           </div>
 
           <div style={{ maxHeight: 360, overflowY: 'auto' }}>
-            <Row onClick={goAll} icon="◧" title="All projects" sub="portfolio · This Week dashboard" accent />
+            <Row onClick={goAll} icon={<LayoutGrid size={15} />} title="All projects" sub="portfolio · This Week dashboard" accent />
 
             {groups.length === 0 && <div style={{ padding: '16px', color: PB.faint, fontSize: 13, textAlign: 'center' }}>No projects match “{q}”.</div>}
 
@@ -190,7 +191,7 @@ export function ProjectBar({ children, embedded }) {
                       style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 13px', cursor: 'pointer', background: cur ? PB.sel : 'transparent' }}
                       onMouseEnter={(e) => { if (!cur) e.currentTarget.style.background = PB.hover; }}
                       onMouseLeave={(e) => { if (!cur) e.currentTarget.style.background = 'transparent'; }}>
-                      <span style={{ width: 14, color: PB.ok, fontWeight: 700 }}>{cur ? '✓' : ''}</span>
+                      <span style={{ width: 14, color: PB.ok, display: 'inline-flex', justifyContent: 'center', flexShrink: 0 }}>{cur && <Check size={14} strokeWidth={2.5} />}</span>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 13.5, fontWeight: cur ? 700 : 500, color: PB.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {p.name}{p.code && <span style={{ color: PB.muted, fontWeight: 400 }}> ({p.code})</span>}
@@ -217,12 +218,12 @@ function Row({ onClick, icon, title, sub, accent }) {
     <div onClick={onClick} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 13px', cursor: 'pointer', borderBottom: '1px solid ' + PB.border, background: accent ? '#FBFCFE' : 'transparent' }}
       onMouseEnter={(e) => { e.currentTarget.style.background = PB.hover; }}
       onMouseLeave={(e) => { e.currentTarget.style.background = accent ? '#FBFCFE' : 'transparent'; }}>
-      <span style={{ width: 14, color: PB.faint }}>{icon}</span>
+      <span style={{ width: 14, color: PB.faint, display: 'inline-flex', justifyContent: 'center', flexShrink: 0 }}>{icon}</span>
       <div style={{ flex: 1 }}>
         <div style={{ fontSize: 13.5, fontWeight: 700, color: PB.ink }}>{title}</div>
         <div style={{ fontSize: 11.5, color: PB.faint }}>{sub}</div>
       </div>
-      <span style={{ color: PB.faint, fontSize: 12 }}>→</span>
+      <ArrowRight size={14} style={{ color: PB.faint, flexShrink: 0 }} />
     </div>
   );
 }
@@ -276,9 +277,9 @@ export function FilterSelect({ value = [], onChange, options, allLabel = 'All', 
         <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{text}</span>
         {sel.length > 0 && (
           <span role="button" title="Clear" onClick={(e) => { e.stopPropagation(); onChange([]); }}
-            style={{ color: 'var(--muted)', fontSize: 15, lineHeight: 1, padding: '0 2px' }}>×</span>
+            style={{ color: 'var(--muted)', display: 'inline-flex', alignItems: 'center', padding: '0 2px' }}><X size={14} /></span>
         )}
-        <span style={{ fontSize: 9, color: 'var(--muted)' }}>▾</span>
+        <ChevronDown size={13} style={{ color: 'var(--muted)', flexShrink: 0 }} />
       </button>
       {open && (
         <div className="filter-pop">

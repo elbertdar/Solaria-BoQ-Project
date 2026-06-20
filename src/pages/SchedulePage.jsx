@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect, Fragment } from 'react';
+import { ChevronDown, ChevronRight, X, Circle, Diamond } from 'lucide-react';
 import { TONE } from '../theme.js';
 import { isCommitted, isReceived, statusDef } from '../engine/status.js';
 import { useStore, useProject } from '../store/StoreContext.jsx';
@@ -85,7 +86,7 @@ export default function SchedulePage() {
       </div>
 
       <div className="toolbar">
-        {filter && <button className="btn sm ghost" onClick={() => setFilter(null)}>Clear filter ✕</button>}
+        {filter && <button className="btn sm ghost" style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }} onClick={() => setFilter(null)}>Clear filter <X size={13} /></button>}
         <div className="spacer" style={{ flex: 1 }} />
         <div className="seg">
           <button className={view === 'timeline' ? 'active' : ''} onClick={() => setView('timeline')}>Timeline</button>
@@ -189,7 +190,7 @@ function Timeline({ dayAxis, lines, db, ActionButton, batch }) {
                 borderTop: '1px solid ' + BORDER, borderBottom: '1px solid ' + BORDER, cursor: 'pointer',
               }} title={closed ? 'Expand group' : 'Collapse group'}>
                 <span style={{ position: 'sticky', left: 12, display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontSize: 9 }}>{closed ? '▸' : '▾'}</span>
+                  {closed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
                   <span>Mandor · {g.label}</span>
                   <span style={{ fontWeight: 500, textTransform: 'none', letterSpacing: 0, color: '#94A3B8' }}>{g.rows.length} item{g.rows.length === 1 ? '' : 's'}</span>
                   {t.map(([tone, lbl, n]) => (
@@ -229,7 +230,7 @@ function Row({ l, N, cols, baseDay, weekendCols, mondayCols, todayCol, ActionBut
     l.hasLead ? `lead ${l.lead}d${l.leadSource === 'line' ? ' (custom)' : ''}` : 'no lead time',
     l.actualOrderDate ? `first ordered ${fmtDate(l.actualOrderDate)}` : null,
     ordered && arrivalDate ? `${l.state === 'received' ? 'received' : 'expected'} ${fmtDate(arrivalDate)}` : null,
-    (l.forecastLate && !l.deliveryOverdue) ? `→ +${l.slipDays}d vs plan` : null,
+    (l.forecastLate && !l.deliveryOverdue) ? `+${l.slipDays}d vs plan` : null,
     l.promisedDate ? `supplier promised ${fmtDate(l.promisedDate)}` : null,
     nPrs > 1 ? `${nPrs} PRs — expand for batches` : null,
   ].filter(Boolean).join('  ·  ');
@@ -245,7 +246,7 @@ function Row({ l, N, cols, baseDay, weekendCols, mondayCols, todayCol, ActionBut
             <span onClick={nPrs > 0 ? onToggle : undefined}
               style={{ display: 'inline-flex', alignItems: 'center', gap: 5, minWidth: 0, cursor: nPrs > 0 ? 'pointer' : 'default' }}
               title={nPrs > 0 ? 'Show individual orders' : undefined}>
-              {nPrs > 0 && <span className="muted" style={{ fontSize: 10, width: 10, flexShrink: 0 }}>{open ? '▾' : '▸'}</span>}
+              {nPrs > 0 && <span className="muted" style={{ display: 'inline-flex', flexShrink: 0 }}>{open ? <ChevronDown size={13} /> : <ChevronRight size={13} />}</span>}
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.materialName}</span>
             </span>
             <ActionButton line={l} />
@@ -374,7 +375,7 @@ function Agenda({ lines, today, db, ActionButton, batch }) {
                         onClick={nPrs > 0 ? () => toggle(l.boqItem.id) : undefined}
                         title={nPrs > 0 ? 'Show individual orders' : undefined}>
                         <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
-                          {nPrs > 0 && <span className="muted" style={{ fontSize: 10 }}>{open ? '▾' : '▸'}</span>}
+                          {nPrs > 0 && <span className="muted" style={{ display: 'inline-flex' }}>{open ? <ChevronDown size={13} /> : <ChevronRight size={13} />}</span>}
                           {l.materialName}
                         </div>
                         <div className="muted" style={{ fontSize: 12 }}>
@@ -440,7 +441,7 @@ function Legend() {
       {items.map(([t, c]) => <span key={t} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><span style={{ width: 10, height: 10, borderRadius: '50%', background: c }} />{t}</span>)}
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginLeft: 8 }}><span style={{ width: 24, height: 6, borderRadius: 999, background: '#CBD5E1', opacity: 0.7 }} /> planned (faded)</span>
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><span style={{ width: 24, height: 8, borderRadius: 999, background: '#0EA5E9' }} /> actual / expected (solid)</span>
-      <span style={{ color: '#94A3B8' }}>· ● order · ◆ delivery · weekends shaded</span>
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: '#94A3B8' }}>· <Circle size={8} fill="currentColor" strokeWidth={0} /> order · <Diamond size={9} fill="currentColor" strokeWidth={0} /> delivery · weekends shaded</span>
     </div>
   );
 }

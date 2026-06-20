@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import { useStore, useProject } from '../store/StoreContext.jsx';
 import { summarizeProject, brandName, brandBreakdown } from '../engine/reconcile.js';
 import { ProjectBar, AlertBanner, StatusPill, FilterBar, FilterSearch, FilterSelect } from '../components/ui.jsx';
@@ -117,7 +118,7 @@ function RowGroup({ r, isOpen, onToggle, db }) {
         <td className={'num ' + (r.extra ? '' : (remCost < 0 ? 'val-risk' : remCost > 0 ? 'val-ok' : ''))} style={r.extra ? { color: '#92660C' } : undefined}>
           {(remCost > 0 ? '+' : '') + idr(remCost)}
         </td>
-        <td className="num muted">{isOpen ? '▾' : '▸'}</td>
+        <td className="num muted">{isOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}</td>
       </tr>
       {isOpen && (
         <tr className="drill">

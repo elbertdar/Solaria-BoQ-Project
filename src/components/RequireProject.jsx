@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Building2 } from 'lucide-react';
 import { useStore } from '../store/StoreContext.jsx';
 import NewProjectModal from './NewProjectModal.jsx';
 import { EmptyState } from './ui.jsx';
@@ -22,7 +23,7 @@ export default function RequireProject({ children }) {
         <p className="sub">This page works on a single project — create one to begin.</p>
       </div>
       <EmptyState
-        icon="▦"
+        icon={Building2}
         title="Create your first project"
         message="A project holds its bill of quantities, schedule, and purchase requests. Add one to start planning and ordering."
         action={<button className="btn primary" onClick={() => setCreating(true)}>+ New project</button>}

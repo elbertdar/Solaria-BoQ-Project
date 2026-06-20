@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { X } from 'lucide-react';
 import { useStore, useProject, useProjectPhases } from '../store/StoreContext.jsx';
 import { boqForProject, boqLineStatus, materialName, boqDisplayRows, stagedForProject } from '../engine/reconcile.js';
 import { leadTimeFor, projectStart, addDays, addBusinessDays } from '../engine/schedule.js';
@@ -337,7 +338,7 @@ function DraftRow({ b, db, start, onPatch, onDelete }) {
             onPatch(b.id, { materialId: id, unit: b.unit || 'pcs', ...(b.description ? {} : { description: q.trim() }) });
             return id;
           }}
-          createLabel={(q) => `➕ Create “${q}”`} />
+          createLabel={(q) => `Create “${q}”`} />
       </td>
       <td><input style={CELL} value={b.description || ''} placeholder="description"
         onChange={(e) => onPatch(b.id, { description: e.target.value })} /></td>
@@ -346,7 +347,7 @@ function DraftRow({ b, db, start, onPatch, onDelete }) {
           options={db.mandors.map((m) => ({ id: m.id, label: m.name }))}
           onPick={(mid) => onPatch(b.id, { mandorId: mid })}
           onCreate={(q) => { const id = addMandor(q.trim()); onPatch(b.id, { mandorId: id }); return id; }}
-          createLabel={(q) => `➕ Add “${q}”`} />
+          createLabel={(q) => `Add “${q}”`} />
       </td>
       <td className="num">{allow ? dash : <NumberInput allowDecimal style={{ ...CELL, width: 72, textAlign: 'right' }} value={b.quantity ?? ''}
         onChange={(v) => onPatch(b.id, { quantity: v === '' ? 0 : v })} />}</td>
@@ -360,7 +361,7 @@ function DraftRow({ b, db, start, onPatch, onDelete }) {
       <td className="num">{allow ? dash : <input type="number" style={{ ...CELL, width: 72, textAlign: 'right' }} value={b.neededDayOffset ?? ''}
         onChange={(e) => onPatch(b.id, { neededDayOffset: numOrNull(e.target.value) })} />}</td>
       <td className="num">{allow ? dash : orderDate ? <>{fmtDate(orderDate)}</> : <span className="muted">—</span>}</td>
-      <td className="num"><button className="btn sm ghost" style={{ color: 'var(--risk)' }} title="Delete row" onClick={() => onDelete(b.id)}>✕</button></td>
+      <td className="num"><button className="btn sm ghost" style={{ color: 'var(--risk)' }} title="Delete row" onClick={() => onDelete(b.id)}><X size={14} /></button></td>
     </tr>
   );
 }

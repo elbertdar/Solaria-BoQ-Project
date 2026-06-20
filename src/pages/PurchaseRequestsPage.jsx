@@ -1,4 +1,5 @@
 import { useState, Fragment, useEffect, useRef } from 'react';
+import { ChevronDown, ChevronRight, ArrowRight } from 'lucide-react';
 import { useStore, useProject, useCurrentPhase } from '../store/StoreContext.jsx';
 import PhaseTabs from '../components/PhaseTabs.jsx';
 import { prsForProject, materialName, isExtraPr, brandName } from '../engine/reconcile.js';
@@ -92,7 +93,7 @@ export default function PurchaseRequestsPage() {
                 return (
                 <Fragment key={p.id}>
                 <tr>
-                  <td className="num clickable" style={{ cursor: 'pointer', color: 'var(--muted, #94A3B8)' }} onClick={() => setOpen(isOpen ? null : p.id)} title="Status history">{isOpen ? '▾' : '▸'}</td>
+                  <td className="num clickable" style={{ cursor: 'pointer', color: 'var(--muted, #94A3B8)' }} onClick={() => setOpen(isOpen ? null : p.id)} title="Status history">{isOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}</td>
                   <td className="mat-link">{materialName(db, p.materialId)}{isExtraPr(db, p) && <span className="pill warn" style={{ marginLeft: 6 }}>Extra</span>}{p.brandId && <div className="muted" style={{ fontSize: 11 }}>{brandName(db, p.brandId)}</div>}</td>
                   <td><StatusPill status={p.status} /></td>
                   <td className="num">{num(p.quantity)}</td>
@@ -125,7 +126,7 @@ export default function PurchaseRequestsPage() {
                               <span className="muted" style={{ minWidth: 152, whiteSpace: 'nowrap' }}>
                                 {fmtDate(h.at)} · {new Date(h.at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
                               </span>
-                              {h.from ? <><StatusPill status={h.from} /><span className="muted">→</span></> : <span className="muted">created as</span>}
+                              {h.from ? <><StatusPill status={h.from} /><ArrowRight size={13} className="muted" /></> : <span className="muted">created as</span>}
                               <StatusPill status={h.to} />
                               <span className="muted">· by {h.by?.name || '—'}</span>
                             </div>
