@@ -47,7 +47,7 @@ export default function Overview() {
       )}
 
       {draft && (
-        <div className="banner" style={{ background: '#FFFBEB', border: '1px solid #FDE9C8', color: '#92660C', borderRadius: 10, padding: '11px 14px', marginBottom: 14, fontSize: 13.3, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <div className="banner draft">
           <span><b>Draft BoQ.</b> This project’s plan isn’t finalized — ordering and reconciliation begin once you finalize it.</span>
           <button className="btn sm" onClick={() => nav('/boq')} style={{ marginLeft: 'auto' }}>Open BoQ</button>
         </div>

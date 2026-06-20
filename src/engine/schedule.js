@@ -56,11 +56,6 @@ export function projectStart(db, projectId) {
   const p = db.projects.find((x) => x.id === projectId);
   return p && p.startDate ? parseDate(p.startDate) : null;
 }
-export function currentDayOffset(db, projectId, today = todayLocal()) {
-  const start = projectStart(db, projectId);
-  return start ? diffDays(today, start) : null;
-}
-
 const sum = (arr, f) => arr.reduce((t, x) => t + (f(x) || 0), 0);
 
 // ---- the heart: one self-contained line per BoQ item ----

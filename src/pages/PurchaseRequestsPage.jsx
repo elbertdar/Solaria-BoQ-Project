@@ -69,7 +69,7 @@ export default function PurchaseRequestsPage() {
       </FilterBar>
 
       {draft && (
-        <div className="banner" style={{ background: '#FFFBEB', border: '1px solid #FDE9C8', color: '#92660C', borderRadius: 10, padding: '11px 14px', marginBottom: 14, fontSize: 13.3 }}>
+        <div className="banner draft">
           <b>{project.name}’s BoQ is still a draft.</b> Finalize it on the Bill of Quantities page to start raising purchase requests.
         </div>
       )}
@@ -93,7 +93,7 @@ export default function PurchaseRequestsPage() {
                 <Fragment key={p.id}>
                 <tr>
                   <td className="num clickable" style={{ cursor: 'pointer', color: 'var(--muted, #94A3B8)' }} onClick={() => setOpen(isOpen ? null : p.id)} title="Status history">{isOpen ? '▾' : '▸'}</td>
-                  <td className="mat-link">{materialName(db, p.materialId)}{isExtraPr(db, p) && <span className="pill" style={{ background: '#FEF3C7', color: '#92660C', border: '1px solid #FDE68A', marginLeft: 6, fontSize: 11 }}>Extra</span>}{p.brandId && <div className="muted" style={{ fontSize: 11 }}>{brandName(db, p.brandId)}</div>}</td>
+                  <td className="mat-link">{materialName(db, p.materialId)}{isExtraPr(db, p) && <span className="pill warn" style={{ marginLeft: 6 }}>Extra</span>}{p.brandId && <div className="muted" style={{ fontSize: 11 }}>{brandName(db, p.brandId)}</div>}</td>
                   <td><StatusPill status={p.status} /></td>
                   <td className="num">{num(p.quantity)}</td>
                   <td>{p.unit}</td>

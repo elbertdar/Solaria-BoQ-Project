@@ -59,9 +59,6 @@ export function isExtraPr(db, pr) {
 export function prsForBoqItem(db, boqItemId) {
   return db.prs.filter((p) => p.boqItemId === boqItemId && !isVoid(db, p.status));
 }
-export function boqItemHasPr(db, boqItemId) {
-  return db.prs.some((p) => p.boqItemId === boqItemId && !isVoid(db, p.status));
-}
 // Quantity still left to order on a BoQ line = budget − already-committed (ordered + received).
 // Used to pre-fill a new PR's quantity. Never negative.
 export function remainingQty(db, boqItemId) {
@@ -232,9 +229,6 @@ export const BOQ_FIELDS = [
 
 export function stagedForProject(db, projectId, phaseId = null) {
   return (db.boqStaged || []).filter((s) => (!phaseId || phaseId === '__all') ? s.projectId === projectId : s.phaseId === phaseId);
-}
-export function stagedCount(db, projectId, phaseId = null) {
-  return stagedForProject(db, projectId, phaseId).length;
 }
 
 // Committed BoQ rows with any staged changes overlaid, for the working table.

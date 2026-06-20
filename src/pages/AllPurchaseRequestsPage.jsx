@@ -176,7 +176,7 @@ export default function AllPurchaseRequestsPage() {
                     <tr>
                       <td className="num clickable" style={{ cursor: 'pointer', color: 'var(--muted, #94A3B8)' }} onClick={() => setOpen(isOpen ? null : p.id)} title="Status history">{isOpen ? '▾' : '▸'}</td>
                       <td style={{ fontWeight: 600, whiteSpace: 'nowrap', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis' }} title={projName(p.projectId)}>{projName(p.projectId)}</td>
-                      <td className="mat-link">{materialName(db, p.materialId)}{isExtraPr(db, p) && <span className="pill" style={{ background: '#FEF3C7', color: '#92660C', border: '1px solid #FDE68A', marginLeft: 6, fontSize: 11 }}>Extra</span>}{p.brandId && <div className="muted" style={{ fontSize: 11 }}>{brandName(db, p.brandId)}</div>}</td>
+                      <td className="mat-link">{materialName(db, p.materialId)}{isExtraPr(db, p) && <span className="pill warn" style={{ marginLeft: 6 }}>Extra</span>}{p.brandId && <div className="muted" style={{ fontSize: 11 }}>{brandName(db, p.brandId)}</div>}</td>
                       <td><StatusPill status={p.status} /></td>
                       <td className="num">{num(p.quantity)} <span className="muted" style={{ fontSize: 11 }}>{p.unit}</span></td>
                       <td className="num">{idr(p.unitCost)}</td>

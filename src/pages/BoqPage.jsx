@@ -257,7 +257,7 @@ function Row({ r, db, start, onEdit, onRaisePr, onUndo }) {
   const wasNum = (k, prev) => changed(k) && base && (base[k] ?? null) !== (f[k] ?? null)
     ? <div className="muted" style={{ fontSize: 11, textDecoration: 'line-through' }}>{prev}</div> : null;
   const tag = r.status === 'added' ? <span className="pill" style={{ background: '#ECFDF5', color: '#15803D', border: '1px solid #D1FAE5', marginRight: 6, fontSize: 11 }}>New</span>
-    : r.status === 'modified' ? <span className="pill" style={{ background: '#FEF3C7', color: '#92660C', border: '1px solid #FDE68A', marginRight: 6, fontSize: 11 }}>Edited</span>
+    : r.status === 'modified' ? <span className="pill warn" style={{ marginRight: 6 }}>Edited</span>
       : deleted ? <span className="pill" style={{ background: '#FEF2F2', color: '#B91C1C', border: '1px solid #FECACA', marginRight: 6, fontSize: 11 }}>Removing</span>
         : null;
 

@@ -17,7 +17,7 @@
 // from pickers and the flow. Retired statuses can be restored. Live PRs are reassigned
 // at retire time, so there are no dead ends.
 
-export const PHASE_RANK = { pre: 0, committed: 1, received: 2, void: 3 };
+const PHASE_RANK = { pre: 0, committed: 1, received: 2, void: 3 };
 
 export const PHASE_LABEL = {
   pre: 'Before ordering',
@@ -61,7 +61,7 @@ export const isReceived = (db, id) => statusDef(db, id).phase === 'received';
 export const isVoid = (db, id) => statusDef(db, id).phase === 'void';
 
 // The forward pipeline (everything except void/closed), in display order.
-export const flowStatuses = (db) => activeStatuses(db).filter((s) => s.phase !== 'void');
+const flowStatuses = (db) => activeStatuses(db).filter((s) => s.phase !== 'void');
 
 export const nextStatusId = (db, currentId) => {
   const flow = flowStatuses(db);

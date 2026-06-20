@@ -1,6 +1,5 @@
 import { useState, useMemo } from 'react';
 import { useStore, useProject } from '../store/StoreContext.jsx';
-import PhaseTabs from '../components/PhaseTabs.jsx';
 import { summarizeProject, brandName, brandBreakdown } from '../engine/reconcile.js';
 import { ProjectBar, AlertBanner, StatusPill, FilterBar, FilterSearch, FilterSelect } from '../components/ui.jsx';
 import { idr, num, fmtDate } from '../engine/format.js';
@@ -94,7 +93,7 @@ export default function ReconciliationPage() {
 function RowGroup({ r, isOpen, onToggle, db }) {
   const dash = <span className="muted">—</span>;
   const pill = r.extra
-    ? <span className="pill" style={{ background: '#FEF3C7', color: '#92660C', border: '1px solid #FDE68A', marginLeft: 6, fontSize: 11 }}>Extra</span>
+    ? <span className="pill warn" style={{ marginLeft: 6 }}>Extra</span>
     : r.allowance
       ? <span className="pill info" style={{ marginLeft: 6, fontSize: 11 }}>Allowance</span>
       : null;

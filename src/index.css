@@ -201,6 +201,7 @@ button { font-family: inherit; }
 }
 .banner.risk { background: var(--risk-bg); border-color: #F6CAD3; }
 .banner.info { background: var(--info-bg); border-color: #C7EBF1; }
+.banner.draft { background: #FFFBEB; border-color: #FDE9C8; color: #92660C; font-size: 13.3px; flex-wrap: wrap; }
 .banner .dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
 .banner.risk .dot { background: var(--risk); }
 .banner.info .dot { background: var(--info); }
@@ -273,6 +274,8 @@ button { font-family: inherit; }
 .pill.risk   { background: var(--risk-bg); color: var(--risk); }
 .pill.purple { background: #F3EEFF; color: #6D28D9; }
 .pill.teal   { background: #E6FAF7; color: #0F766E; }
+/* Amber "tag" pill for Extra (unbudgeted PR) / Edited (staged change) badges. */
+.pill.warn   { background: #FEF3C7; color: #92660C; border-color: #FDE68A; font-size: 11px; }
 
 .chip {
   display: inline-block; padding: 1px 8px; margin: 2px 4px 2px 0;
