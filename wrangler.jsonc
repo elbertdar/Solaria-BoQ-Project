@@ -1,0 +1,19 @@
+{
+  // Cloudflare Workers (static assets) config for the Solaria BoQ pilot.
+  //
+  // This is a static SPA — no Worker code, just the built `dist/` served as assets.
+  // SPA deep-link fallback is declared here via `not_found_handling`, NOT via a
+  // `public/_redirects` file: the Workers static-assets pipeline validates `_redirects`
+  // and rejects the classic SPA rule `/*  /index.html  200` as an infinite loop
+  // (error code 100324). `single-page-application` serves /index.html (200) for any
+  // path that doesn't match a built asset, which is exactly what react-router needs.
+  //
+  // If this is ever moved to Netlify or classic Cloudflare Pages instead, drop this
+  // file and restore `public/_redirects` containing: /*  /index.html  200
+  "name": "solaria-boq-project",
+  "compatibility_date": "2025-01-01",
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application"
+  }
+}
