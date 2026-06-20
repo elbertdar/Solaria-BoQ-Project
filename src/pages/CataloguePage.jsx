@@ -7,6 +7,7 @@ import Modal from '../components/Modal.jsx';
 import NumberInput from '../components/NumberInput.jsx';
 import ComboBox from '../components/ComboBox.jsx';
 import { FilterBar, FilterSearch, FilterSelect, DeleteConfirm } from '../components/ui.jsx';
+import ImportButton from '../components/ImportButton.jsx';
 
 export default function CataloguePage() {
   const { db, addMaterial, updateMaterial, addAlias, removeAlias, addBrand, deleteBrand, softDeleteMaterial } = useStore();
@@ -36,7 +37,10 @@ export default function CataloguePage() {
           <h1>Material Catalogue</h1>
           <p className="sub">Canonical names, aliases, and delivery lead times. The normalization + timing layer the rest of the app relies on.</p>
         </div>
-        <button className="btn primary" onClick={() => setAdding(true)}>+ Add canonical material</button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <ImportButton entity="materials" />
+          <button className="btn primary" onClick={() => setAdding(true)}>+ Add canonical material</button>
+        </div>
       </div>
 
       <FilterBar shown={filtered.length} total={db.materials.length} unit="materials">

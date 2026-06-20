@@ -4,6 +4,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react';
 import { seed } from '../data/seed.js';
 import { nowISO } from '../engine/format.js';
+import { applyImport } from '../engine/dataImport.js';
 import { DEFAULT_PR_STATUSES, sortStatuses, isCommitted, defaultStatusId } from '../engine/status.js';
 
 const KEY = 'solaria_boq_db_v11';
@@ -606,6 +607,13 @@ export function StoreProvider({ children }) {
     });
   }, []);
 
+  // Bulk CSV import (materials / suppliers / projects / boq). The pure engine resolves and
+  // creates foreign keys and returns the next db; we just commit it with real ids. `parsed`
+  // is { headers, rows } from parseCsv; `context` carries e.g. the current project for BoQ.
+  const importEntity = useCallback((entity, parsed, context = {}) => {
+    setDb((d) => applyImport(d, entity, parsed, context, uid).db);
+  }, []);
+
   const resetDb = useCallback(() => {
     const fresh = structuredClone(seed);
     setDb(fresh);
@@ -626,14 +634,14 @@ export function StoreProvider({ children }) {
     addPrStatus, updatePrStatus, reorderPrStatus, retirePrStatus, restorePrStatus,
     addUser, updateUser, deleteUser,
     addPr, updatePr, setPrStatus, deletePr,
-    importData,
+    importData, importEntity,
     resetDb,
   }), [db, currentProjectId, currentPhaseId, addMaterial, updateMaterial, addAlias, removeAlias,
     addBoqItem, updateBoqItem, patchBoqItem, deleteBoqItem, finalizePhase,
     addPhase, updatePhase, reorderPhase, deletePhase,
     stageBoqModify, stageBoqAdd, editStagedAdd, stageBoqDelete, unstageBoq, discardBoqStaged, commitBoqStaged, addSupplier, addBrand, updateBrand, deleteBrand, softDeletePr, softDeleteMaterial, softDeleteMaterialType, softDeleteProject, restoreTrash, purgeTrash, addMaterialType, updateMaterialType, addProject, updateProject, addProjectType, deleteProjectType, addPrStatus, updatePrStatus, reorderPrStatus, retirePrStatus, restorePrStatus, addMandor, updateMandor, deleteMandor,
     addUser, updateUser, deleteUser,
-    addPr, updatePr, setPrStatus, deletePr, importData, resetDb]);
+    addPr, updatePr, setPrStatus, deletePr, importData, importEntity, resetDb]);
 
   return <StoreCtx.Provider value={value}>{children}</StoreCtx.Provider>;
 }

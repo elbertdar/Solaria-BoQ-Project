@@ -43,3 +43,40 @@ export function csvDate(v) {
 export function csvFilename(table) {
   return `solaria-${table}-${csvDate(new Date())}.csv`;
 }
+
+// ---- Import side: RFC-4180 parser ----
+// Tolerates quoted fields (with embedded commas / newlines / "" escapes), CRLF or LF,
+// a leading UTF-8 BOM, and short rows. Returns { headers, rows } where each row is an
+// object keyed by the (trimmed) header text. Blank lines are dropped.
+export function parseCsv(text) {
+  let s = String(text || '');
+  if (s.charCodeAt(0) === 0xFEFF) s = s.slice(1); // strip UTF-8 BOM
+  const grid = [];
+  let row = [], field = '', inQuotes = false;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (s[i + 1] === '"') { field += '"'; i++; } else inQuotes = false;
+      } else field += c;
+      continue;
+    }
+    if (c === '"') inQuotes = true;
+    else if (c === ',') { row.push(field); field = ''; }
+    else if (c === '\r') { /* swallow; \n handles the break */ }
+    else if (c === '\n') { row.push(field); grid.push(row); row = []; field = ''; }
+    else field += c;
+  }
+  row.push(field);
+  grid.push(row);
+
+  const nonEmpty = grid.filter((r) => r.some((c) => c.trim() !== ''));
+  if (nonEmpty.length === 0) return { headers: [], rows: [] };
+  const headers = nonEmpty[0].map((h) => h.trim());
+  const rows = nonEmpty.slice(1).map((r) => {
+    const obj = {};
+    headers.forEach((h, idx) => { obj[h] = (r[idx] ?? '').trim(); });
+    return obj;
+  });
+  return { headers, rows };
+}

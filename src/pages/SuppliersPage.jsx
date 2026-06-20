@@ -3,6 +3,7 @@ import { useStore } from '../store/StoreContext.jsx';
 import Modal from '../components/Modal.jsx';
 import { FilterBar, FilterSearch, FilterSelect } from '../components/ui.jsx';
 import ExportButton from '../components/ExportButton.jsx';
+import ImportButton from '../components/ImportButton.jsx';
 
 export default function SuppliersPage() {
   const { db, addSupplier } = useStore();
@@ -50,6 +51,7 @@ export default function SuppliersPage() {
             { header: 'Address', value: (s) => s.contact?.address },
             { header: 'ID', value: (s) => s.id },
           ]} />
+          <ImportButton entity="suppliers" />
           <button className="btn primary" onClick={() => setAdding(true)}>+ Add supplier</button>
         </div>
       </div>
