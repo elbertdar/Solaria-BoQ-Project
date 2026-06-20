@@ -57,7 +57,6 @@ export default function Sidebar() {
   const project = db.projects.find((p) => p.id === currentProjectId) || db.projects[0];
 
   const badgeFor = (key) => (key === 'portfolio' ? portfolioCount : key === 'sched' ? overdueCount : key === 'warn' ? warnCount : 0);
-  const countFor = (key) => (key === 'trash' ? trashCount : badgeFor(key));
 
   return (
     <aside className="sidebar">
@@ -92,8 +91,17 @@ export default function Sidebar() {
       <div className="sb-user">
         <div className="avatar">{initials(db.currentUser?.name)}</div>
         <div className="who">
-          <b>{db.currentUser?.name}</b>
-          <span>{db.currentUser?.role}</span>
+          {db.currentUser ? (
+            <>
+              <b>{db.currentUser.name}</b>
+              <span>{db.currentUser.role}</span>
+            </>
+          ) : (
+            <>
+              <b>No user yet</b>
+              <span>Add your team to begin</span>
+            </>
+          )}
         </div>
       </div>
     </aside>

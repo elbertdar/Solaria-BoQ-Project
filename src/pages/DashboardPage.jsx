@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { TONE } from '../theme.js';
 import { isCommitted, isReceived } from '../engine/status.js';
 import { useStore } from '../store/StoreContext.jsx';
-import { KpiCard } from '../components/ui.jsx';
+import { KpiCard, EmptyState } from '../components/ui.jsx';
 import Modal from '../components/Modal.jsx';
 import ReceiveModal from '../components/ReceiveModal.jsx';
 import NewProjectModal from '../components/NewProjectModal.jsx';
@@ -43,6 +43,27 @@ export default function DashboardPage() {
   const orderedPrFor = (line) => db.prs.find((p) => p.boqItemId === line.boqItem.id && isCommitted(db, p.status) && !isReceived(db, p.status));
   const supplierName = (id) => db.suppliers.find((s) => s.id === id)?.name;
   const doneFor = (bucket) => done.filter((d) => d.bucket === bucket);
+
+  // First run: nothing in the app yet. Show a welcoming onboarding state instead of a
+  // wall of empty KPIs and worklist buckets.
+  if (db.projects.length === 0) {
+    return (
+      <>
+        <div className="page-head">
+          <h1>Welcome to Solaria</h1>
+          <p className="sub">Procurement control · balance your plan (BoQ) against actual orders (PR)</p>
+        </div>
+        <EmptyState
+          icon="◧"
+          title="Start your first project"
+          message="There’s nothing here yet. Create a project to build its bill of quantities, then raise purchase requests and track delivery from this dashboard."
+          action={<button className="btn primary" onClick={() => setNewProject(true)}>+ New project</button>}
+        />
+        {newProject && <NewProjectModal onClose={() => setNewProject(false)}
+          onCreate={(vals) => { const id = addProject(vals); setNewProject(false); setCurrentProjectId(id); nav('/boq'); }} />}
+      </>
+    );
+  }
 
   return (
     <>

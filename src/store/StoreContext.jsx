@@ -6,7 +6,7 @@ import { seed } from '../data/seed.js';
 import { nowISO } from '../engine/format.js';
 import { DEFAULT_PR_STATUSES, sortStatuses, isCommitted, defaultStatusId } from '../engine/status.js';
 
-const KEY = 'solaria_boq_db_v10';
+const KEY = 'solaria_boq_db_v11';
 const StoreCtx = createContext(null);
 
 function normalize(d) {
@@ -185,8 +185,20 @@ export function StoreProvider({ children }) {
   }, []);
   const addMandor = useMemo(() => (name) => mandorCrud.add({ name }), []);
   const updateMandor = mandorCrud.update, deleteMandor = mandorCrud.remove;
-  const userCrud = useMemo(() => makeCrud(setDb, 'users', 'u', { role: 'Purchasing PIC' }), []);
-  const addUser = userCrud.add;
+  // First person added becomes the signed-in user (no auth layer yet), so audit
+  // trails have an author from the very first action on a fresh install.
+  const addUser = useCallback((obj) => {
+    const id = uid('u');
+    setDb((d) => {
+      const user = { id, role: 'Purchasing PIC', ...obj };
+      return {
+        ...d,
+        users: [...(d.users || []), user],
+        currentUser: d.currentUser || { id, name: user.name, role: user.role },
+      };
+    });
+    return id;
+  }, []);
 
   const addAlias = useCallback((id, alias) => {
     setDb((d) => ({

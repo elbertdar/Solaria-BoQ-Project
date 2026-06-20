@@ -357,6 +357,22 @@ input:focus, select:focus, textarea:focus { outline: 2px solid #BFDBFE; outline-
   text-align: center; color: var(--ink-faint); padding: 40px 20px; font-size: 13.5px;
 }
 
+/* Onboarding / first-run empty state (see ui.jsx EmptyState). */
+.empty-state {
+  display: flex; flex-direction: column; align-items: center; text-align: center;
+  gap: 6px; padding: 56px 24px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.empty-state-icon {
+  width: 56px; height: 56px; display: grid; place-items: center;
+  font-size: 26px; color: var(--ink-faint);
+  background: #F1F5F9; border-radius: 50%; margin-bottom: 6px;
+}
+.empty-state h2 { margin: 0; font-size: 17px; color: var(--ink); }
+.empty-state p { margin: 0; max-width: 420px; color: var(--ink-soft); font-size: 13.5px; line-height: 1.6; }
+.empty-state-action { margin-top: 12px; }
+
 .linked-yes { color: var(--ok); font-weight: 600; }
 .linked-no  { color: var(--ink-faint); }
 

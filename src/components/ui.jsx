@@ -19,6 +19,20 @@ export function KpiCard({ label, value, tone = '', sub, subTone = '', onClick })
   );
 }
 
+// Full-card empty / onboarding state: a centered icon, heading, one line of guidance,
+// and an optional call-to-action. Used for first-run screens (no projects yet) and any
+// page whose collection is empty.
+export function EmptyState({ icon = '◦', title, message, action }) {
+  return (
+    <div className="empty-state">
+      <div className="empty-state-icon">{icon}</div>
+      <h2>{title}</h2>
+      {message && <p>{message}</p>}
+      {action && <div className="empty-state-action">{action}</div>}
+    </div>
+  );
+}
+
 export function AlertBanner({ tone = 'risk', title, children, action }) {
   return (
     <div className={'banner ' + tone}>

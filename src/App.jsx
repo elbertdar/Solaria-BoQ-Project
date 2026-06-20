@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { StoreProvider } from './store/StoreContext.jsx';
 import Sidebar from './components/Sidebar.jsx';
+import RequireProject from './components/RequireProject.jsx';
 import DashboardPage from './pages/DashboardPage.jsx';
 import ProjectCataloguePage from './pages/ProjectCataloguePage.jsx';
 import AllPurchaseRequestsPage from './pages/AllPurchaseRequestsPage.jsx';
@@ -27,11 +28,11 @@ export default function App() {
               <Route path="/" element={<DashboardPage />} />
               <Route path="/projects" element={<ProjectCataloguePage />} />
               <Route path="/all-purchase-requests" element={<AllPurchaseRequestsPage />} />
-              <Route path="/overview" element={<Overview />} />
-              <Route path="/reconciliation" element={<ReconciliationPage />} />
-              <Route path="/schedule" element={<SchedulePage />} />
-              <Route path="/boq" element={<BoqPage />} />
-              <Route path="/purchase-requests" element={<PurchaseRequestsPage />} />
+              <Route path="/overview" element={<RequireProject><Overview /></RequireProject>} />
+              <Route path="/reconciliation" element={<RequireProject><ReconciliationPage /></RequireProject>} />
+              <Route path="/schedule" element={<RequireProject><SchedulePage /></RequireProject>} />
+              <Route path="/boq" element={<RequireProject><BoqPage /></RequireProject>} />
+              <Route path="/purchase-requests" element={<RequireProject><PurchaseRequestsPage /></RequireProject>} />
               <Route path="/suppliers" element={<SuppliersPage />} />
               <Route path="/catalogue" element={<CataloguePage />} />
               <Route path="/material-types" element={<MaterialTypesPage />} />
