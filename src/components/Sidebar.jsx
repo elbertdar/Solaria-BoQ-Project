@@ -93,6 +93,10 @@ export default function Sidebar() {
         ))}
       </nav>
 
+      <div className="sb-pilot">
+        <b>Pilot version.</b> Your data is saved only in this browser on this device. Don’t enter anything you can’t afford to re-enter.
+      </div>
+
       <div className="sb-user">
         <div className="avatar">{initials(db.currentUser?.name)}</div>
         <div className="who">
