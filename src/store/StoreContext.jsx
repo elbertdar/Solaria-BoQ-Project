@@ -103,7 +103,20 @@ export function StoreProvider({ children }) {
   const materialCrud = useMemo(() => makeCrud(setDb, 'materials', 'mat', { aliases: [] }), []);
   const addMaterial = materialCrud.add, updateMaterial = materialCrud.update;
   const supplierCrud = useMemo(() => makeCrud(setDb, 'suppliers', 's', { materialTypeIds: [] }), []);
-  const addSupplier = supplierCrud.add;
+  const addSupplier = supplierCrud.add, updateSupplier = supplierCrud.update;
+  // Delete a supplier: drop it and clear it off any PRs that named it (don't orphan refs).
+  const deleteSupplier = useCallback((id) => {
+    setDb((d) => ({
+      ...d,
+      suppliers: d.suppliers.filter((s) => s.id !== id),
+      prs: d.prs.map((p) => {
+        const patch = {};
+        if (p.supplierPrimaryId === id) patch.supplierPrimaryId = null;
+        if (p.supplierSecondaryId === id) patch.supplierSecondaryId = null;
+        return Object.keys(patch).length ? { ...p, ...patch } : p;
+      }),
+    }));
+  }, []);
   const brandCrud = useMemo(() => makeCrud(setDb, 'brands', 'br'), []);
   const addBrand = brandCrud.add, updateBrand = brandCrud.update;
   const typeCrud = useMemo(() => makeCrud(setDb, 'materialTypes', 'mt', { description: '' }), []);
@@ -626,7 +639,7 @@ export function StoreProvider({ children }) {
     addBoqItem, updateBoqItem, patchBoqItem, deleteBoqItem, finalizePhase,
     addPhase, updatePhase, reorderPhase, deletePhase,
     stageBoqModify, stageBoqAdd, editStagedAdd, stageBoqDelete, unstageBoq, discardBoqStaged, commitBoqStaged,
-    addSupplier,
+    addSupplier, updateSupplier, deleteSupplier,
     addBrand, updateBrand, deleteBrand,
     softDeletePr, softDeleteMaterial, softDeleteMaterialType, softDeleteProject, restoreTrash, purgeTrash,
     addMaterialType, updateMaterialType,
@@ -639,7 +652,7 @@ export function StoreProvider({ children }) {
   }), [db, currentProjectId, currentPhaseId, addMaterial, updateMaterial, addAlias, removeAlias,
     addBoqItem, updateBoqItem, patchBoqItem, deleteBoqItem, finalizePhase,
     addPhase, updatePhase, reorderPhase, deletePhase,
-    stageBoqModify, stageBoqAdd, editStagedAdd, stageBoqDelete, unstageBoq, discardBoqStaged, commitBoqStaged, addSupplier, addBrand, updateBrand, deleteBrand, softDeletePr, softDeleteMaterial, softDeleteMaterialType, softDeleteProject, restoreTrash, purgeTrash, addMaterialType, updateMaterialType, addProject, updateProject, addProjectType, deleteProjectType, addPrStatus, updatePrStatus, reorderPrStatus, retirePrStatus, restorePrStatus, addMandor, updateMandor, deleteMandor,
+    stageBoqModify, stageBoqAdd, editStagedAdd, stageBoqDelete, unstageBoq, discardBoqStaged, commitBoqStaged, addSupplier, updateSupplier, deleteSupplier, addBrand, updateBrand, deleteBrand, softDeletePr, softDeleteMaterial, softDeleteMaterialType, softDeleteProject, restoreTrash, purgeTrash, addMaterialType, updateMaterialType, addProject, updateProject, addProjectType, deleteProjectType, addPrStatus, updatePrStatus, reorderPrStatus, retirePrStatus, restorePrStatus, addMandor, updateMandor, deleteMandor,
     addUser, updateUser, deleteUser,
     addPr, updatePr, setPrStatus, deletePr, importData, importEntity, resetDb]);
 
