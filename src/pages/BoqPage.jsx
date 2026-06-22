@@ -14,7 +14,7 @@ import BoqModal from '../components/BoqModal.jsx';
 import CommitModal from '../components/CommitModal.jsx';
 import HistoryView from '../components/HistoryView.jsx';
 import ManagePhasesModal from '../components/ManagePhasesModal.jsx';
-import ImportButton from '../components/ImportButton.jsx';
+import DataToolbar from '../components/DataToolbar.jsx';
 
 const plannedOf = (b) => b.budgetBasis === 'allowance' ? (b.allowanceAmount || 0) : (b.quantity || 0) * (b.expectedUnitCost || 0);
 
@@ -62,7 +62,7 @@ export default function BoqPage() {
           <p className="sub">{project.name} · drafted in phases — edit each below, finalize when ready</p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <ImportButton entity="boq" context={{ currentProjectId }} label="Import BoQ" />
+          <DataToolbar entity="boq" rows={boqForProject(db, currentProjectId)} context={{ currentProjectId }} />
           <button className="btn ghost" onClick={() => setManagePhases(true)}>Manage phases</button>
         </div>
       </div>

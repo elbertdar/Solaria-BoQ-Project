@@ -6,7 +6,7 @@ import { projectTotals } from '../engine/reconcile.js';
 import { scheduleForProject, todayLocal } from '../engine/schedule.js';
 import { idr, fmtDate } from '../engine/format.js';
 import NewProjectModal from '../components/NewProjectModal.jsx';
-import ImportButton from '../components/ImportButton.jsx';
+import DataToolbar from '../components/DataToolbar.jsx';
 import Modal from '../components/Modal.jsx';
 import { FilterBar, FilterSearch, FilterSelect, Pill } from '../components/ui.jsx';
 
@@ -67,7 +67,7 @@ export default function ProjectCataloguePage() {
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <button className="btn ghost" onClick={() => setManageTypes(true)}>Manage types</button>
-          <ImportButton entity="projects" />
+          <DataToolbar entity="projects" rows={db.projects} />
           <button className="btn primary" onClick={() => setNewProject(true)}>+ New project</button>
         </div>
       </div>

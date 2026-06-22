@@ -265,3 +265,53 @@ export function importTemplate(entity) {
   const example = spec.columns.map((c) => c.example ?? '');
   return [headers.map(esc).join(','), example.map(esc).join(',')].join('\r\n');
 }
+
+// Export columns whose headers exactly mirror the import spec, with foreign keys resolved back
+// to the names the importer expects — so an exported CSV round-trips straight back through import.
+export function exportColumns(db, entity) {
+  const n = (v) => (v == null || v === '' ? '' : String(v));
+  const typeName = (id) => db.materialTypes.find((t) => t.id === id)?.name || '';
+  const projTypeName = (id) => (db.projectTypes || []).find((t) => t.id === id)?.name || '';
+  const mandorName = (id) => db.mandors.find((m) => m.id === id)?.name || '';
+  const matName = (id) => db.materials.find((m) => m.id === id)?.canonicalName || '';
+  const projRef = (id) => { const p = db.projects.find((x) => x.id === id); return p ? (p.code || p.name) : ''; };
+  const COLS = {
+    materials: [
+      { header: 'Canonical name', value: (m) => m.canonicalName },
+      { header: 'Default unit', value: (m) => m.defaultUnit },
+      { header: 'Type', value: (m) => typeName(m.materialTypeId) },
+      { header: 'Est. unit cost', value: (m) => n(m.estUnitCost) },
+      { header: 'Lead time', value: (m) => n(m.leadTimeDays) },
+      { header: 'Aliases', value: (m) => (m.aliases || []).join('; ') },
+    ],
+    suppliers: [
+      { header: 'Supplier', value: (s) => s.name },
+      { header: 'Material types', value: (s) => (s.materialTypeIds || []).map(typeName).filter(Boolean).join('; ') },
+      { header: 'Location', value: (s) => s.location },
+      { header: 'Phone', value: (s) => s.contact?.phone },
+      { header: 'Email', value: (s) => s.contact?.email },
+      { header: 'Address', value: (s) => s.contact?.address },
+    ],
+    projects: [
+      { header: 'Name', value: (p) => p.name },
+      { header: 'Start date', value: (p) => p.startDate || '' },
+      { header: 'Code', value: (p) => p.code },
+      { header: 'Client', value: (p) => p.client },
+      { header: 'Location', value: (p) => p.location },
+      { header: 'Type', value: (p) => projTypeName(p.projectTypeId) },
+    ],
+    boq: [
+      { header: 'Project', value: (b) => projRef(b.projectId) },
+      { header: 'Material', value: (b) => matName(b.materialId) },
+      { header: 'Quantity', value: (b) => n(b.quantity) },
+      { header: 'Unit', value: (b) => b.unit },
+      { header: 'Description', value: (b) => b.description },
+      { header: 'Mandor', value: (b) => mandorName(b.mandorId) },
+      { header: 'Expected unit cost', value: (b) => n(b.expectedUnitCost) },
+      { header: 'Needed day offset', value: (b) => n(b.neededDayOffset) },
+      { header: 'Lead time', value: (b) => n(b.leadTimeDays) },
+      { header: 'Allowance', value: (b) => n(b.allowanceAmount) },
+    ],
+  };
+  return COLS[entity] || [];
+}

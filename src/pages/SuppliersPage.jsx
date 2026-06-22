@@ -3,8 +3,7 @@ import { useStore } from '../store/StoreContext.jsx';
 import Modal from '../components/Modal.jsx';
 import ComboBox from '../components/ComboBox.jsx';
 import { FilterBar, FilterSearch, FilterSelect, DeleteConfirm } from '../components/ui.jsx';
-import ExportButton from '../components/ExportButton.jsx';
-import ImportButton from '../components/ImportButton.jsx';
+import DataToolbar from '../components/DataToolbar.jsx';
 
 export default function SuppliersPage() {
   const { db, addSupplier, updateSupplier, deleteSupplier } = useStore();
@@ -46,16 +45,7 @@ export default function SuppliersPage() {
           <p className="sub">Who to request quotes from — filterable by material type and location</p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <ExportButton table="suppliers" rows={rows} columns={[
-            { header: 'Supplier', value: (s) => s.name },
-            { header: 'Material types', value: (s) => s.materialTypeIds.map(typeName).join('; ') },
-            { header: 'Location', value: (s) => s.location },
-            { header: 'Phone', value: (s) => s.contact?.phone },
-            { header: 'Email', value: (s) => s.contact?.email },
-            { header: 'Address', value: (s) => s.contact?.address },
-            { header: 'ID', value: (s) => s.id },
-          ]} />
-          <ImportButton entity="suppliers" />
+          <DataToolbar entity="suppliers" rows={db.suppliers} />
           <button className="btn primary" onClick={() => setEditing(null)}>+ Add supplier</button>
         </div>
       </div>
