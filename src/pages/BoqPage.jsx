@@ -121,6 +121,7 @@ function PhaseBlock({ phase, db, start, isFirst, onSetStart, matchF, grouped, ma
   const draft = phase.boqStatus !== 'working';
   const [showHistory, setShowHistory] = useState(false);
   const [discardArmed, setDiscardArmed] = useState(false);
+  const [highlightIds, setHighlightIds] = useState(null); // rows changed by the selected edit-history entry
   const pid = phase.projectId;
   const anchor = phaseStart(db, phase.id) || start;   // day-0 for this phase's items (phase start if set)
   const projStartStr = db.projects.find((p) => p.id === pid)?.startDate || '';
@@ -225,7 +226,7 @@ function PhaseBlock({ phase, db, start, isFirst, onSetStart, matchF, grouped, ma
           </thead>
           <tbody>
             {groups.map((g) => (
-              <Group key={g.key} g={g} db={db} grouped={grouped} start={anchor}
+              <Group key={g.key} g={g} db={db} grouped={grouped} start={anchor} highlightIds={highlightIds}
                 onEdit={(r) => onEdit({ ...r.fields, __ref: r.ref, __isAdd: !!r.isStagedAdd })}
                 onRaisePr={(r) => onRaisePr(db.boqItems.find((b) => b.id === r.id))}
                 onUndo={(r) => onUndo(r.ref)} />
@@ -238,8 +239,8 @@ function PhaseBlock({ phase, db, start, isFirst, onSetStart, matchF, grouped, ma
       </div>
       {phaseEdits.length > 0 && (
         <div style={{ padding: '8px 14px 12px' }}>
-          <button className="btn sm ghost" onClick={() => setShowHistory((v) => !v)}>{showHistory ? 'Hide' : 'Show'} edit history ({phaseEdits.length})</button>
-          {showHistory && <div style={{ marginTop: 10 }}><HistoryView edits={phaseEdits} db={db} /></div>}
+          <button className="btn sm ghost" onClick={() => { setShowHistory((v) => !v); setHighlightIds(null); }}>{showHistory ? 'Hide' : 'Show'} edit history ({phaseEdits.length})</button>
+          {showHistory && <div style={{ marginTop: 10 }}><HistoryView edits={phaseEdits} db={db} onSelectEdit={setHighlightIds} /></div>}
         </div>
       )}
     </div>
@@ -247,7 +248,7 @@ function PhaseBlock({ phase, db, start, isFirst, onSetStart, matchF, grouped, ma
 }
 
 
-function Group({ g, db, grouped, start, onEdit, onRaisePr, onUndo }) {
+function Group({ g, db, grouped, start, highlightIds, onEdit, onRaisePr, onUndo }) {
   // Cluster identical lines. Only collapse a group when every member is unchanged (committed) —
   // staged add/modify/delete rows always render individually so their state stays visible.
   const subgroups = groupIdentical(g.rows, (r) => r.fields);
@@ -258,8 +259,8 @@ function Group({ g, db, grouped, start, onEdit, onRaisePr, onUndo }) {
       )}
       {subgroups.map((sg) => {
         const collapsible = sg.items.length > 1 && sg.items.every((r) => r.status === 'unchanged');
-        if (collapsible) return <WorkingGroup key={sg.key} rows={sg.items} db={db} start={start} onEdit={onEdit} onRaisePr={onRaisePr} onUndo={onUndo} />;
-        return sg.items.map((r) => <Row key={r.key} r={r} db={db} start={start} onEdit={onEdit} onRaisePr={onRaisePr} onUndo={onUndo} />);
+        if (collapsible) return <WorkingGroup key={sg.key} rows={sg.items} db={db} start={start} highlightIds={highlightIds} onEdit={onEdit} onRaisePr={onRaisePr} onUndo={onUndo} />;
+        return sg.items.map((r) => <Row key={r.key} r={r} db={db} start={start} highlighted={!!highlightIds?.includes(r.id)} onEdit={onEdit} onRaisePr={onRaisePr} onUndo={onUndo} />);
       })}
     </>
   );
@@ -267,8 +268,10 @@ function Group({ g, db, grouped, start, onEdit, onRaisePr, onUndo }) {
 
 // Combined summary row for a run of identical working-phase lines — summed quantity, an
 // "N entries" badge, and a rolled-up status. Expand to the individual lines (edit / raise PR).
-function WorkingGroup({ rows, db, start, onEdit, onRaisePr, onUndo }) {
+function WorkingGroup({ rows, db, start, highlightIds, onEdit, onRaisePr, onUndo }) {
   const [open, setOpen] = useState(false);
+  const containsHighlight = rows.some((r) => highlightIds?.includes(r.id));
+  const isOpen = open || containsHighlight; // auto-expand when a contained row is the changed one
   const f = rows[0].fields;
   const allow = f.budgetBasis === 'allowance';
   const totalQty = rows.reduce((s, r) => s + (Number(r.fields.quantity) || 0), 0);
@@ -282,7 +285,7 @@ function WorkingGroup({ rows, db, start, onEdit, onRaisePr, onUndo }) {
   const dash = <span className="muted">—</span>;
   return (
     <>
-      <tr className="clickable" onClick={() => setOpen((o) => !o)} style={{ background: '#F1F5F9' }} title="Identical lines — expand to edit each">
+      <tr className="clickable" onClick={() => setOpen((o) => !o)} style={containsHighlight ? HILITE : { background: '#F1F5F9' }} title="Identical lines — expand to edit each">
         <td className="mat-link"><b>{materialName(db, f.materialId)}</b> <span className="pill gray" style={{ fontSize: 11, marginLeft: 6 }}>{rows.length} entries</span>{allow && <span className="pill info" style={{ marginLeft: 6, fontSize: 11 }}>Allowance</span>}</td>
         <td>{f.description}</td>
         <td className="num">{allow ? dash : num(totalQty)}</td>
@@ -293,9 +296,9 @@ function WorkingGroup({ rows, db, start, onEdit, onRaisePr, onUndo }) {
         <td>{rollup === 'complete'
           ? <span className="pill" style={{ background: '#F0FDF4', color: '#15803D', border: '1px solid #D1FAE5' }}>Complete</span>
           : rollup === 'ordered' ? <span className="pill info">Ordered</span> : <span className="pill gray">Not ordered</span>}</td>
-        <td className="num muted">{open ? <ChevronDown size={15} /> : <ChevronRight size={15} />}</td>
+        <td className="num muted">{isOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}</td>
       </tr>
-      {open && rows.map((r) => <Row key={r.key} r={r} db={db} start={start} onEdit={onEdit} onRaisePr={onRaisePr} onUndo={onUndo} grouped />)}
+      {isOpen && rows.map((r) => <Row key={r.key} r={r} db={db} start={start} highlighted={!!highlightIds?.includes(r.id)} onEdit={onEdit} onRaisePr={onRaisePr} onUndo={onUndo} grouped />)}
     </>
   );
 }
@@ -330,8 +333,9 @@ function DraftGroup({ items, db, start, mandorName, onPatch, onDelete }) {
 }
 
 const TINT = { background: '#FFFBEB' }; // changed-cell highlight
+const HILITE = { background: '#FEF9C3', boxShadow: 'inset 0 0 0 2px #FACC15' }; // row picked from edit history
 
-function Row({ r, db, start, onEdit, onRaisePr, onUndo, grouped }) {
+function Row({ r, db, start, onEdit, onRaisePr, onUndo, grouped, highlighted }) {
   const f = r.fields, base = r.base;
   const allow = f.budgetBasis === 'allowance';
   const deleted = r.status === 'deleted';
@@ -343,6 +347,7 @@ function Row({ r, db, start, onEdit, onRaisePr, onUndo, grouped }) {
   const rowStyle = {
     ...(r.status === 'added' ? { background: '#F0FDF4' } : deleted ? { opacity: 0.55 } : {}),
     ...(grouped ? { background: '#FBFCFE', boxShadow: 'inset 3px 0 0 #E2E8F0' } : {}),
+    ...(highlighted ? HILITE : {}),
   };
   const strike = deleted ? { textDecoration: 'line-through' } : undefined;
   const wasNum = (k, prev) => changed(k) && base && (base[k] ?? null) !== (f[k] ?? null)
