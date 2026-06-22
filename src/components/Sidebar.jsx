@@ -50,7 +50,7 @@ const GROUPS = [
 ];
 
 export default function Sidebar() {
-  const { db, currentProjectId } = useStore();
+  const { db, currentProjectId, setCurrentProjectId } = useStore();
   const warnCount = projectWarnings(db, currentProjectId).length;
   const sched = scheduleCounts(scheduleForProject(db, currentProjectId).lines);
   const overdueCount = sched.overdueOrder + sched.overdueDeliver;
@@ -73,8 +73,19 @@ export default function Sidebar() {
         {GROUPS.map((g) => (
           <div className="sb-group" key={g.label}>
             <div className="sb-group-label">{g.label}</div>
-            {g.label === 'Project' && project && (
-              <div className="muted" title={project.code || ''} style={{ fontSize: 11, padding: '0 10px 6px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{project.name}</div>
+            {g.label === 'Project' && (
+              <div style={{ padding: '0 10px 8px' }}>
+                {db.projects.length === 0 ? (
+                  <div className="muted" style={{ fontSize: 11 }}>No project yet</div>
+                ) : (
+                  <select className="sb-proj-select" value={project?.id || ''} title={project?.code || ''}
+                    onChange={(e) => setCurrentProjectId(e.target.value)}>
+                    {db.projects.map((p) => (
+                      <option key={p.id} value={p.id}>{p.name}{p.code ? ` (${p.code})` : ''}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
             )}
             {g.items.map((it) => {
               const isTrash = it.badgeKey === 'trash';
