@@ -60,6 +60,12 @@ export const isCommitted = (db, id) => {
 export const isReceived = (db, id) => statusDef(db, id).phase === 'received';
 export const isVoid = (db, id) => statusDef(db, id).phase === 'void';
 
+// A "major" status change crosses a commitment boundary — advancing INTO Ordered/Received,
+// or reversing back OUT of them. These route through review & commit; routine pre-order
+// bumps (Draft→Requested→Quoted) stay instant.
+export const isMajorTransition = (db, from, to) =>
+  from !== to && (isCommitted(db, from) !== isCommitted(db, to) || isReceived(db, from) !== isReceived(db, to));
+
 // The forward pipeline (everything except void/closed), in display order.
 const flowStatuses = (db) => activeStatuses(db).filter((s) => s.phase !== 'void');
 

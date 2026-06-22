@@ -98,7 +98,7 @@ export default function BoqPage() {
       {boqModal && <BoqModal item={boqModal.item} phaseId={boqModal.phaseId} onClose={() => setBoqModal(null)} />}
       {prFor && <PrModal boqItem={prFor} onClose={() => setPrFor(null)} />}
       {committingPhase && <CommitModal db={db} staged={committingStaged} projectId={currentProjectId}
-        onCommit={(msg) => { commitBoqStaged(committingPhase, msg); setCommittingPhase(null); }}
+        onCommit={(msg, keys) => { commitBoqStaged(committingPhase, msg, keys); setCommittingPhase(null); }}
         onClose={() => setCommittingPhase(null)} />}
       {managePhases && <ManagePhasesModal onClose={() => setManagePhases(false)} />}
       {finalizing && (

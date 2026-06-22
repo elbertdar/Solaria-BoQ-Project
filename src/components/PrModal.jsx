@@ -3,13 +3,13 @@ import { TriangleAlert, Star } from 'lucide-react';
 import Modal from './Modal.jsx';
 import { useStore } from '../store/StoreContext.jsx';
 import { checkProspectivePr, materialName, boqForProject, remainingQty, brandsForMaterial } from '../engine/reconcile.js';
-import { activeStatuses, statusDef, defaultStatusId } from '../engine/status.js';
+import { activeStatuses, statusDef, defaultStatusId, isMajorTransition } from '../engine/status.js';
 import { idr, today } from '../engine/format.js';
 import NumberInput from './NumberInput.jsx';
 import ComboBox from './ComboBox.jsx';
 
 export default function PrModal({ pr = null, boqItem = null, onClose }) {
-  const { db, currentProjectId, currentPhaseId, addPr, updatePr, softDeletePr, addBrand, addSupplier, addMaterial, addUser } = useStore();
+  const { db, currentProjectId, currentPhaseId, addPr, updatePr, softDeletePr, stagePrStatus, addBrand, addSupplier, addMaterial, addUser } = useStore();
   const editing = !!pr;
   const raising = !editing && !!boqItem;
   const editingExtra = editing && !db.boqItems.some((b) => b.id === pr.boqItemId); // editing a PR with no live line
@@ -103,8 +103,18 @@ export default function PrModal({ pr = null, boqItem = null, onClose }) {
       receiptDate: status === 'received' ? (receiptDate || null) : null,
       comment: comment.trim(),
     };
-    if (editing) updatePr(pr.id, payload);
-    else addPr(payload);
+    if (editing) {
+      const major = status !== pr.status && isMajorTransition(db, pr.status, status);
+      if (major) {
+        // Apply the field edits now, but route the major status change through review & commit.
+        updatePr(pr.id, { ...payload, status: pr.status, receiptDate: pr.receiptDate });
+        stagePrStatus(pr.id, status, status === 'received' ? (receiptDate || null) : null);
+      } else {
+        updatePr(pr.id, payload); // minor (or no) status change applies immediately
+      }
+    } else {
+      addPr(payload);
+    }
     onClose();
   }
 

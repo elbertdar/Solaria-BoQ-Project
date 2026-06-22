@@ -6,7 +6,8 @@ import { StatusPill, FilterBar, FilterSearch, FilterSelect } from '../components
 import PrModal from '../components/PrModal.jsx';
 import ReceiveModal from '../components/ReceiveModal.jsx';
 import { idr, fmtDate, num } from '../engine/format.js';
-import { nextStatusId, activeStatuses, statusDef, isCommitted, isReceived } from '../engine/status.js';
+import { nextStatusId, activeStatuses, statusDef, isCommitted, isReceived, isMajorTransition } from '../engine/status.js';
+import PrCommitModal from '../components/PrCommitModal.jsx';
 
 // Portfolio-wide PR view: every purchase request across every project in one table,
 // with cross-project filters (project, status, PIC, mandor, supplier). Mandor isn't on
@@ -14,11 +15,16 @@ import { nextStatusId, activeStatuses, statusDef, isCommitted, isReceived } from
 // Creation stays per-project (needs BoQ context); this page is for monitoring + acting:
 // edit, advance, receive. Editing sets the current project first so PrModal has context.
 export default function AllPurchaseRequestsPage() {
-  const { db, setCurrentProjectId, setPrStatus } = useStore();
+  const { db, setCurrentProjectId, setPrStatus, stagePrStatus, unstagePr, discardPrStaged, commitPrStaged } = useStore();
 
   const [modal, setModal] = useState(undefined);     // undefined=closed, obj=edit
   const [receiveFor, setReceiveFor] = useState(null);
   const [open, setOpen] = useState(null);
+  const [committing, setCommitting] = useState(false);
+  const [discardArmed, setDiscardArmed] = useState(false);
+
+  const pending = db.prStaged || [];               // portfolio-wide pending status changes
+  const stagedFor = (id) => pending.find((s) => s.prId === id);
   const [q, setQ] = useState('');
   const [projectFilter, setProjectFilter] = useState([]);
   const [statusFilter, setStatusFilter] = useState([]);
@@ -112,8 +118,9 @@ export default function AllPurchaseRequestsPage() {
   function advance(p) {
     const next = nextStatusId(db, p.status);
     if (!next) return;
-    if (next === 'received') { setReceiveFor(p); return; }
-    setPrStatus(p.id, next);
+    if (!isMajorTransition(db, p.status, next)) { setPrStatus(p.id, next); return; } // routine bump → instant
+    if (next === 'received') { setReceiveFor(p); return; }   // collect receipt date, then stage
+    stagePrStatus(p.id, next);                                // major → stage for review & commit
   }
 
   return (
@@ -122,6 +129,27 @@ export default function AllPurchaseRequestsPage() {
         <h1>All Purchase Requests</h1>
         <p className="sub">Every purchase request across all projects · {db.prs.length} total. Raise new PRs from a project’s BoQ.</p>
       </div>
+
+      {pending.length > 0 && (
+        <div className="banner" style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', color: '#1E40AF', borderRadius: 10, padding: '9px 14px', marginBottom: 14, fontSize: 13.3, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <b>{pending.length} pending status change{pending.length > 1 ? 's' : ''}</b>
+          <span style={{ opacity: 0.85 }}>— major changes staged across projects, not yet committed.</span>
+          <span style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
+            {discardArmed ? (
+              <>
+                <span style={{ color: 'var(--risk)' }}>Discard all?</span>
+                <button className="btn sm danger" onClick={() => { discardPrStaged(); setDiscardArmed(false); }}>Confirm discard</button>
+                <button className="btn sm ghost" onClick={() => setDiscardArmed(false)}>Keep</button>
+              </>
+            ) : (
+              <>
+                <button className="btn sm ghost" onClick={() => setDiscardArmed(true)}>Discard</button>
+                <button className="btn sm primary" onClick={() => setCommitting(true)}>Review &amp; commit</button>
+              </>
+            )}
+          </span>
+        </div>
+      )}
 
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', margin: '0 0 12px' }}>
         <Kpi label="Open commitments" value={tally.committed} active={isPreset(committedOpenIds)}
@@ -172,13 +200,19 @@ export default function AllPurchaseRequestsPage() {
                 const isOpen = open === p.id;
                 const hist = p.statusHistory || [];
                 const next = nextStatusId(db, p.status);
+                const stg = stagedFor(p.id);
                 return (
                   <Fragment key={p.id}>
                     <tr>
                       <td className="num clickable" style={{ cursor: 'pointer', color: 'var(--muted, #94A3B8)' }} onClick={() => setOpen(isOpen ? null : p.id)} title="Status history">{isOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}</td>
                       <td style={{ fontWeight: 600, whiteSpace: 'nowrap', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis' }} title={projName(p.projectId)}>{projName(p.projectId)}</td>
                       <td className="mat-link">{materialName(db, p.materialId)}{isExtraPr(db, p) && <span className="pill warn" style={{ marginLeft: 6 }}>Extra</span>}{p.brandId && <div className="muted" style={{ fontSize: 11 }}>{brandName(db, p.brandId)}</div>}</td>
-                      <td><StatusPill status={p.status} /></td>
+                      <td>
+                        <StatusPill status={p.status} />
+                        {stg && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginLeft: 4 }}>
+                          <ArrowRight size={12} className="muted" /><StatusPill status={stg.to} /><span className="muted" style={{ fontSize: 11 }}>pending</span>
+                        </span>}
+                      </td>
                       <td className="num">{num(p.quantity)} <span className="muted" style={{ fontSize: 11 }}>{p.unit}</span></td>
                       <td className="num">{idr(p.unitCost)}</td>
                       <td className="num">{idr(p.quantity * (p.unitCost || 0))}</td>
@@ -189,7 +223,9 @@ export default function AllPurchaseRequestsPage() {
                       <td style={{ whiteSpace: 'nowrap' }}>{fmtDate(p.receiptDate)}</td>
                       <td className="num" style={{ whiteSpace: 'nowrap' }}>
                         <button className="btn sm ghost" onClick={() => editPr(p)}>Edit</button>{' '}
-                        {next && <button className="btn sm" onClick={() => advance(p)} title={`→ ${statusDef(db, next).label}`}>Advance</button>}
+                        {stg ? (
+                          <button className="btn sm ghost" onClick={() => unstagePr(p.id)} title="Cancel the pending status change">Undo pending</button>
+                        ) : next && <button className="btn sm" onClick={() => advance(p)} title={`→ ${statusDef(db, next).label}`}>Advance</button>}
                       </td>
                     </tr>
                     {isOpen && (
@@ -207,6 +243,7 @@ export default function AllPurchaseRequestsPage() {
                                   {h.from ? <><StatusPill status={h.from} /><ArrowRight size={13} className="muted" /></> : <span className="muted">created as</span>}
                                   <StatusPill status={h.to} />
                                   <span className="muted">· by {h.by?.name || '—'}</span>
+                                  {h.note && <span className="muted" style={{ fontStyle: 'italic' }}>· “{h.note}”</span>}
                                 </div>
                               ))}
                             </div>
@@ -229,7 +266,13 @@ export default function AllPurchaseRequestsPage() {
       {receiveFor && (
         <ReceiveModal title={`Mark received · ${materialName(db, receiveFor.materialId)}`}
           onClose={() => setReceiveFor(null)}
-          onConfirm={(date) => { setPrStatus(receiveFor.id, 'received', date); setReceiveFor(null); }} />
+          onConfirm={(date) => { stagePrStatus(receiveFor.id, 'received', date); setReceiveFor(null); }} />
+      )}
+      {committing && pending.length > 0 && (
+        <PrCommitModal db={db} staged={pending}
+          onCommit={(ids, msg) => { commitPrStaged(ids, msg); setCommitting(false); }}
+          onDiscard={(prId) => unstagePr(prId)}
+          onClose={() => setCommitting(false)} />
       )}
     </>
   );

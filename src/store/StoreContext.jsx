@@ -5,7 +5,7 @@ import { createContext, useContext, useEffect, useMemo, useState, useCallback } 
 import { seed } from '../data/seed.js';
 import { nowISO, today } from '../engine/format.js';
 import { applyImport } from '../engine/dataImport.js';
-import { DEFAULT_PR_STATUSES, sortStatuses, isCommitted, defaultStatusId } from '../engine/status.js';
+import { DEFAULT_PR_STATUSES, sortStatuses, isCommitted, isReceived, defaultStatusId } from '../engine/status.js';
 
 const KEY = 'solaria_boq_db_v11';
 const StoreCtx = createContext(null);
@@ -13,6 +13,7 @@ const StoreCtx = createContext(null);
 function normalize(d) {
   if (!Array.isArray(d.boqStaged)) d.boqStaged = [];
   if (!Array.isArray(d.boqEdits)) d.boqEdits = [];
+  if (!Array.isArray(d.prStaged)) d.prStaged = [];
   if (!Array.isArray(d.brands)) d.brands = [];
   if (!Array.isArray(d.trash)) d.trash = [];
   if (!Array.isArray(d.projectTypes)) d.projectTypes = [];
@@ -76,6 +77,8 @@ function load() {
 // BoQ "definition" fields tracked in staged edits + the commit history diff.
 const BOQ_FIELD_KEYS = ['materialId', 'description', 'mandorId', 'budgetBasis', 'quantity', 'unit', 'expectedUnitCost', 'allowanceAmount', 'neededDayOffset', 'leadTimeDays'];
 const pickFields = (o, keys) => { const r = {}; for (const k of keys) r[k] = o?.[k] ?? null; return r; };
+// Stable identity for one staged BoQ change — lets the commit modal commit a chosen subset.
+export const stagedKey = (s) => (s.type === 'add' ? 'add:' + s.tempId : s.type + ':' + s.boqItemId);
 
 let _uid = 0;
 const uid = (p) => `${p}-${Date.now().toString(36)}-${(_uid++).toString(36)}`;
@@ -312,10 +315,14 @@ export function StoreProvider({ children }) {
     setDb((d) => ({ ...d, boqStaged: d.boqStaged.filter((s) => s.phaseId !== phaseId) }));
   }, []);
 
-  const commitBoqStaged = useCallback((phaseId, message) => {
+  // selectedKeys (optional): commit only these staged changes (by stagedKey), leaving the
+  // rest staged. Null/omitted = commit everything staged in the phase.
+  const commitBoqStaged = useCallback((phaseId, message, selectedKeys = null) => {
     setDb((d) => {
-      const staged = d.boqStaged.filter((s) => s.phaseId === phaseId);
+      const sel = selectedKeys ? new Set(selectedKeys) : null;
+      const staged = d.boqStaged.filter((s) => s.phaseId === phaseId && (!sel || sel.has(stagedKey(s))));
       if (staged.length === 0) return d;
+      const committedKeys = new Set(staged.map(stagedKey));
       const projectId = projOfPhase(d, phaseId);
       const byId = Object.fromEntries(d.boqItems.map((b) => [b.id, b]));
       const changes = [];
@@ -352,7 +359,11 @@ export function StoreProvider({ children }) {
         author: { id: d.currentUser?.id, name: d.currentUser?.name },
         message: (message || '').trim(), changes,
       };
-      return { ...d, boqItems, prs, boqStaged: d.boqStaged.filter((s) => s.phaseId !== phaseId), boqEdits: [...d.boqEdits, entry] };
+      return {
+        ...d, boqItems, prs,
+        boqStaged: d.boqStaged.filter((s) => !(s.phaseId === phaseId && committedKeys.has(stagedKey(s)))),
+        boqEdits: [...d.boqEdits, entry],
+      };
     });
   }, []);
 
@@ -444,7 +455,7 @@ export function StoreProvider({ children }) {
       if (!pr) return d;
       const mat = d.materials.find((m) => m.id === pr.materialId);
       const summary = `PR · ${mat?.canonicalName || 'material'} · ${pr.quantity} ${pr.unit || ''}`.trim();
-      return { ...d, prs: d.prs.filter((p) => p.id !== id), trash: [trashEntry('pr', summary, { prs: [pr] }), ...(d.trash || [])] };
+      return { ...d, prs: d.prs.filter((p) => p.id !== id), prStaged: (d.prStaged || []).filter((s) => s.prId !== id), trash: [trashEntry('pr', summary, { prs: [pr] }), ...(d.trash || [])] };
     });
   }, []);
 
@@ -623,7 +634,56 @@ export function StoreProvider({ children }) {
   }, []);
 
   const deletePr = useCallback((id) => {
-    setDb((d) => ({ ...d, prs: d.prs.filter((p) => p.id !== id) }));
+    setDb((d) => ({ ...d, prs: d.prs.filter((p) => p.id !== id), prStaged: (d.prStaged || []).filter((s) => s.prId !== id) }));
+  }, []);
+
+  // ---- Staged PR status changes (review & commit, like the BoQ flow) ----
+  // Only "major" transitions (crossing Ordered/Received) are staged; the UI applies the rest
+  // instantly via setPrStatus. One pending change per PR; staging the current status clears it.
+  const stagePrStatus = useCallback((prId, to, receiptDate = null) => {
+    setDb((d) => {
+      const pr = d.prs.find((p) => p.id === prId);
+      if (!pr) return d;
+      const others = (d.prStaged || []).filter((s) => s.prId !== prId);
+      if (to === pr.status) return { ...d, prStaged: others }; // back to current = no pending change
+      const actor = d.currentUser ? { id: d.currentUser.id, name: d.currentUser.name } : null;
+      const entry = {
+        id: uid('prc'), prId, projectId: pr.projectId, from: pr.status, to,
+        receiptDate: isReceived(d, to) ? (receiptDate || pr.receiptDate || null) : null,
+        at: nowISO(), by: actor,
+      };
+      return { ...d, prStaged: [...others, entry] };
+    });
+  }, []);
+  const unstagePr = useCallback((prId) => {
+    setDb((d) => ({ ...d, prStaged: (d.prStaged || []).filter((s) => s.prId !== prId) }));
+  }, []);
+  const discardPrStaged = useCallback((projectId = null) => {
+    setDb((d) => ({ ...d, prStaged: (d.prStaged || []).filter((s) => (projectId ? s.projectId !== projectId : false)) }));
+  }, []);
+  // Apply the selected staged changes (by stage id), recording each on the PR's status history
+  // with the commit note. Unselected stays staged (granular). Mirrors setPrStatus semantics.
+  const commitPrStaged = useCallback((stageIds, message) => {
+    setDb((d) => {
+      const ids = new Set(stageIds);
+      const toApply = (d.prStaged || []).filter((s) => ids.has(s.id));
+      if (toApply.length === 0) return d;
+      const byPr = Object.fromEntries(toApply.map((s) => [s.prId, s]));
+      const actor = d.currentUser ? { id: d.currentUser.id, name: d.currentUser.name } : null;
+      const note = (message || '').trim() || null;
+      const prs = d.prs.map((p) => {
+        const s = byPr[p.id];
+        if (!s || s.to === p.status) return p; // skip no-ops (status drifted to target already)
+        return {
+          ...p,
+          status: s.to,
+          receiptDate: isReceived(d, s.to) ? (s.receiptDate || p.receiptDate || null) : null,
+          orderDate: (isCommitted(d, s.to) && !isCommitted(d, p.status) && !p.orderDate) ? today() : p.orderDate,
+          statusHistory: [...(p.statusHistory || []), { at: nowISO(), from: p.status, to: s.to, by: actor, note }],
+        };
+      });
+      return { ...d, prs, prStaged: (d.prStaged || []).filter((s) => !ids.has(s.id)) };
+    });
   }, []);
 
   // Import seam — replace any of the top-level collections from an external source
@@ -668,6 +728,7 @@ export function StoreProvider({ children }) {
     addPrStatus, updatePrStatus, reorderPrStatus, retirePrStatus, restorePrStatus,
     addUser, updateUser, deleteUser,
     addPr, updatePr, setPrStatus, deletePr,
+    stagePrStatus, unstagePr, discardPrStaged, commitPrStaged,
     importData, importEntity,
     resetDb,
   }), [db, currentProjectId, currentPhaseId, addMaterial, updateMaterial, addAlias, removeAlias,
@@ -675,7 +736,8 @@ export function StoreProvider({ children }) {
     addPhase, updatePhase, reorderPhase, deletePhase, setPhaseStart,
     stageBoqModify, stageBoqAdd, editStagedAdd, stageBoqDelete, unstageBoq, discardBoqStaged, commitBoqStaged, addSupplier, updateSupplier, deleteSupplier, addBrand, updateBrand, deleteBrand, softDeletePr, softDeleteMaterial, softDeleteMaterialType, softDeleteProject, restoreTrash, purgeTrash, addMaterialType, updateMaterialType, addProject, updateProject, addProjectType, deleteProjectType, addPrStatus, updatePrStatus, reorderPrStatus, retirePrStatus, restorePrStatus, addMandor, updateMandor, deleteMandor,
     addUser, updateUser, deleteUser,
-    addPr, updatePr, setPrStatus, deletePr, importData, importEntity, resetDb]);
+    addPr, updatePr, setPrStatus, deletePr,
+    stagePrStatus, unstagePr, discardPrStaged, commitPrStaged, importData, importEntity, resetDb]);
 
   return <StoreCtx.Provider value={value}>{children}</StoreCtx.Provider>;
 }
