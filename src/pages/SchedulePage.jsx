@@ -78,8 +78,10 @@ export default function SchedulePage() {
       </div>
 
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
+        <Chip active={filter === 'overdue'} onClick={() => toggleFilter('overdue')} n={counts.overdueOrder} label="Overdue to order"
+          extra={counts.overdueOrder > 0 ? <span style={{ color: TONE.overdue, fontWeight: 600 }}>past the order date — order now</span> : 'none overdue'} />
         <Chip active={filter === 'order'} onClick={() => toggleFilter('order')} n={counts.toOrder} label="To order this week"
-          extra={counts.overdueOrder > 0 ? <span style={{ color: TONE.overdue, fontWeight: 600 }}>{counts.overdueOrder} overdue</span> : 'on track'} />
+          extra="routine — order by the due date" />
         <Chip active={filter === 'needed'} onClick={() => toggleFilter('needed')} n={counts.needed} label="Needed this week" extra="delivery due this week" />
         <Chip active={filter === 'arriving'} onClick={() => toggleFilter('arriving')} n={counts.arriving} label="Arriving this week"
           extra={counts.overdueDeliver > 0 ? <span style={{ color: TONE.late, fontWeight: 600 }}>{counts.overdueDeliver} late</span> : 'expected receipts'} />

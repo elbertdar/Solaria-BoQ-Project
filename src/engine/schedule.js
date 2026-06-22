@@ -271,6 +271,7 @@ export function scheduleCounts(lines) {
 export function matchesFilter(line, filter) {
   if (!filter) return true;
   if (filter === 'order') return line.orderThisWeek;
+  if (filter === 'overdue') return line.orderOverdue;
   if (filter === 'needed') return line.dueThisWeek;
   if (filter === 'arriving') return line.state === 'awaiting' && line.dueThisWeek;
   return true;
