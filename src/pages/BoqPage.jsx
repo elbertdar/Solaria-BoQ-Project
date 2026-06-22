@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { X } from 'lucide-react';
+import { X, ChevronDown, ChevronRight } from 'lucide-react';
 import { useStore, useProject, useProjectPhases } from '../store/StoreContext.jsx';
 import { boqForProject, boqLineStatus, materialName, boqDisplayRows, stagedForProject } from '../engine/reconcile.js';
+import { groupIdentical } from '../components/boqShared.jsx';
 import { leadTimeFor, projectStart, phaseStart, addDays, addBusinessDays } from '../engine/schedule.js';
 import { FilterBar, FilterSearch, FilterSelect, ProjectBar } from '../components/ui.jsx';
 import Modal from '../components/Modal.jsx';
@@ -151,6 +152,7 @@ function PhaseBlock({ phase, db, start, isFirst, onSetStart, matchF, grouped, ma
 
   if (draft) {
     const items = allItems.filter((b) => matchF(b));
+    const groups = groupIdentical(items);
     return (
       <div className="card" style={{ marginBottom: 16 }}>
         {head}
@@ -164,9 +166,9 @@ function PhaseBlock({ phase, db, start, isFirst, onSetStart, matchF, grouped, ma
               </tr>
             </thead>
             <tbody>
-              {items.map((b) => (
-                <DraftRow key={b.id} b={b} db={db} start={anchor} onPatch={onPatch} onDelete={onDeleteItem} />
-              ))}
+              {groups.map((g) => g.items.length > 1
+                ? <DraftGroup key={g.key} items={g.items} db={db} start={anchor} mandorName={mandorName} onPatch={onPatch} onDelete={onDeleteItem} />
+                : <DraftRow key={g.items[0].id} b={g.items[0]} db={db} start={anchor} onPatch={onPatch} onDelete={onDeleteItem} />)}
               {items.length === 0 && (
                 <tr><td colSpan={9}><div className="empty">{allItems.length === 0 ? 'Empty phase — add the first row.' : 'No rows match your search.'}</div></td></tr>
               )}
@@ -246,19 +248,90 @@ function PhaseBlock({ phase, db, start, isFirst, onSetStart, matchF, grouped, ma
 
 
 function Group({ g, db, grouped, start, onEdit, onRaisePr, onUndo }) {
+  // Cluster identical lines. Only collapse a group when every member is unchanged (committed) —
+  // staged add/modify/delete rows always render individually so their state stays visible.
+  const subgroups = groupIdentical(g.rows, (r) => r.fields);
   return (
     <>
       {grouped && g.label && (
         <tr className="group-row"><td colSpan={9}>Mandor · {g.label} ({g.rows.length})</td></tr>
       )}
-      {g.rows.map((r) => <Row key={r.key} r={r} db={db} start={start} onEdit={onEdit} onRaisePr={onRaisePr} onUndo={onUndo} />)}
+      {subgroups.map((sg) => {
+        const collapsible = sg.items.length > 1 && sg.items.every((r) => r.status === 'unchanged');
+        if (collapsible) return <WorkingGroup key={sg.key} rows={sg.items} db={db} start={start} onEdit={onEdit} onRaisePr={onRaisePr} onUndo={onUndo} />;
+        return sg.items.map((r) => <Row key={r.key} r={r} db={db} start={start} onEdit={onEdit} onRaisePr={onRaisePr} onUndo={onUndo} />);
+      })}
+    </>
+  );
+}
+
+// Combined summary row for a run of identical working-phase lines — summed quantity, an
+// "N entries" badge, and a rolled-up status. Expand to the individual lines (edit / raise PR).
+function WorkingGroup({ rows, db, start, onEdit, onRaisePr, onUndo }) {
+  const [open, setOpen] = useState(false);
+  const f = rows[0].fields;
+  const allow = f.budgetBasis === 'allowance';
+  const totalQty = rows.reduce((s, r) => s + (Number(r.fields.quantity) || 0), 0);
+  const totalAllow = rows.reduce((s, r) => s + (Number(r.fields.allowanceAmount) || 0), 0);
+  const lead = f.leadTimeDays != null ? f.leadTimeDays : leadTimeFor(db, f.materialId);
+  const neededDate = (start && f.neededDayOffset != null) ? addDays(start, f.neededDayOffset) : null;
+  const orderDate = (neededDate && lead != null) ? addBusinessDays(neededDate, -lead) : null;
+  const statuses = rows.map((r) => boqLineStatus(db, r.id));
+  const rollup = statuses.every((s) => s === 'complete') ? 'complete'
+    : statuses.some((s) => s === 'ordered' || s === 'complete') ? 'ordered' : 'none';
+  const dash = <span className="muted">—</span>;
+  return (
+    <>
+      <tr className="clickable" onClick={() => setOpen((o) => !o)} style={{ background: '#F1F5F9' }} title="Identical lines — expand to edit each">
+        <td className="mat-link"><b>{materialName(db, f.materialId)}</b> <span className="pill gray" style={{ fontSize: 11, marginLeft: 6 }}>{rows.length} entries</span>{allow && <span className="pill info" style={{ marginLeft: 6, fontSize: 11 }}>Allowance</span>}</td>
+        <td>{f.description}</td>
+        <td className="num">{allow ? dash : num(totalQty)}</td>
+        <td>{f.unit}</td>
+        <td className="num">{allow ? idr(totalAllow) : idr(f.expectedUnitCost)}</td>
+        <td className="num">{allow ? dash : (f.neededDayOffset != null ? `Day ${f.neededDayOffset}` : dash)}</td>
+        <td className="num">{allow ? dash : orderDate ? fmtDate(orderDate) : dash}</td>
+        <td>{rollup === 'complete'
+          ? <span className="pill" style={{ background: '#F0FDF4', color: '#15803D', border: '1px solid #D1FAE5' }}>Complete</span>
+          : rollup === 'ordered' ? <span className="pill info">Ordered</span> : <span className="pill gray">Not ordered</span>}</td>
+        <td className="num muted">{open ? <ChevronDown size={15} /> : <ChevronRight size={15} />}</td>
+      </tr>
+      {open && rows.map((r) => <Row key={r.key} r={r} db={db} start={start} onEdit={onEdit} onRaisePr={onRaisePr} onUndo={onUndo} grouped />)}
+    </>
+  );
+}
+
+// Same idea for the draft (inline-editable) table — expand to the editable rows.
+function DraftGroup({ items, db, start, mandorName, onPatch, onDelete }) {
+  const [open, setOpen] = useState(false);
+  const f = items[0];
+  const allow = f.budgetBasis === 'allowance';
+  const totalQty = items.reduce((s, b) => s + (Number(b.quantity) || 0), 0);
+  const totalAllow = items.reduce((s, b) => s + (Number(b.allowanceAmount) || 0), 0);
+  const lead = f.leadTimeDays != null ? f.leadTimeDays : leadTimeFor(db, f.materialId);
+  const neededDate = (start && f.neededDayOffset != null) ? addDays(start, f.neededDayOffset) : null;
+  const orderDate = (neededDate && lead != null) ? addBusinessDays(neededDate, -lead) : null;
+  const dash = <span className="muted">—</span>;
+  return (
+    <>
+      <tr className="clickable" onClick={() => setOpen((o) => !o)} style={{ background: '#F1F5F9' }} title="Identical lines — expand to edit each">
+        <td>{allow && <span className="pill info" style={{ fontSize: 10, marginRight: 6 }}>Allowance</span>}<b>{materialName(db, f.materialId)}</b> <span className="pill gray" style={{ fontSize: 11, marginLeft: 6 }}>{items.length} entries</span></td>
+        <td>{f.description}</td>
+        <td>{mandorName(f.mandorId)}</td>
+        <td className="num">{allow ? dash : num(totalQty)}</td>
+        <td>{f.unit}</td>
+        <td className="num">{allow ? idr(totalAllow) : idr(f.expectedUnitCost)}</td>
+        <td className="num">{allow ? dash : (f.neededDayOffset != null ? `Day ${f.neededDayOffset}` : dash)}</td>
+        <td className="num">{allow ? dash : orderDate ? fmtDate(orderDate) : dash}</td>
+        <td className="num muted">{open ? <ChevronDown size={15} /> : <ChevronRight size={15} />}</td>
+      </tr>
+      {open && items.map((b) => <DraftRow key={b.id} b={b} db={db} start={start} onPatch={onPatch} onDelete={onDelete} grouped />)}
     </>
   );
 }
 
 const TINT = { background: '#FFFBEB' }; // changed-cell highlight
 
-function Row({ r, db, start, onEdit, onRaisePr, onUndo }) {
+function Row({ r, db, start, onEdit, onRaisePr, onUndo, grouped }) {
   const f = r.fields, base = r.base;
   const allow = f.budgetBasis === 'allowance';
   const deleted = r.status === 'deleted';
@@ -267,7 +340,10 @@ function Row({ r, db, start, onEdit, onRaisePr, onUndo }) {
   const needed = f.neededDayOffset;
   const neededDate = (start && needed != null) ? addDays(start, needed) : null;
   const orderDate = (neededDate && lead != null) ? addBusinessDays(neededDate, -lead) : null;
-  const rowStyle = r.status === 'added' ? { background: '#F0FDF4' } : deleted ? { opacity: 0.55 } : undefined;
+  const rowStyle = {
+    ...(r.status === 'added' ? { background: '#F0FDF4' } : deleted ? { opacity: 0.55 } : {}),
+    ...(grouped ? { background: '#FBFCFE', boxShadow: 'inset 3px 0 0 #E2E8F0' } : {}),
+  };
   const strike = deleted ? { textDecoration: 'line-through' } : undefined;
   const wasNum = (k, prev) => changed(k) && base && (base[k] ?? null) !== (f[k] ?? null)
     ? <div className="muted" style={{ fontSize: 11, textDecoration: 'line-through' }}>{prev}</div> : null;
@@ -329,7 +405,7 @@ function Row({ r, db, start, onEdit, onRaisePr, onUndo }) {
 
 const CELL = { width: '100%', boxSizing: 'border-box', padding: '5px 8px', border: '1px solid #E5E7EB', borderRadius: 7, font: 'inherit', fontSize: 13 };
 
-function DraftRow({ b, db, start, onPatch, onDelete }) {
+function DraftRow({ b, db, start, onPatch, onDelete, grouped }) {
   const { addMaterial, addMandor } = useStore();
   const allow = b.budgetBasis === 'allowance';
   const lead = b.leadTimeDays != null ? b.leadTimeDays : leadTimeFor(db, b.materialId);
@@ -338,7 +414,7 @@ function DraftRow({ b, db, start, onPatch, onDelete }) {
   const numOrNull = (v) => (v === '' ? null : Number(v));
   const dash = <span className="muted">—</span>;
   return (
-    <tr>
+    <tr style={grouped ? { background: '#FBFCFE', boxShadow: 'inset 3px 0 0 #E2E8F0' } : undefined}>
       <td>
         {allow && <div className="pill info" style={{ fontSize: 10, marginBottom: 4, display: 'inline-block' }}>Allowance</div>}
         <ComboBox value={b.materialId || ''} style={{ minWidth: 150 }} placeholder="Material…"
