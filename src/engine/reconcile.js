@@ -93,8 +93,8 @@ export function boqLineStatus(db, boqItemId) {
 export function summarizeProject(db, projectId, phaseId = null) {
   const boq = boqForProject(db, projectId, phaseId);
   const all = prsForProject(db, projectId, phaseId);
-  const linked = all.filter((p) => !isExtraPr(db, p));
   const extra = all.filter((p) => isExtraPr(db, p));
+  const boqMaterials = new Set(boq.map((b) => b.materialId));
 
   const qtyOf = (prs) => sum(prs, (p) => p.quantity);
   const costOf = (prs) => sum(prs, (p) => p.quantity * (p.unitCost || 0));
@@ -131,20 +131,24 @@ export function summarizeProject(db, projectId, phaseId = null) {
       // extra rows never (they carry their own indicator).
       isOverCommitted: allowance ? actualCost > budgetCost : (!isExtra && committedQty > budgetQty),
       isOver: allowance ? actualCost > budgetCost : (!isExtra && receivedQty > budgetQty),
+      // hasExtra: an extra (unbudgeted) PR was folded into this budgeted material's row.
+      hasExtra: pItems.some((p) => isExtraPr(db, p)),
       boqItems: bItems, prs: pItems,
     };
   };
 
-  // Plan rows: one per BoQ material (counting only LINKED PRs). A material whose lines include an
-  // allowance line is reconciled by cost, not quantity.
-  const planRows = [...new Set(boq.map((b) => b.materialId))].map((mid) => {
+  // Plan rows: one per BoQ material, counting ALL its PRs — including extra (unlinked) PRs for a
+  // material that IS budgeted, so the unplanned spend reconciles against that material's budget.
+  // Such rows carry hasExtra and still show the "Extra" indicator.
+  const planRows = [...boqMaterials].map((mid) => {
     const bItems = boq.filter((b) => b.materialId === mid);
     const kind = bItems.some((b) => b.budgetBasis === 'allowance') ? 'allowance' : 'quantity';
-    return mkRow(mid, kind, bItems, linked.filter((p) => p.materialId === mid));
+    return mkRow(mid, kind, bItems, all.filter((p) => p.materialId === mid));
   });
-  // Extra rows: materials that appear only via extra (unlinked) PRs.
-  const extraRows = [...new Set(extra.map((p) => p.materialId))].map((mid) =>
-    mkRow(mid, 'extra', [], extra.filter((p) => p.materialId === mid)));
+  // Extra rows: only materials with NO BoQ line at all (nothing budgeted to fold into).
+  const orphanExtra = extra.filter((p) => !boqMaterials.has(p.materialId));
+  const extraRows = [...new Set(orphanExtra.map((p) => p.materialId))].map((mid) =>
+    mkRow(mid, 'extra', [], orphanExtra.filter((p) => p.materialId === mid)));
 
   planRows.sort((a, b) => Number(b.isOverCommitted) - Number(a.isOverCommitted) || b.budgetCost - a.budgetCost);
   extraRows.sort((a, b) => b.actualCost - a.actualCost);

@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { useStore, useProject } from '../store/StoreContext.jsx';
-import { summarizeProject, brandName, brandBreakdown } from '../engine/reconcile.js';
+import { summarizeProject, brandName, brandBreakdown, isExtraPr } from '../engine/reconcile.js';
 import { ProjectBar, AlertBanner, StatusPill, FilterBar, FilterSearch, FilterSelect } from '../components/ui.jsx';
 import { idr, num, fmtDate } from '../engine/format.js';
 import { isCommitted } from '../engine/status.js';
@@ -93,11 +93,13 @@ export default function ReconciliationPage() {
 
 function RowGroup({ r, isOpen, onToggle, db }) {
   const dash = <span className="muted">—</span>;
-  const pill = r.extra
-    ? <span className="pill warn" style={{ marginLeft: 6 }}>Extra</span>
-    : r.allowance
-      ? <span className="pill info" style={{ marginLeft: 6, fontSize: 11 }}>Allowance</span>
-      : null;
+  // A row can be both an allowance line and carry folded-in extras, so show pills independently.
+  const pill = (
+    <>
+      {r.allowance && <span className="pill info" style={{ marginLeft: 6, fontSize: 11 }}>Allowance</span>}
+      {(r.extra || r.hasExtra) && <span className="pill warn" style={{ marginLeft: 6 }} title={r.extra ? 'Unbudgeted — no BoQ line' : 'Includes extra (unbudgeted) purchases'}>Extra</span>}
+    </>
+  );
   // "Balance remaining" convention everywhere: budget − committed. + = under/left, − = over.
   // (Extras have budget 0, so they read as −committed / −actual: pure overspend.)
   const remQty = -r.committedBalanceQty;
@@ -170,7 +172,7 @@ function RowGroup({ r, isOpen, onToggle, db }) {
                   <tbody>
                     {r.prs.map((p) => (
                       <tr key={p.id}>
-                        <td><StatusPill status={p.status} /></td>
+                        <td><StatusPill status={p.status} />{isExtraPr(db, p) && <span className="pill warn" style={{ marginLeft: 6, fontSize: 10 }}>Extra</span>}</td>
                         <td className="num">{num(p.quantity)}</td>
                         <td>{p.unit}</td>
                         <td>{p.brandId ? brandName(db, p.brandId) : <span className="muted">—</span>}</td>
