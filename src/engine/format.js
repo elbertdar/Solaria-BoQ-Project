@@ -30,8 +30,15 @@ export function fmtDate(d) {
   return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
+// Local calendar date as YYYY-MM-DD. Uses local components, NOT toISOString(), which
+// converts to UTC and rolls back a day for east-of-UTC timezones (e.g. a local-midnight
+// date printing as the previous day) — the source of the off-by-one on date pickers/stamps.
+export function isoDate(d = new Date()) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 export function today() {
-  return new Date().toISOString().slice(0, 10);
+  return isoDate();
 }
 
 export function nowISO() {

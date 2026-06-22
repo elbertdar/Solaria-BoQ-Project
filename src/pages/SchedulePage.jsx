@@ -71,7 +71,7 @@ export default function SchedulePage() {
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', margin: '0 0 18px', fontSize: 13, color: '#64748B' }}>
         <span>Project start</span>
-        <input type="date" value={start ? start.toISOString().slice(0, 10) : ''}
+        <input type="date" value={project.startDate || ''}
           onChange={(e) => updateProject(currentProjectId, { startDate: e.target.value || null })} style={{ width: 170 }} />
         {start ? <span className="pill gray">Today is day {curOff}</span>
           : <span style={{ color: TONE.overdue }}>set a start date to place items on the calendar</span>}
@@ -441,7 +441,7 @@ function Legend() {
       {items.map(([t, c]) => <span key={t} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><span style={{ width: 10, height: 10, borderRadius: '50%', background: c }} />{t}</span>)}
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginLeft: 8 }}><span style={{ width: 24, height: 6, borderRadius: 999, background: '#CBD5E1', opacity: 0.7 }} /> planned (faded)</span>
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><span style={{ width: 24, height: 8, borderRadius: 999, background: '#0EA5E9' }} /> actual / expected (solid)</span>
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: '#94A3B8' }}>· <Circle size={8} fill="currentColor" strokeWidth={0} /> order · <Diamond size={9} fill="currentColor" strokeWidth={0} /> delivery · weekends shaded</span>
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: '#94A3B8' }}>· <Circle size={8} fill="currentColor" strokeWidth={0} /> order · <Diamond size={9} fill="currentColor" strokeWidth={0} /> delivery · Sundays shaded</span>
     </div>
   );
 }

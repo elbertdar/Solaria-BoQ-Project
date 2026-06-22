@@ -3,7 +3,7 @@
 
 import { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react';
 import { seed } from '../data/seed.js';
-import { nowISO } from '../engine/format.js';
+import { nowISO, today } from '../engine/format.js';
 import { applyImport } from '../engine/dataImport.js';
 import { DEFAULT_PR_STATUSES, sortStatuses, isCommitted, defaultStatusId } from '../engine/status.js';
 
@@ -590,7 +590,7 @@ export function StoreProvider({ children }) {
             ...p,
             status,
             receiptDate: status === 'received' ? (receiptDate || p.receiptDate) : null, // clear unless received
-            orderDate: (isCommitted(d, status) && !isCommitted(d, p.status) && !p.orderDate) ? (new Date().toISOString().slice(0, 10)) : p.orderDate,
+            orderDate: (isCommitted(d, status) && !isCommitted(d, p.status) && !p.orderDate) ? today() : p.orderDate,
             statusHistory: changed
               ? [...(p.statusHistory || []), { at: nowISO(), from: p.status, to: status, by: actor }]
               : (p.statusHistory || []),

@@ -15,6 +15,7 @@
 
 import { isCommitted, isReceived, isVoid } from './status.js';
 import { prsForBoqItem, materialName } from './reconcile.js';
+import { isoDate } from './format.js';
 
 // ---- date helpers ----
 export function parseDate(s) {
@@ -28,8 +29,10 @@ function atMidnight(d) { return new Date(d.getFullYear(), d.getMonth(), d.getDat
 export function todayLocal() { return atMidnight(new Date()); }
 function diffDays(a, b) { return Math.round((atMidnight(a) - atMidnight(b)) / 86400000); }
 export function addDays(date, n) { const d = new Date(date); d.setDate(d.getDate() + n); return d; }
-export function toISO(d) { return d ? atMidnight(d).toISOString().slice(0, 10) : null; }
-function isWeekend(d) { const x = d.getDay(); return x === 0 || x === 6; }
+export function toISO(d) { return d ? isoDate(atMidnight(d)) : null; }
+// Non-working day. The crews work Saturdays, so only Sunday is off — Mon–Sat is the
+// working week (drives the order-day backtrace and the calendar's shaded columns).
+function isWeekend(d) { return d.getDay() === 0; }
 
 // add/subtract working days (skip Sat/Sun). n may be negative.
 export function addBusinessDays(date, n) {
@@ -40,11 +43,13 @@ export function addBusinessDays(date, n) {
   return d;
 }
 
-// Mon–Fri bounds for this week and next week, relative to `today`.
+// Working-week bounds for this week and next week, relative to `today`. The week runs
+// Mon→Sat (Sat is a working day, Sun off), so `friThis`/`friNext` land on Saturday — an
+// order date that falls on Saturday still counts as "this week", not a gap before Monday.
 function weekBounds(today) {
   const mon0 = (today.getDay() + 6) % 7; // Mon=0 … Sun=6
   const monThis = addDays(today, -mon0);
-  return { monThis, friThis: addDays(monThis, 4), monNext: addDays(monThis, 7), friNext: addDays(monThis, 11) };
+  return { monThis, friThis: addDays(monThis, 5), monNext: addDays(monThis, 7), friNext: addDays(monThis, 12) };
 }
 
 // ---- lookups ----
@@ -266,7 +271,7 @@ export function matchesFilter(line, filter) {
 export function agendaBuckets(lines, today = todayLocal()) {
   const mon0 = (today.getDay() + 6) % 7;
   const monThis = addDays(today, -mon0);
-  const friThis = addDays(monThis, 4);
+  const friThis = addDays(monThis, 5); // last working day of the week = Saturday (Sun off)
   const followingMon = addDays(monThis, 14);
   // orderNow = routine to-order due this week; overdue = late ORDER; late = late DELIVERY.
   const buckets = { orderNow: [], overdue: [], late: [], lateArrival: [], thisWeek: [], nextWeek: [], later: [], done: [] };
