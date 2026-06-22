@@ -15,6 +15,7 @@ export default function Overview() {
   const nav = useNavigate();
 
   const t = projectTotals(db, currentProjectId, currentPhaseId);
+  const overCommitted = t.committedCost > t.budgetCost; // committed spend has exceeded the BoQ budget
   const warnings = projectWarnings(db, currentProjectId);
   const recent = [...prsForProject(db, currentProjectId, currentPhaseId)]
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
@@ -56,8 +57,12 @@ export default function Overview() {
       <div className="kpi-grid">
         <KpiCard label="Budgeted cost" value={idrShort(t.budgetCost)} sub="from BoQ line items"
           onClick={() => nav('/boq')} />
-        <KpiCard label="Committed" value={idrShort(t.committedCost)} tone="info" sub="ordered + received" subTone=""
+        <KpiCard label="Committed" value={idrShort(t.committedCost)} tone={overCommitted ? 'risk' : 'info'}
+          sub={overCommitted ? 'over budget · ordered + received' : 'ordered + received'} subTone={overCommitted ? 'risk' : ''}
           onClick={() => nav('/purchase-requests')} />
+        <KpiCard label="Extra spend" value={idrShort(t.extraCost)} tone={t.extraCost > 0 ? 'risk' : ''}
+          sub="unbudgeted — PRs not in the BoQ" subTone={t.extraCost > 0 ? 'risk' : ''}
+          onClick={() => nav('/reconciliation')} />
         <KpiCard label="Materials over budget" value={t.materialsOver} tone={t.materialsOver ? 'risk' : 'ok'}
           sub={t.materialsOver ? 'needs attention' : 'all within budget'} subTone={t.materialsOver ? 'risk' : 'ok'}
           onClick={() => nav('/reconciliation')} />

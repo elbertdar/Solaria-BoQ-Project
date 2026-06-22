@@ -206,6 +206,9 @@ export function projectTotals(db, projectId, phaseId = null) {
     budgetCost: sum(rows, (r) => r.budgetCost),
     committedCost: sum(prs.filter((p) => isCommitted(db, p.status)),
       (p) => p.quantity * (p.unitCost || 0)),
+    // Committed spend on EXTRA purchases — PRs not tied to a BoQ line (unbudgeted).
+    extraCost: sum(prs.filter((p) => isExtraPr(db, p) && isCommitted(db, p.status)),
+      (p) => p.quantity * (p.unitCost || 0)),
     actualCost: sum(rows, (r) => r.actualCost),
     materialsOver: rows.filter((r) => r.isOverCommitted).length,
     openPrs: prs.filter((p) => !isReceived(db, p.status) && !isVoid(db, p.status)).length,
