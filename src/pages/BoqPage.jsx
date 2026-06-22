@@ -23,7 +23,7 @@ const plannedOf = (b) => b.budgetBasis === 'allowance' ? (b.allowanceAmount || 0
 // bottom and "Manage phases" (rename / reorder / delete) in the header. One filter bar spans
 // every block.
 export default function BoqPage() {
-  const { db, currentProjectId, patchBoqItem, addBoqItem, deleteBoqItem, finalizePhase,
+  const { db, currentProjectId, patchBoqItem, addBoqItem, softDeleteBoqItem, finalizePhase,
     unstageBoq, discardBoqStaged, commitBoqStaged, addPhase, setPhaseStart } = useStore();
   const project = useProject();
   const phases = useProjectPhases();
@@ -80,7 +80,7 @@ export default function BoqPage() {
 
       {phases.map((ph, i) => (
         <PhaseBlock key={ph.id} phase={ph} db={db} start={start} isFirst={i === 0} onSetStart={(date) => setPhaseStart(ph.id, date)} matchF={matchF} grouped={grouped} mandorName={mandorName}
-          onPatch={patchBoqItem} onAddItem={addBoqItem} onDeleteItem={deleteBoqItem}
+          onPatch={patchBoqItem} onAddItem={addBoqItem} onDeleteItem={softDeleteBoqItem}
           onEdit={(item) => setBoqModal({ item, phaseId: ph.id })}
           onAdd={() => setBoqModal({ item: null, phaseId: ph.id })}
           onRaisePr={(item) => setPrFor(item)}

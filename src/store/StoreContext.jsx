@@ -255,13 +255,6 @@ export function StoreProvider({ children }) {
   const patchBoqItem = useCallback((id, patch) => {
     setDb((d) => ({ ...d, boqItems: d.boqItems.map((b) => b.id === id ? { ...b, ...patch } : b) }));
   }, []);
-  const deleteBoqItem = useCallback((id) => {
-    setDb((d) => ({
-      ...d,
-      boqItems: d.boqItems.filter((b) => b.id !== id),
-      prs: d.prs.filter((pr) => pr.boqItemId !== id), // drop any orders tied to the removed line
-    }));
-  }, []);
   // Finalize a phase's BoQ: draft → working (one-way). Each phase finalizes independently.
   const finalizePhase = useCallback((phaseId) => {
     setDb((d) => ({ ...d, phases: d.phases.map((ph) => ph.id === phaseId ? { ...ph, boqStatus: 'working' } : ph) }));
@@ -456,6 +449,24 @@ export function StoreProvider({ children }) {
       const mat = d.materials.find((m) => m.id === pr.materialId);
       const summary = `PR · ${mat?.canonicalName || 'material'} · ${pr.quantity} ${pr.unit || ''}`.trim();
       return { ...d, prs: d.prs.filter((p) => p.id !== id), prStaged: (d.prStaged || []).filter((s) => s.prId !== id), trash: [trashEntry('pr', summary, { prs: [pr] }), ...(d.trash || [])] };
+    });
+  }, []);
+
+  // Delete a BoQ line → Trash (restorable for 7 days). Any orders tied to the line go with it
+  // so a restore brings the line and its PRs back together.
+  const softDeleteBoqItem = useCallback((id) => {
+    setDb((d) => {
+      const item = d.boqItems.find((b) => b.id === id);
+      if (!item) return d;
+      const prs = d.prs.filter((p) => p.boqItemId === id);
+      const matName = d.materials.find((m) => m.id === item.materialId)?.canonicalName || 'item';
+      const summary = `BoQ line · ${matName}${item.description ? ` — ${item.description}` : ''}`;
+      return {
+        ...d,
+        boqItems: d.boqItems.filter((b) => b.id !== id),
+        prs: d.prs.filter((p) => p.boqItemId !== id),
+        trash: [trashEntry('boqItem', summary, { boqItems: [item], prs }), ...(d.trash || [])],
+      };
     });
   }, []);
 
@@ -717,7 +728,7 @@ export function StoreProvider({ children }) {
   const value = useMemo(() => ({
     db, currentProjectId, setCurrentProjectId, currentPhaseId, setCurrentPhaseId,
     addMaterial, updateMaterial, addAlias, removeAlias,
-    addBoqItem, updateBoqItem, patchBoqItem, deleteBoqItem, finalizePhase,
+    addBoqItem, updateBoqItem, patchBoqItem, softDeleteBoqItem, finalizePhase,
     addPhase, updatePhase, reorderPhase, deletePhase, setPhaseStart,
     stageBoqModify, stageBoqAdd, editStagedAdd, stageBoqDelete, unstageBoq, discardBoqStaged, commitBoqStaged,
     addSupplier, updateSupplier, deleteSupplier,
@@ -732,7 +743,7 @@ export function StoreProvider({ children }) {
     importData, importEntity,
     resetDb,
   }), [db, currentProjectId, currentPhaseId, addMaterial, updateMaterial, addAlias, removeAlias,
-    addBoqItem, updateBoqItem, patchBoqItem, deleteBoqItem, finalizePhase,
+    addBoqItem, updateBoqItem, patchBoqItem, softDeleteBoqItem, finalizePhase,
     addPhase, updatePhase, reorderPhase, deletePhase, setPhaseStart,
     stageBoqModify, stageBoqAdd, editStagedAdd, stageBoqDelete, unstageBoq, discardBoqStaged, commitBoqStaged, addSupplier, updateSupplier, deleteSupplier, addBrand, updateBrand, deleteBrand, softDeletePr, softDeleteMaterial, softDeleteMaterialType, softDeleteProject, restoreTrash, purgeTrash, addMaterialType, updateMaterialType, addProject, updateProject, addProjectType, deleteProjectType, addPrStatus, updatePrStatus, reorderPrStatus, retirePrStatus, restorePrStatus, addMandor, updateMandor, deleteMandor,
     addUser, updateUser, deleteUser,

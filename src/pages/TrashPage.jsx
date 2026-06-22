@@ -5,6 +5,7 @@ import { FilterBar, FilterSearch, FilterSelect, Pill } from '../components/ui.js
 
 const ENTITY = {
   pr: { label: 'Purchase request', color: ['#0369A1', '#EFF6FF'] },
+  boqItem: { label: 'BoQ line', color: ['#0F766E', '#E6FAF7'] },
   material: { label: 'Material', color: ['#6D28D9', '#F5F3FF'] },
   materialType: { label: 'Material type', color: ['#A16207', '#FEFCE8'] },
   project: { label: 'Project', color: ['#BE123C', '#FEF2F4'] },
