@@ -17,9 +17,9 @@ export default function HistoryView({ edits, db }) {
           <tbody>
             {edits.map((e) => {
               const isOpen = open === e.id;
-              const counts = { add: 0, modify: 0, delete: 0 };
-              for (const c of e.changes) counts[c.type]++;
-              const summary = [counts.add && `${counts.add} added`, counts.modify && `${counts.modify} modified`, counts.delete && `${counts.delete} removed`].filter(Boolean).join(' · ');
+              const counts = { add: 0, modify: 0, delete: 0, phaseStart: 0 };
+              for (const c of e.changes) if (counts[c.type] != null) counts[c.type]++;
+              const summary = [counts.add && `${counts.add} added`, counts.modify && `${counts.modify} modified`, counts.delete && `${counts.delete} removed`, counts.phaseStart && 'phase start changed'].filter(Boolean).join(' · ');
               return (
                 <Fragment key={e.id}>
                   <tr className="clickable" onClick={() => setOpen(isOpen ? null : e.id)}>
@@ -33,7 +33,13 @@ export default function HistoryView({ edits, db }) {
                     <tr><td colSpan={5} style={{ background: '#F8FAFC' }}>
                       <div style={{ padding: '4px 6px', display: 'flex', flexDirection: 'column', gap: 6 }}>
                         {e.message && <div className="muted" style={{ fontSize: 12 }}>{summary}</div>}
-                        {e.changes.map((c, i) => (
+                        {e.changes.map((c, i) => c.type === 'phaseStart' ? (
+                          <div key={i} style={{ fontSize: 13 }}>
+                            <span className="pill warn" style={{ marginRight: 8, fontSize: 11 }}>phase start</span>
+                            <span style={{ textDecoration: 'line-through', opacity: 0.6 }}>{c.before ? fmtDate(c.before) : 'project start'}</span>
+                            {' '}<ArrowRight size={12} style={{ verticalAlign: '-2px' }} /> <b>{c.after ? fmtDate(c.after) : 'project start'}</b>
+                          </div>
+                        ) : (
                           <div key={i} style={{ fontSize: 13 }}>
                             <span className="pill" style={{ marginRight: 8, fontSize: 11, ...(c.type === 'add' ? { background: '#ECFDF5', color: '#15803D' } : c.type === 'delete' ? { background: '#FEF2F2', color: '#B91C1C' } : { background: '#FEF3C7', color: '#92660C' }) }}>{c.type}</span>
                             <b>{materialName(db, (c.after || c.before)?.materialId)}</b>

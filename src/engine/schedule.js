@@ -61,6 +61,12 @@ export function projectStart(db, projectId) {
   const p = db.projects.find((x) => x.id === projectId);
   return p && p.startDate ? parseDate(p.startDate) : null;
 }
+// A phase (after the first) may begin later than the project. When set, its items' day
+// offsets count from here instead of the project start. Null = inherit the project start.
+export function phaseStart(db, phaseId) {
+  const ph = (db.phases || []).find((x) => x.id === phaseId);
+  return ph && ph.startDate ? parseDate(ph.startDate) : null;
+}
 const sum = (arr, f) => arr.reduce((t, x) => t + (f(x) || 0), 0);
 
 // ---- the heart: one self-contained line per BoQ item ----
@@ -72,7 +78,8 @@ export function computeLine(db, b, today = todayLocal()) {
   const fullyReceived = budget > 0 && receivedQty >= budget;
   const state = fullyReceived ? 'received' : committedQty > 0 ? 'awaiting' : 'to-order';
 
-  const start = projectStart(db, b.projectId);
+  const projStart = projectStart(db, b.projectId);
+  const start = phaseStart(db, b.phaseId) || projStart; // day-0 anchor: phase start if set, else project start
   const matLead = leadTimeFor(db, b.materialId);
   const leadOverride = b.leadTimeDays != null ? b.leadTimeDays : null;
   const lead = leadOverride != null ? leadOverride : (matLead != null ? matLead : 0);
@@ -143,7 +150,7 @@ export function computeLine(db, b, today = todayLocal()) {
 
   const orderOverdue = state === 'to-order' && !!orderDate && orderDate < today;
   const deliveryOverdue = state === 'awaiting' && !!effectiveArrival && effectiveArrival < today && !snoozedActive;
-  const orderBeforeStart = state !== 'received' && !!orderDate && !!start && orderDate < start;
+  const orderBeforeStart = state !== 'received' && !!orderDate && !!projStart && orderDate < projStart;
   const orderThisWeek = state === 'to-order' && inRange(orderDate, monThis, friThis) && !(orderDate < today);
   const orderNextWeek = state === 'to-order' && inRange(orderDate, monNext, friNext);
   const dueThisWeek = state !== 'received' && inRange(neededDate, monThis, friThis);

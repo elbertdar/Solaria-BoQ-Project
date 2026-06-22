@@ -368,6 +368,27 @@ export function StoreProvider({ children }) {
   const updatePhase = useCallback((id, patch) => {
     setDb((d) => ({ ...d, phases: d.phases.map((p) => p.id === id ? { ...p, ...patch, name: patch.name != null ? (patch.name.trim() || p.name) : p.name } : p) }));
   }, []);
+  // A phase's own start date (null = inherit the project start). Never earlier than the
+  // project start. Free to change while drafting; once the phase is finalized (working),
+  // each change is recorded in the phase's commit history so it's auditable.
+  const setPhaseStart = useCallback((phaseId, date) => {
+    setDb((d) => {
+      const ph = d.phases.find((p) => p.id === phaseId);
+      if (!ph) return d;
+      const proj = d.projects.find((p) => p.id === ph.projectId);
+      let next = date || null;
+      if (next && proj?.startDate && next < proj.startDate) next = proj.startDate; // clamp to project start
+      if ((ph.startDate || null) === next) return d; // no-op
+      const phases = d.phases.map((p) => (p.id === phaseId ? { ...p, startDate: next } : p));
+      if (ph.boqStatus !== 'working') return { ...d, phases }; // draft: untracked
+      const actor = d.currentUser ? { id: d.currentUser.id, name: d.currentUser.name } : null;
+      const entry = {
+        id: uid('edit'), projectId: ph.projectId, phaseId, at: nowISO(), author: actor, message: '',
+        changes: [{ type: 'phaseStart', before: ph.startDate || null, after: next }],
+      };
+      return { ...d, phases, boqEdits: [...d.boqEdits, entry] };
+    });
+  }, []);
   const reorderPhase = useCallback((id, dir) => {
     setDb((d) => {
       const ph = d.phases.find((p) => p.id === id);
@@ -637,7 +658,7 @@ export function StoreProvider({ children }) {
     db, currentProjectId, setCurrentProjectId, currentPhaseId, setCurrentPhaseId,
     addMaterial, updateMaterial, addAlias, removeAlias,
     addBoqItem, updateBoqItem, patchBoqItem, deleteBoqItem, finalizePhase,
-    addPhase, updatePhase, reorderPhase, deletePhase,
+    addPhase, updatePhase, reorderPhase, deletePhase, setPhaseStart,
     stageBoqModify, stageBoqAdd, editStagedAdd, stageBoqDelete, unstageBoq, discardBoqStaged, commitBoqStaged,
     addSupplier, updateSupplier, deleteSupplier,
     addBrand, updateBrand, deleteBrand,
@@ -651,7 +672,7 @@ export function StoreProvider({ children }) {
     resetDb,
   }), [db, currentProjectId, currentPhaseId, addMaterial, updateMaterial, addAlias, removeAlias,
     addBoqItem, updateBoqItem, patchBoqItem, deleteBoqItem, finalizePhase,
-    addPhase, updatePhase, reorderPhase, deletePhase,
+    addPhase, updatePhase, reorderPhase, deletePhase, setPhaseStart,
     stageBoqModify, stageBoqAdd, editStagedAdd, stageBoqDelete, unstageBoq, discardBoqStaged, commitBoqStaged, addSupplier, updateSupplier, deleteSupplier, addBrand, updateBrand, deleteBrand, softDeletePr, softDeleteMaterial, softDeleteMaterialType, softDeleteProject, restoreTrash, purgeTrash, addMaterialType, updateMaterialType, addProject, updateProject, addProjectType, deleteProjectType, addPrStatus, updatePrStatus, reorderPrStatus, retirePrStatus, restorePrStatus, addMandor, updateMandor, deleteMandor,
     addUser, updateUser, deleteUser,
     addPr, updatePr, setPrStatus, deletePr, importData, importEntity, resetDb]);

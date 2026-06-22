@@ -3,7 +3,7 @@ import { Check, TriangleAlert, ArrowRight } from 'lucide-react';
 import { useStore } from '../store/StoreContext.jsx';
 import { materialName, prsForBoqItem } from '../engine/reconcile.js';
 import { suggestMaterials, resolveMaterial } from '../engine/match.js';
-import { leadTimeFor, projectStart, addDays, addBusinessDays } from '../engine/schedule.js';
+import { leadTimeFor, projectStart, phaseStart, addDays, addBusinessDays } from '../engine/schedule.js';
 import { fmtDate } from '../engine/format.js';
 import Modal from './Modal.jsx';
 import NumberInput from './NumberInput.jsx';
@@ -18,7 +18,7 @@ export default function BoqModal({ item, phaseId: phaseIdProp = null, onClose })
   const linkedPrs = (editing && !isAdd) ? prsForBoqItem(db, item.id) : [];
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleteLinkedPrs, setDeleteLinkedPrs] = useState(false);
-  const start = projectStart(db, currentProjectId);
+  const start = phaseStart(db, phaseId) || projectStart(db, currentProjectId); // phase anchor for the order-day preview
 
   const existingMat = item ? db.materials.find((m) => m.id === item.materialId) : null;
   const [materialId, setMaterialId] = useState(item?.materialId ?? '');

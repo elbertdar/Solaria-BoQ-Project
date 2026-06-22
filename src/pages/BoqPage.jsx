@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { X } from 'lucide-react';
 import { useStore, useProject, useProjectPhases } from '../store/StoreContext.jsx';
 import { boqForProject, boqLineStatus, materialName, boqDisplayRows, stagedForProject } from '../engine/reconcile.js';
-import { leadTimeFor, projectStart, addDays, addBusinessDays } from '../engine/schedule.js';
+import { leadTimeFor, projectStart, phaseStart, addDays, addBusinessDays } from '../engine/schedule.js';
 import { FilterBar, FilterSearch, FilterSelect, ProjectBar } from '../components/ui.jsx';
 import Modal from '../components/Modal.jsx';
 import PrModal from '../components/PrModal.jsx';
@@ -23,7 +23,7 @@ const plannedOf = (b) => b.budgetBasis === 'allowance' ? (b.allowanceAmount || 0
 // every block.
 export default function BoqPage() {
   const { db, currentProjectId, patchBoqItem, addBoqItem, deleteBoqItem, finalizePhase,
-    unstageBoq, discardBoqStaged, commitBoqStaged, addPhase } = useStore();
+    unstageBoq, discardBoqStaged, commitBoqStaged, addPhase, setPhaseStart } = useStore();
   const project = useProject();
   const phases = useProjectPhases();
   const start = projectStart(db, currentProjectId);
@@ -77,8 +77,8 @@ export default function BoqPage() {
         </label>
       </FilterBar>
 
-      {phases.map((ph) => (
-        <PhaseBlock key={ph.id} phase={ph} db={db} start={start} matchF={matchF} grouped={grouped} mandorName={mandorName}
+      {phases.map((ph, i) => (
+        <PhaseBlock key={ph.id} phase={ph} db={db} start={start} isFirst={i === 0} onSetStart={(date) => setPhaseStart(ph.id, date)} matchF={matchF} grouped={grouped} mandorName={mandorName}
           onPatch={patchBoqItem} onAddItem={addBoqItem} onDeleteItem={deleteBoqItem}
           onEdit={(item) => setBoqModal({ item, phaseId: ph.id })}
           onAdd={() => setBoqModal({ item: null, phaseId: ph.id })}
@@ -116,11 +116,13 @@ export default function BoqPage() {
 }
 
 // One phase, fully editable inline. Draft → live spreadsheet; Working → committed + staged table.
-function PhaseBlock({ phase, db, start, matchF, grouped, mandorName, onPatch, onAddItem, onDeleteItem, onEdit, onAdd, onRaisePr, onUndo, onDiscard, onCommit, onFinalize }) {
+function PhaseBlock({ phase, db, start, isFirst, onSetStart, matchF, grouped, mandorName, onPatch, onAddItem, onDeleteItem, onEdit, onAdd, onRaisePr, onUndo, onDiscard, onCommit, onFinalize }) {
   const draft = phase.boqStatus !== 'working';
   const [showHistory, setShowHistory] = useState(false);
   const [discardArmed, setDiscardArmed] = useState(false);
   const pid = phase.projectId;
+  const anchor = phaseStart(db, phase.id) || start;   // day-0 for this phase's items (phase start if set)
+  const projStartStr = db.projects.find((p) => p.id === pid)?.startDate || '';
 
   const allItems = boqForProject(db, pid, phase.id);
   const planned = allItems.reduce((s, b) => s + plannedOf(b), 0);
@@ -131,6 +133,14 @@ function PhaseBlock({ phase, db, start, matchF, grouped, mandorName, onPatch, on
       <h2 style={{ margin: 0 }}>{phase.name}</h2>
       <span className={'pill ' + (draft ? 'gray' : 'ok')}>{draft ? 'Draft' : 'Working'}</span>
       <span className="muted" style={{ fontSize: 12.5 }}>{allItems.length} item{allItems.length === 1 ? '' : 's'} &middot; {idr(planned)} planned</span>
+      {!isFirst && (
+        <span className="field-inline" style={{ fontSize: 12.5 }} title="This phase begins on this date — its needed/order days count from here. Blank = the project start.">
+          <span className="muted">Starts</span>
+          <input type="date" value={phase.startDate || ''} min={projStartStr || undefined}
+            onChange={(e) => onSetStart(e.target.value)} style={{ width: 150, padding: '4px 8px', fontSize: 12.5 }} />
+          {!phase.startDate && <span className="muted">= project start</span>}
+        </span>
+      )}
       <span style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
         {draft
           ? <button className="btn sm primary" disabled={allItems.length === 0} onClick={onFinalize} title={allItems.length === 0 ? 'Add at least one item first' : 'Finalize this phase'}>Finalize phase</button>
@@ -155,7 +165,7 @@ function PhaseBlock({ phase, db, start, matchF, grouped, mandorName, onPatch, on
             </thead>
             <tbody>
               {items.map((b) => (
-                <DraftRow key={b.id} b={b} db={db} start={start} onPatch={onPatch} onDelete={onDeleteItem} />
+                <DraftRow key={b.id} b={b} db={db} start={anchor} onPatch={onPatch} onDelete={onDeleteItem} />
               ))}
               {items.length === 0 && (
                 <tr><td colSpan={9}><div className="empty">{allItems.length === 0 ? 'Empty phase — add the first row.' : 'No rows match your search.'}</div></td></tr>
@@ -213,7 +223,7 @@ function PhaseBlock({ phase, db, start, matchF, grouped, mandorName, onPatch, on
           </thead>
           <tbody>
             {groups.map((g) => (
-              <Group key={g.key} g={g} db={db} grouped={grouped} start={start}
+              <Group key={g.key} g={g} db={db} grouped={grouped} start={anchor}
                 onEdit={(r) => onEdit({ ...r.fields, __ref: r.ref, __isAdd: !!r.isStagedAdd })}
                 onRaisePr={(r) => onRaisePr(db.boqItems.find((b) => b.id === r.id))}
                 onUndo={(r) => onUndo(r.ref)} />
