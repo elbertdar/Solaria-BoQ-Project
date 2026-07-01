@@ -7,6 +7,7 @@ import { leadTimeFor, projectStart, phaseStart, addDays, addBusinessDays } from 
 import { FilterBar, FilterSearch, FilterSelect, ProjectBar } from '../components/ui.jsx';
 import Modal from '../components/Modal.jsx';
 import PrModal from '../components/PrModal.jsx';
+import BulkPrModal from '../components/BulkPrModal.jsx';
 import NumberInput from '../components/NumberInput.jsx';
 import ComboBox from '../components/ComboBox.jsx';
 import { idr, fmtDate, num } from '../engine/format.js';
@@ -36,12 +37,18 @@ export default function BoqPage() {
 
   const [boqModal, setBoqModal] = useState(null);        // { item, phaseId } | null
   const [prFor, setPrFor] = useState(null);
+  const [selected, setSelected] = useState(() => new Set()); // BoQ line ids ticked for bulk PR
+  const [bulkOpen, setBulkOpen] = useState(false);
   const [committingPhase, setCommittingPhase] = useState(null);
   const [finalizingPhase, setFinalizingPhase] = useState(null);
   const [managePhases, setManagePhases] = useState(false);
   const [newPhaseName, setNewPhaseName] = useState('');
 
   const addPhaseNow = () => { const n = newPhaseName.trim(); if (!n) return; addPhase(currentProjectId, n); setNewPhaseName(''); };
+
+  const toggleSel = (id) => setSelected((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const toggleMany = (ids, on) => setSelected((s) => { const n = new Set(s); ids.forEach((id) => (on ? n.add(id) : n.delete(id))); return n; });
+  const clearSel = () => setSelected(new Set());
 
   const norm = q.trim().toLowerCase();
   const matchF = (f) => (!mandorFilter.length || mandorFilter.includes(f.mandorId || ''))
@@ -80,6 +87,7 @@ export default function BoqPage() {
 
       {phases.map((ph, i) => (
         <PhaseBlock key={ph.id} phase={ph} db={db} start={start} isFirst={i === 0} onSetStart={(date) => setPhaseStart(ph.id, date)} matchF={matchF} grouped={grouped} mandorName={mandorName}
+          selected={selected} onToggleSel={toggleSel} onToggleMany={toggleMany}
           onPatch={patchBoqItem} onAddItem={addBoqItem} onDeleteItem={softDeleteBoqItem}
           onEdit={(item) => setBoqModal({ item, phaseId: ph.id })}
           onAdd={() => setBoqModal({ item: null, phaseId: ph.id })}
@@ -95,6 +103,15 @@ export default function BoqPage() {
           onChange={(e) => setNewPhaseName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') addPhaseNow(); }} />
         <button className="btn primary" onClick={addPhaseNow} disabled={!newPhaseName.trim()}>+ Add phase</button>
       </div>
+
+      {selected.size > 0 && (
+        <div className="bulk-bar">
+          <span><b>{selected.size}</b> line{selected.size > 1 ? 's' : ''} selected</span>
+          <button className="btn sm ghost" onClick={clearSel}>Clear</button>
+          <button className="btn sm primary" onClick={() => setBulkOpen(true)}>Raise PRs</button>
+        </div>
+      )}
+      {bulkOpen && <BulkPrModal boqItemIds={[...selected]} projectId={currentProjectId} onClose={() => { setBulkOpen(false); clearSel(); }} />}
 
       {boqModal && <BoqModal item={boqModal.item} phaseId={boqModal.phaseId} onClose={() => setBoqModal(null)} />}
       {prFor && <PrModal boqItem={prFor} onClose={() => setPrFor(null)} />}
@@ -117,7 +134,7 @@ export default function BoqPage() {
 }
 
 // One phase, fully editable inline. Draft → live spreadsheet; Working → committed + staged table.
-function PhaseBlock({ phase, db, start, isFirst, onSetStart, matchF, grouped, mandorName, onPatch, onAddItem, onDeleteItem, onEdit, onAdd, onRaisePr, onUndo, onDiscard, onCommit, onFinalize }) {
+function PhaseBlock({ phase, db, start, isFirst, onSetStart, matchF, grouped, mandorName, selected, onToggleSel, onToggleMany, onPatch, onAddItem, onDeleteItem, onEdit, onAdd, onRaisePr, onUndo, onDiscard, onCommit, onFinalize }) {
   const draft = phase.boqStatus !== 'working';
   const [showHistory, setShowHistory] = useState(false);
   const [discardArmed, setDiscardArmed] = useState(false);
@@ -219,6 +236,7 @@ function PhaseBlock({ phase, db, start, isFirst, onSetStart, matchF, grouped, ma
         <table className="table">
           <thead>
             <tr>
+              <th style={{ width: 32 }}></th>
               <th>Material</th><th>Description</th>
               <th className="num">Qty</th><th>Unit</th><th className="num">Exp. unit cost</th>
               <th className="num">Needed</th><th className="num">Order by</th><th>Status</th><th></th>
@@ -227,12 +245,13 @@ function PhaseBlock({ phase, db, start, isFirst, onSetStart, matchF, grouped, ma
           <tbody>
             {groups.map((g) => (
               <Group key={g.key} g={g} db={db} grouped={grouped} start={anchor} highlightIds={highlightIds}
+                selected={selected} onToggleSel={onToggleSel} onToggleMany={onToggleMany}
                 onEdit={(r) => onEdit({ ...r.fields, __ref: r.ref, __isAdd: !!r.isStagedAdd })}
                 onRaisePr={(r) => onRaisePr(db.boqItems.find((b) => b.id === r.id))}
                 onUndo={(r) => onUndo(r.ref)} />
             ))}
             {rows.length === 0 && (
-              <tr><td colSpan={9}><div className="empty">{allItems.length === 0 && staged.length === 0 ? 'No items yet. Use “+ Add item”.' : 'No items match these filters.'}</div></td></tr>
+              <tr><td colSpan={10}><div className="empty">{allItems.length === 0 && staged.length === 0 ? 'No items yet. Use “+ Add item”.' : 'No items match these filters.'}</div></td></tr>
             )}
           </tbody>
         </table>
@@ -248,19 +267,19 @@ function PhaseBlock({ phase, db, start, isFirst, onSetStart, matchF, grouped, ma
 }
 
 
-function Group({ g, db, grouped, start, highlightIds, onEdit, onRaisePr, onUndo }) {
+function Group({ g, db, grouped, start, highlightIds, selected, onToggleSel, onToggleMany, onEdit, onRaisePr, onUndo }) {
   // Cluster identical lines. Only collapse a group when every member is unchanged (committed) —
   // staged add/modify/delete rows always render individually so their state stays visible.
   const subgroups = groupIdentical(g.rows, (r) => r.fields);
   return (
     <>
       {grouped && g.label && (
-        <tr className="group-row"><td colSpan={9}>Mandor · {g.label} ({g.rows.length})</td></tr>
+        <tr className="group-row"><td colSpan={10}>Mandor · {g.label} ({g.rows.length})</td></tr>
       )}
       {subgroups.map((sg) => {
         const collapsible = sg.items.length > 1 && sg.items.every((r) => r.status === 'unchanged');
-        if (collapsible) return <WorkingGroup key={sg.key} rows={sg.items} db={db} start={start} highlightIds={highlightIds} onEdit={onEdit} onRaisePr={onRaisePr} onUndo={onUndo} />;
-        return sg.items.map((r) => <Row key={r.key} r={r} db={db} start={start} highlighted={!!highlightIds?.includes(r.id)} onEdit={onEdit} onRaisePr={onRaisePr} onUndo={onUndo} />);
+        if (collapsible) return <WorkingGroup key={sg.key} rows={sg.items} db={db} start={start} highlightIds={highlightIds} selected={selected} onToggleSel={onToggleSel} onToggleMany={onToggleMany} onEdit={onEdit} onRaisePr={onRaisePr} onUndo={onUndo} />;
+        return sg.items.map((r) => <Row key={r.key} r={r} db={db} start={start} highlighted={!!highlightIds?.includes(r.id)} selected={selected} onToggleSel={onToggleSel} onEdit={onEdit} onRaisePr={onRaisePr} onUndo={onUndo} />);
       })}
     </>
   );
@@ -268,10 +287,13 @@ function Group({ g, db, grouped, start, highlightIds, onEdit, onRaisePr, onUndo 
 
 // Combined summary row for a run of identical working-phase lines — summed quantity, an
 // "N entries" badge, and a rolled-up status. Expand to the individual lines (edit / raise PR).
-function WorkingGroup({ rows, db, start, highlightIds, onEdit, onRaisePr, onUndo }) {
+function WorkingGroup({ rows, db, start, highlightIds, selected, onToggleSel, onToggleMany, onEdit, onRaisePr, onUndo }) {
   const [open, setOpen] = useState(false);
   const containsHighlight = rows.some((r) => highlightIds?.includes(r.id));
   const isOpen = open || containsHighlight; // auto-expand when a contained row is the changed one
+  const childIds = rows.map((r) => r.id);
+  const allSel = childIds.every((id) => selected?.has(id));
+  const someSel = childIds.some((id) => selected?.has(id));
   const f = rows[0].fields;
   const allow = f.budgetBasis === 'allowance';
   const totalQty = rows.reduce((s, r) => s + (Number(r.fields.quantity) || 0), 0);
@@ -286,6 +308,7 @@ function WorkingGroup({ rows, db, start, highlightIds, onEdit, onRaisePr, onUndo
   return (
     <>
       <tr className="clickable" onClick={() => setOpen((o) => !o)} style={containsHighlight ? HILITE : { background: '#F1F5F9' }} title="Identical lines — expand to edit each">
+        <td className="num" onClick={(e) => e.stopPropagation()}><input type="checkbox" checked={allSel} ref={(el) => { if (el) el.indeterminate = someSel && !allSel; }} onChange={() => onToggleMany(childIds, !allSel)} title="Select all identical lines" /></td>
         <td className="mat-link"><b>{materialName(db, f.materialId)}</b> <span className="pill gray" style={{ fontSize: 11, marginLeft: 6 }}>{rows.length} entries</span>{allow && <span className="pill info" style={{ marginLeft: 6, fontSize: 11 }}>Allowance</span>}</td>
         <td>{f.description}</td>
         <td className="num">{allow ? dash : num(totalQty)}</td>
@@ -298,7 +321,7 @@ function WorkingGroup({ rows, db, start, highlightIds, onEdit, onRaisePr, onUndo
           : rollup === 'ordered' ? <span className="pill info">Ordered</span> : <span className="pill gray">Not ordered</span>}</td>
         <td className="num muted">{isOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}</td>
       </tr>
-      {isOpen && rows.map((r) => <Row key={r.key} r={r} db={db} start={start} highlighted={!!highlightIds?.includes(r.id)} onEdit={onEdit} onRaisePr={onRaisePr} onUndo={onUndo} grouped />)}
+      {isOpen && rows.map((r) => <Row key={r.key} r={r} db={db} start={start} highlighted={!!highlightIds?.includes(r.id)} selected={selected} onToggleSel={onToggleSel} onEdit={onEdit} onRaisePr={onRaisePr} onUndo={onUndo} grouped />)}
     </>
   );
 }
@@ -335,10 +358,12 @@ function DraftGroup({ items, db, start, mandorName, onPatch, onDelete }) {
 const TINT = { background: '#FFFBEB' }; // changed-cell highlight
 const HILITE = { background: '#FEF9C3', boxShadow: 'inset 0 0 0 2px #FACC15' }; // row picked from edit history
 
-function Row({ r, db, start, onEdit, onRaisePr, onUndo, grouped, highlighted }) {
+function Row({ r, db, start, selected, onToggleSel, onEdit, onRaisePr, onUndo, grouped, highlighted }) {
   const f = r.fields, base = r.base;
   const allow = f.budgetBasis === 'allowance';
   const deleted = r.status === 'deleted';
+  const added = r.status === 'added';
+  const selectable = !added && !deleted; // only committed lines can have a PR raised
   const changed = (k) => r.status === 'modified' && r.changedKeys.includes(k);
   const lead = f.leadTimeDays != null ? f.leadTimeDays : leadTimeFor(db, f.materialId);
   const needed = f.neededDayOffset;
@@ -359,6 +384,7 @@ function Row({ r, db, start, onEdit, onRaisePr, onUndo, grouped, highlighted }) 
 
   return (
     <tr style={rowStyle}>
+      <td className="num">{selectable ? <input type="checkbox" checked={!!selected?.has(r.id)} onChange={() => onToggleSel(r.id)} /> : null}</td>
       <td className="mat-link"><span style={strike}>{tag}{materialName(db, f.materialId)}{allow && <span className="pill info" style={{ marginLeft: 6, fontSize: 11 }}>Allowance</span>}</span></td>
       <td style={{ ...(changed('description') ? TINT : {}), ...strike }}>{f.description}</td>
       <td className="num" style={changed('quantity') ? TINT : undefined}>{allow ? <span className="muted">—</span> : <><span style={strike}>{num(f.quantity)}</span>{wasNum('quantity', base?.quantity)}</>}</td>

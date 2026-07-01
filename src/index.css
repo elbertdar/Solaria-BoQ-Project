@@ -285,6 +285,18 @@ button { font-family: inherit; }
   background: var(--surface-2); font-weight: 600; font-size: 12px;
   text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-soft);
 }
+/* Floating action bar for bulk selection (BoQ table / Bulk PR page) */
+.bulk-bar {
+  position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%);
+  z-index: 40; display: flex; align-items: center; gap: 12px;
+  background: var(--ink, #0F172A); color: #fff;
+  padding: 10px 14px; border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(2, 6, 23, 0.35);
+  font-size: 13.5px;
+}
+.bulk-bar .btn.ghost { color: #fff; border-color: rgba(255,255,255,0.35); }
+.bulk-bar b { font-weight: 700; }
+
 .val-risk { color: var(--risk); font-weight: 600; }
 .val-ok   { color: var(--ok); font-weight: 600; }
 

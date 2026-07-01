@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import {
   CalendarDays, Building2, ClipboardList, LayoutDashboard, CalendarClock,
-  ListChecks, ShoppingCart, Scale, Truck, Package, Layers, HardHat, Users, Trash2,
+  ListChecks, ShoppingCart, ListPlus, Scale, Truck, Package, Layers, HardHat, Users, Trash2,
 } from 'lucide-react';
 import { useStore } from '../store/StoreContext.jsx';
 import { projectWarnings } from '../engine/reconcile.js';
@@ -23,6 +23,7 @@ const GROUPS = [
       { to: '/schedule', ico: CalendarClock, label: 'Schedule', badgeKey: 'sched' },
       { to: '/boq', ico: ListChecks, label: 'Bill of Quantities' },
       { to: '/purchase-requests', ico: ShoppingCart, label: 'Purchase Requests' },
+      { to: '/bulk-pr', ico: ListPlus, label: 'Bulk PR' },
       { to: '/reconciliation', ico: Scale, label: 'Balance', badgeKey: 'warn' },
     ],
   },
