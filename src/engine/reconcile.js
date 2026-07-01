@@ -4,7 +4,7 @@
 // All pure functions over the db object. Recomputed on every render from
 // source records, so the balance is always live — never stored, never stale.
 
-import { isCommitted, isReceived, isVoid } from './status.js';
+import { isCommitted, isReceived, isVoid, statusDef } from './status.js';
 
 const sum = (arr, f) => arr.reduce((t, x) => t + (f(x) || 0), 0);
 
@@ -200,6 +200,70 @@ export function checkProspectivePr(db, { boqItemId, quantity, excludePrId }) {
     materialName: materialName(db, materialId),
     unit: boqItem.unit,
   };
+}
+
+// ---- Project completion: archive snapshot + downloadable report columns ----
+
+// A frozen record captured when a project is marked complete. Totals for the archive table,
+// plus a per-material breakdown that later powers cross-project analytics (e.g. "we always
+// over-order gypsum" = committedQty consistently above budgetQty across completed projects).
+export function completionSnapshot(db, projectId) {
+  const rows = summarizeProject(db, projectId);
+  const t = projectTotals(db, projectId);
+  return {
+    budgetCost: t.budgetCost,
+    committedCost: t.committedCost,
+    actualCost: t.actualCost,
+    materialsOver: t.materialsOver,
+    lineCount: boqForProject(db, projectId).length,
+    prCount: t.totalPrs,
+    materials: rows.map((r) => ({
+      materialId: r.materialId, name: r.materialName, unit: r.unit, kind: r.kind,
+      budgetQty: r.budgetQty, committedQty: r.committedQty, receivedQty: r.receivedQty,
+      overBy: r.extra ? 0 : r.committedQty - r.budgetQty, // + = over-ordered, − = under
+      budgetCost: r.budgetCost, actualCost: r.actualCost,
+    })),
+  };
+}
+
+const nOrBlank = (v) => (v == null || v === '' ? '' : String(v));
+
+// CSV columns for a project's Purchase Requests (report/download — export-only).
+export function prExportColumns(db) {
+  const sup = (id) => db.suppliers.find((s) => s.id === id)?.name || '';
+  const pic = (id) => db.users.find((u) => u.id === id)?.name || '';
+  return [
+    { header: 'Material', value: (p) => materialName(db, p.materialId) },
+    { header: 'Extra', value: (p) => (isExtraPr(db, p) ? 'yes' : '') },
+    { header: 'Status', value: (p) => statusDef(db, p.status).label },
+    { header: 'Qty', value: (p) => nOrBlank(p.quantity) },
+    { header: 'Unit', value: (p) => p.unit },
+    { header: 'Unit cost', value: (p) => nOrBlank(p.unitCost) },
+    { header: 'Line total', value: (p) => nOrBlank((p.quantity || 0) * (p.unitCost || 0)) },
+    { header: 'Brand', value: (p) => (p.brandId ? brandName(db, p.brandId) : '') },
+    { header: 'Supplier 1', value: (p) => sup(p.supplierPrimaryId) },
+    { header: 'Supplier 2', value: (p) => sup(p.supplierSecondaryId) },
+    { header: 'PIC', value: (p) => pic(p.picId) },
+    { header: 'Order date', value: (p) => p.orderDate || '' },
+    { header: 'Receipt date', value: (p) => p.receiptDate || '' },
+    { header: 'Comment', value: (p) => p.comment || '' },
+  ];
+}
+
+// CSV columns for the Balance sheet (summarizeProject rows — export-only).
+export function balanceExportColumns() {
+  return [
+    { header: 'Material', value: (r) => r.materialName },
+    { header: 'Kind', value: (r) => (r.extra ? 'extra' : r.allowance ? 'allowance' : 'plan') },
+    { header: 'Unit', value: (r) => r.unit },
+    { header: 'Budget qty', value: (r) => nOrBlank(r.budgetQty) },
+    { header: 'Committed qty', value: (r) => nOrBlank(r.committedQty) },
+    { header: 'Received qty', value: (r) => nOrBlank(r.receivedQty) },
+    { header: 'Balance qty', value: (r) => nOrBlank(r.receivedQty - r.budgetQty) },
+    { header: 'Budget cost', value: (r) => nOrBlank(r.budgetCost) },
+    { header: 'Actual cost', value: (r) => nOrBlank(r.actualCost) },
+    { header: 'Cost balance', value: (r) => nOrBlank(r.budgetCost - r.actualCost) },
+  ];
 }
 
 // Rolled-up project totals for the overview KPIs.

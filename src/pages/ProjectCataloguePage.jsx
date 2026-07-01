@@ -1,10 +1,12 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, Fragment } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { TriangleAlert, ArrowRight } from 'lucide-react';
+import { TriangleAlert, ArrowRight, ChevronDown, ChevronRight, Download } from 'lucide-react';
 import { useStore } from '../store/StoreContext.jsx';
-import { projectTotals } from '../engine/reconcile.js';
+import { projectTotals, boqForProject, prsForProject, summarizeProject, prExportColumns, balanceExportColumns } from '../engine/reconcile.js';
+import { exportColumns } from '../engine/dataImport.js';
+import { toCsv, downloadCsv } from '../engine/csv.js';
 import { scheduleForProject, todayLocal } from '../engine/schedule.js';
-import { idr, fmtDate } from '../engine/format.js';
+import { idr, fmtDate, num } from '../engine/format.js';
 import NewProjectModal from '../components/NewProjectModal.jsx';
 import DataToolbar from '../components/DataToolbar.jsx';
 import Modal from '../components/Modal.jsx';
@@ -22,13 +24,14 @@ const pill = (txt, kind) => {
 };
 
 export default function ProjectCataloguePage() {
-  const { db, setCurrentProjectId, addProject, updateProject, addProjectType, deleteProjectType, softDeleteProject, currentProjectId } = useStore();
+  const { db, setCurrentProjectId, addProject, updateProject, completeProject, reopenProject, addProjectType, deleteProjectType, softDeleteProject, currentProjectId } = useStore();
   const nav = useNavigate();
   const today = useMemo(() => todayLocal(), []);
   const [tab, setTab] = useState('active');
   const [newProject, setNewProject] = useState(false);
   const [manageTypes, setManageTypes] = useState(false);
   const [delFor, setDelFor] = useState(null);
+  const [completeFor, setCompleteFor] = useState(null);
   const [q, setQ] = useState('');
   const [projectFilter, setProjectFilter] = useState([]);
   const [overFilter, setOverFilter] = useState([]);
@@ -42,12 +45,14 @@ export default function ProjectCataloguePage() {
     const received = lines.filter((l) => l.state === 'received').length;
     const attention = lines.filter((l) => l.orderOverdue || l.deliveryOverdue).length;
     const working = (db.phases || []).some((ph) => ph.projectId === p.id && ph.boqStatus === 'working');
-    return { p, totals, start, curOff, estFinish, items: lines.length, received, attention, working };
+    return { p, totals, start, curOff, estFinish, items: lines.length, received, attention, working, completed: !!p.completedAt };
   }), [db, today]);
 
+  const activeRows = rows.filter((r) => !r.completed);
+  const completedRows = rows.filter((r) => r.completed);
   const open = (id) => { setCurrentProjectId(id); nav('/overview'); };
 
-  const filteredRows = rows.filter(({ p, totals, attention }) => {
+  const filteredRows = activeRows.filter(({ p, totals, attention }) => {
     if (projectFilter.length && !projectFilter.includes(p.id)) return false;
     if (overFilter.includes('over') && !(totals.materialsOver > 0)) return false;
     if (statusFilter.length && !statusFilter.some((v) => (v === 'attention' ? attention > 0 : attention === 0))) return false;
@@ -73,16 +78,19 @@ export default function ProjectCataloguePage() {
       </div>
 
       <div className="seg" style={{ marginBottom: 16 }}>
-        {TABS.map((t) => (
-          <button key={t.key} className={tab === t.key ? 'active' : ''} onClick={() => setTab(t.key)}>
-            {t.label}{t.key === 'active' ? ` (${rows.length})` : ''}
-          </button>
-        ))}
+        {TABS.map((t) => {
+          const cnt = t.key === 'active' ? activeRows.length : t.key === 'completed' ? completedRows.length : 0;
+          return (
+            <button key={t.key} className={tab === t.key ? 'active' : ''} onClick={() => setTab(t.key)}>
+              {t.label}{cnt ? ` (${cnt})` : ''}
+            </button>
+          );
+        })}
       </div>
 
       {tab === 'active' && (
         <>
-          <FilterBar shown={filteredRows.length} total={rows.length} unit="projects">
+          <FilterBar shown={filteredRows.length} total={activeRows.length} unit="projects">
             <FilterSearch value={q} onChange={setQ} placeholder="Search name, code, location…" />
             <FilterSelect value={projectFilter} onChange={setProjectFilter} allLabel="All projects" width={200}
               options={db.projects.map((p) => ({ value: p.id, label: p.name }))} />
@@ -91,17 +99,23 @@ export default function ProjectCataloguePage() {
             <FilterSelect value={statusFilter} onChange={setStatusFilter} allLabel="Any status" width={170}
               options={[{ value: 'attention', label: 'Needs attention' }, { value: 'ontrack', label: 'On track' }]} />
           </FilterBar>
-          <ActiveTable rows={filteredRows} onOpen={open} onDelete={setDelFor}
+          <ActiveTable rows={filteredRows} onOpen={open} onDelete={setDelFor} onComplete={setCompleteFor}
             types={db.projectTypes || []} onUpdate={updateProject} onAddType={addProjectType} />
         </>
       )}
 
       {tab === 'completed' && (
-        <div className="card"><div className="empty" style={{ padding: '52px 24px', lineHeight: 1.6 }}>
-          <b>No completed projects yet.</b><br />
-          The completion workflow isn’t defined yet. Once we decide how a build gets marked done,
-          finished projects will archive here as a searchable record — handy for estimating the next store from a comparable one.
-        </div></div>
+        completedRows.length === 0 ? (
+          <div className="card"><div className="empty" style={{ padding: '52px 24px', lineHeight: 1.6 }}>
+            <b>No completed projects yet.</b><br />
+            Mark a project complete from its row on the Active tab — it archives here with its BoQ, PRs, and balance kept as a downloadable record.
+          </div></div>
+        ) : (
+          <>
+            <OrderingPatterns completedRows={completedRows} />
+            <CompletedTable rows={completedRows} db={db} onOpen={open} onReopen={reopenProject} />
+          </>
+        )
       )}
 
       {tab === 'upcoming' && (
@@ -123,7 +137,158 @@ export default function ProjectCataloguePage() {
           softDeleteProject(id);
           setDelFor(null);
         }} />}
+
+      {completeFor && <CompleteProject project={completeFor} db={db} onClose={() => setCompleteFor(null)}
+        onConfirm={() => { completeProject(completeFor.id); setCompleteFor(null); }} />}
     </>
+  );
+}
+
+// Trigger a CSV download of one of a project's tables (report — export-only).
+function downloadReport(db, project, kind) {
+  let rows, cols, name;
+  if (kind === 'boq') { rows = boqForProject(db, project.id); cols = exportColumns(db, 'boq'); name = 'boq'; }
+  else if (kind === 'prs') { rows = prsForProject(db, project.id); cols = prExportColumns(db); name = 'purchase-requests'; }
+  else { rows = summarizeProject(db, project.id); cols = balanceExportColumns(); name = 'balance'; }
+  const slug = (project.code || project.name).replace(/[^\w-]+/g, '-');
+  downloadCsv(`solaria-${slug}-${name}.csv`, toCsv(rows, cols));
+}
+
+// Confirm dialog for completing a project — shows what gets archived. Not gated on delivery;
+// finishing under budget (or with lines never ordered) is fine and expected.
+function CompleteProject({ project, db, onClose, onConfirm }) {
+  const t = projectTotals(db, project.id);
+  const boqCount = boqForProject(db, project.id).length;
+  const variance = t.budgetCost - t.actualCost;
+  return (
+    <Modal title={`Complete project · ${project.code || project.name}`} onClose={onClose}
+      footer={<>
+        <button className="btn ghost" onClick={onClose}>Cancel</button>
+        <button className="btn primary" onClick={onConfirm}>Mark complete</button>
+      </>}>
+      <p style={{ marginTop: 0, lineHeight: 1.6 }}>
+        Archive <b>{project.name}</b> to the Completed tab. Its <b>{boqCount} BoQ line{boqCount === 1 ? '' : 's'}</b>,
+        purchase requests, and balance are kept as a downloadable record, and a snapshot of the numbers is frozen for reporting.
+      </p>
+      <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', margin: '4px 0 6px' }}>
+        <div><div className="lbl" style={{ marginBottom: 2 }}>Budget</div><b>{idr(t.budgetCost)}</b></div>
+        <div><div className="lbl" style={{ marginBottom: 2 }}>Actual (committed)</div><b>{idr(t.actualCost)}</b></div>
+        <div><div className="lbl" style={{ marginBottom: 2 }}>{variance >= 0 ? 'Under budget' : 'Over budget'}</div>
+          <b style={{ color: variance >= 0 ? 'var(--ok)' : 'var(--risk)' }}>{idr(Math.abs(variance))}</b></div>
+      </div>
+      <p className="help" style={{ marginBottom: 0 }}>Finishing under budget is good — you don’t have to receive everything. You can reopen it later from the Completed tab.</p>
+    </Modal>
+  );
+}
+
+// Cross-project ordering patterns from the completion snapshots — surfaces materials that are
+// systematically over-ordered ("we always over-order gypsum"). Foundation for deeper analytics.
+function OrderingPatterns({ completedRows }) {
+  const agg = new Map();
+  for (const { p } of completedRows) {
+    for (const m of (p.completion?.materials || [])) {
+      if (m.kind !== 'quantity') continue; // skip allowance/extra — no meaningful qty budget
+      if (!agg.has(m.name)) agg.set(m.name, { name: m.name, unit: m.unit, projects: 0, overCount: 0, totalOver: 0, budgetQty: 0, committedQty: 0 });
+      const e = agg.get(m.name);
+      e.projects++; e.budgetQty += m.budgetQty; e.committedQty += m.committedQty; e.totalOver += m.overBy;
+      if (m.overBy > 0) e.overCount++;
+    }
+  }
+  const patterns = [...agg.values()].filter((e) => e.projects >= 2 && e.totalOver > 0).sort((a, b) => b.totalOver - a.totalOver);
+  if (patterns.length === 0) return null;
+  return (
+    <div className="card" style={{ marginBottom: 14 }}>
+      <div className="card-head">
+        <h2>Ordering patterns</h2>
+        <span className="muted" style={{ fontSize: 12.5 }}>· across {completedRows.length} completed project{completedRows.length === 1 ? '' : 's'} — materials committed above the plan</span>
+      </div>
+      <div className="card-body">
+        {patterns.slice(0, 6).map((e) => (
+          <div key={e.name} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', flexWrap: 'wrap' }}>
+            <b style={{ minWidth: 150 }}>{e.name}</b>
+            <span className="pill warn">over-ordered in {e.overCount}/{e.projects}</span>
+            <span className="muted" style={{ fontSize: 13 }}>+{num(e.totalOver)} {e.unit} total · committed {num(e.committedQty)} vs budget {num(e.budgetQty)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// Completed-project archive: name, region, budget, actual cost + a drop-down (expand) with
+// downloads and the frozen per-material breakdown.
+function CompletedTable({ rows, db, onOpen, onReopen }) {
+  const [open, setOpen] = useState(null);
+  return (
+    <div className="card">
+      <div className="card-body flush">
+        <table className="table compact">
+          <thead><tr>
+            <th>Project</th><th>Region</th><th className="num">Budget</th><th className="num">Actual cost</th><th className="num">Variance</th><th>Completed</th><th></th>
+          </tr></thead>
+          <tbody>
+            {rows.map(({ p }) => {
+              const c = p.completion || {};
+              const variance = (c.budgetCost || 0) - (c.actualCost || 0); // + = under budget (good)
+              const isOpen = open === p.id;
+              return (
+                <Fragment key={p.id}>
+                  <tr className="clickable" onClick={() => setOpen(isOpen ? null : p.id)}>
+                    <td><b>{p.name}</b>{p.code && <div className="muted" style={{ fontSize: 12 }}>{p.code}</div>}</td>
+                    <td>{p.location || <span className="muted">—</span>}</td>
+                    <td className="num">{idr(c.budgetCost || 0)}</td>
+                    <td className="num">{idr(c.actualCost || 0)}</td>
+                    <td className="num" style={{ color: variance < 0 ? 'var(--risk)' : 'var(--ok)', fontWeight: 600 }}>
+                      {variance >= 0 ? 'under ' : 'over '}{idr(Math.abs(variance))}
+                    </td>
+                    <td style={{ whiteSpace: 'nowrap' }}>{fmtDate(p.completedAt)}</td>
+                    <td className="num muted">{isOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}</td>
+                  </tr>
+                  {isOpen && (
+                    <tr className="drill"><td colSpan={7}>
+                      <div className="drill-inner">
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 12 }}>
+                          <span className="muted" style={{ fontSize: 12.5 }}>Download archive:</span>
+                          <button className="btn sm ghost" style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }} onClick={() => downloadReport(db, p, 'boq')}><Download size={13} /> BoQ</button>
+                          <button className="btn sm ghost" style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }} onClick={() => downloadReport(db, p, 'prs')}><Download size={13} /> Purchase requests</button>
+                          <button className="btn sm ghost" style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }} onClick={() => downloadReport(db, p, 'balance')}><Download size={13} /> Balance</button>
+                          <div style={{ flex: 1 }} />
+                          <button className="btn sm ghost" onClick={() => onOpen(p.id)}>Open</button>
+                          <button className="btn sm ghost" onClick={() => onReopen(p.id)}>Reopen</button>
+                        </div>
+                        <h4>Material breakdown <span className="muted" style={{ fontWeight: 400, fontSize: 12 }}>(frozen at completion)</span></h4>
+                        {(c.materials || []).length === 0 ? (
+                          <p className="help" style={{ paddingLeft: 0 }}>No materials recorded.</p>
+                        ) : (
+                          <table className="table">
+                            <thead><tr><th>Material</th><th className="num">Budget qty</th><th className="num">Committed</th><th className="num">Over / under</th><th className="num">Budget cost</th><th className="num">Actual cost</th></tr></thead>
+                            <tbody>
+                              {c.materials.map((m) => {
+                                const q = m.kind === 'quantity';
+                                return (
+                                  <tr key={m.materialId + m.kind}>
+                                    <td>{m.name}{m.kind === 'extra' && <span className="pill warn" style={{ marginLeft: 6, fontSize: 10 }}>Extra</span>}{m.kind === 'allowance' && <span className="pill info" style={{ marginLeft: 6, fontSize: 10 }}>Allowance</span>}</td>
+                                    <td className="num">{q ? num(m.budgetQty) : '—'}</td>
+                                    <td className="num">{num(m.committedQty)}</td>
+                                    <td className="num" style={{ color: q && m.overBy > 0 ? 'var(--risk)' : q && m.overBy < 0 ? 'var(--ok)' : undefined }}>{q ? (m.overBy > 0 ? '+' : '') + num(m.overBy) : '—'}</td>
+                                    <td className="num">{idr(m.budgetCost)}</td>
+                                    <td className="num">{idr(m.actualCost)}</td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        )}
+                      </div>
+                    </td></tr>
+                  )}
+                </Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }
 
@@ -235,7 +400,7 @@ function ManageTypes({ db, onClose, onDelete }) {
   );
 }
 
-function ActiveTable({ rows, onOpen, onDelete, types, onUpdate, onAddType }) {
+function ActiveTable({ rows, onOpen, onDelete, onComplete, types, onUpdate, onAddType }) {
   if (rows.length === 0) {
     return <div className="card"><div className="empty">No projects match these filters.</div></div>;
   }
@@ -292,7 +457,8 @@ function ActiveTable({ rows, onOpen, onDelete, types, onUpdate, onAddType }) {
                   <td>{!working
                     ? <span className="pill gray">Draft</span>
                     : attention > 0 ? pill(<span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><TriangleAlert size={12} /> {attention} to act on</span>, 'risk') : pill('On track', 'ok')}</td>
-                  <td className="num" onClick={(e) => e.stopPropagation()}>
+                  <td className="num" style={{ whiteSpace: 'nowrap' }} onClick={(e) => e.stopPropagation()}>
+                    <button className="btn sm ghost" onClick={() => onComplete(p)} title="Archive this project as complete">Complete</button>{' '}
                     <button className="btn sm ghost" style={{ color: 'var(--risk)' }} onClick={() => onDelete(p)}>Delete</button>
                   </td>
                 </tr>

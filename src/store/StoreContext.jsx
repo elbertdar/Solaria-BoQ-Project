@@ -5,6 +5,7 @@ import { createContext, useContext, useEffect, useMemo, useState, useCallback } 
 import { seed } from '../data/seed.js';
 import { nowISO, today } from '../engine/format.js';
 import { applyImport } from '../engine/dataImport.js';
+import { completionSnapshot } from '../engine/reconcile.js';
 import { DEFAULT_PR_STATUSES, sortStatuses, isCommitted, isReceived, defaultStatusId } from '../engine/status.js';
 
 const KEY = 'solaria_boq_db_v11';
@@ -126,6 +127,19 @@ export function StoreProvider({ children }) {
   const addMaterialType = typeCrud.add, updateMaterialType = typeCrud.update;
   const projectCrud = useMemo(() => makeCrud(setDb, 'projects', 'p', { client: 'Solaria F&B', location: '' }), []);
   const addProject = projectCrud.add, updateProject = projectCrud.update;
+  // Mark a project complete (manual — not gated on "all received"; under-budget is fine). Freezes
+  // a completion snapshot (totals + per-material breakdown) as the archived record. Reversible.
+  const completeProject = useCallback((id) => {
+    setDb((d) => {
+      const proj = d.projects.find((p) => p.id === id);
+      if (!proj || proj.completedAt) return d;
+      const completion = completionSnapshot(d, id);
+      return { ...d, projects: d.projects.map((p) => (p.id === id ? { ...p, completedAt: nowISO(), completion } : p)) };
+    });
+  }, []);
+  const reopenProject = useCallback((id) => {
+    setDb((d) => ({ ...d, projects: d.projects.map((p) => (p.id === id ? { ...p, completedAt: null, completion: null } : p)) }));
+  }, []);
   const projectTypeCrud = useMemo(() => makeCrud(setDb, 'projectTypes', 'pt'), []);
   const addProjectType = projectTypeCrud.add;
   const deleteProjectType = useCallback((id) => {
@@ -735,7 +749,7 @@ export function StoreProvider({ children }) {
     addBrand, updateBrand, deleteBrand,
     softDeletePr, softDeleteMaterial, softDeleteMaterialType, softDeleteProject, restoreTrash, purgeTrash,
     addMaterialType, updateMaterialType,
-    addProject, updateProject, addProjectType, deleteProjectType, addMandor, updateMandor, deleteMandor,
+    addProject, updateProject, completeProject, reopenProject, addProjectType, deleteProjectType, addMandor, updateMandor, deleteMandor,
     addPrStatus, updatePrStatus, reorderPrStatus, retirePrStatus, restorePrStatus,
     addUser, updateUser, deleteUser,
     addPr, updatePr, setPrStatus, deletePr,
@@ -745,7 +759,7 @@ export function StoreProvider({ children }) {
   }), [db, currentProjectId, currentPhaseId, addMaterial, updateMaterial, addAlias, removeAlias,
     addBoqItem, updateBoqItem, patchBoqItem, softDeleteBoqItem, finalizePhase,
     addPhase, updatePhase, reorderPhase, deletePhase, setPhaseStart,
-    stageBoqModify, stageBoqAdd, editStagedAdd, stageBoqDelete, unstageBoq, discardBoqStaged, commitBoqStaged, addSupplier, updateSupplier, deleteSupplier, addBrand, updateBrand, deleteBrand, softDeletePr, softDeleteMaterial, softDeleteMaterialType, softDeleteProject, restoreTrash, purgeTrash, addMaterialType, updateMaterialType, addProject, updateProject, addProjectType, deleteProjectType, addPrStatus, updatePrStatus, reorderPrStatus, retirePrStatus, restorePrStatus, addMandor, updateMandor, deleteMandor,
+    stageBoqModify, stageBoqAdd, editStagedAdd, stageBoqDelete, unstageBoq, discardBoqStaged, commitBoqStaged, addSupplier, updateSupplier, deleteSupplier, addBrand, updateBrand, deleteBrand, softDeletePr, softDeleteMaterial, softDeleteMaterialType, softDeleteProject, restoreTrash, purgeTrash, addMaterialType, updateMaterialType, addProject, updateProject, completeProject, reopenProject, addProjectType, deleteProjectType, addPrStatus, updatePrStatus, reorderPrStatus, retirePrStatus, restorePrStatus, addMandor, updateMandor, deleteMandor,
     addUser, updateUser, deleteUser,
     addPr, updatePr, setPrStatus, deletePr,
     stagePrStatus, unstagePr, discardPrStaged, commitPrStaged, importData, importEntity, resetDb]);

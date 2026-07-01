@@ -9,7 +9,9 @@
 function cell(v) {
   if (v == null) return '';
   let s = String(v);
-  if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;            // injection guard
+  // Injection guard — but let plain numbers (incl. negatives/decimals) through so a value like
+  // "-20000" isn't turned into text in Excel. Only non-numeric cells starting with = + - @ are escaped.
+  if (/^[=+\-@\t\r]/.test(s) && !Number.isFinite(Number(s))) s = "'" + s;
   if (/[",\n\r]/.test(s)) s = '"' + s.replace(/"/g, '""') + '"';
   return s;
 }
