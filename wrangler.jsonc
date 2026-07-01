@@ -1,19 +1,33 @@
 {
-  // Cloudflare Workers (static assets) config for the Solaria BoQ pilot.
+  // Cloudflare Worker config for the Solaria BoQ pilot.
   //
-  // This is a static SPA — no Worker code, just the built `dist/` served as assets.
-  // SPA deep-link fallback is declared here via `not_found_handling`, NOT via a
-  // `public/_redirects` file: the Workers static-assets pipeline validates `_redirects`
-  // and rejects the classic SPA rule `/*  /index.html  200` as an infinite loop
-  // (error code 100324). `single-page-application` serves /index.html (200) for any
-  // path that doesn't match a built asset, which is exactly what react-router needs.
+  // A small Worker (worker/index.js) serves the built `dist/` as static assets (with SPA
+  // deep-link fallback via not_found_handling) AND a /api/state endpoint backed by KV, so
+  // the app's data is saved on the server instead of only in the browser.
   //
-  // If this is ever moved to Netlify or classic Cloudflare Pages instead, drop this
-  // file and restore `public/_redirects` containing: /*  /index.html  200
+  // As shipped, the Worker serves the app exactly as before and the app runs in LOCAL mode
+  // (data in the browser). To turn ON server sync, do the one-time setup below and redeploy —
+  // nothing here breaks the site in the meantime.
+  //
+  // ── Enable server sync (Cloudflare dashboard) ─────────────────────────────────────────
+  //  1. Storage & Databases → KV → Create a namespace (e.g. "solaria-boq"). Copy its ID.
+  //  2. Uncomment the "kv_namespaces" block below and paste the ID as its `id`.
+  //  3. Workers & Pages → solaria-boq-project → Settings → Variables and Secrets → add a
+  //     SECRET named APP_KEY = a passphrase you choose. That passphrase is what you type into
+  //     the app to unlock/sync; it never ships in the frontend bundle.
+  //  4. Commit + deploy. The app will then prompt for the passphrase and sync to the server.
+  //
+  // If moved to Netlify/classic Pages later: drop this + worker/, restore public/_redirects
+  // (/*  /index.html  200), and swap the store's remote sync for that host's storage.
   "name": "solaria-boq-project",
   "compatibility_date": "2025-01-01",
+  "main": "worker/index.js",
   "assets": {
     "directory": "./dist",
+    "binding": "ASSETS",
     "not_found_handling": "single-page-application"
   }
+  // "kv_namespaces": [
+  //   { "binding": "BOQ_KV", "id": "PASTE_KV_NAMESPACE_ID" }
+  // ]
 }

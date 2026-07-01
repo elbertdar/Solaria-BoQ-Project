@@ -1,12 +1,13 @@
-// store/StoreContext.jsx — single in-memory db, persisted to localStorage.
-// Backend (Supabase) is deferred; this layer is the seam we'll swap later.
+// store/StoreContext.jsx — single in-memory db, persisted to localStorage, and (when the
+// server backend is configured) synced to it via the remote seam below.
 
-import { createContext, useContext, useEffect, useMemo, useState, useCallback } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { seed } from '../data/seed.js';
 import { nowISO, today } from '../engine/format.js';
 import { applyImport } from '../engine/dataImport.js';
 import { completionSnapshot } from '../engine/reconcile.js';
 import { DEFAULT_PR_STATUSES, sortStatuses, isCommitted, isReceived, defaultStatusId } from '../engine/status.js';
+import { loadRemote, saveRemote, flushRemote, setKey, clearKey } from './remote.js';
 
 const KEY = 'solaria_boq_db_v11';
 const StoreCtx = createContext(null);
@@ -98,9 +99,58 @@ export function StoreProvider({ children }) {
   const [currentPhaseId, setCurrentPhaseId] = useState('__all');   // '__all' = whole project
   const setCurrentProjectId = useCallback((id) => { setCurrentProjectIdRaw(id); setCurrentPhaseId('__all'); }, []);
 
+  // ---- Remote sync: server-backed persistence when the Worker backend is configured.
+  // localStorage always stays the offline fallback, so the app works even with no backend.
+  const [syncStatus, setSyncStatus] = useState('local'); // local | needkey | synced
+  const dbRef = useRef(db);
+  const saveTimer = useRef(null);
+  const skipNextSave = useRef(false);
+  useEffect(() => { dbRef.current = db; }, [db]); // keep latest db for async saves
+  const adoptRemote = useCallback((data) => {
+    skipNextSave.current = true;
+    const nd = normalize(data);
+    setDb(nd);
+    setCurrentProjectId(nd.projects[0]?.id);
+  }, [setCurrentProjectId]);
+
+  // On mount: adopt server state if the backend is up. Empty server → seed it from this device.
+  // Unauthorized → show the passphrase gate. Unreachable/absent → stay local-only.
   useEffect(() => {
-    try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) { /* quota */ }
-  }, [db]);
+    let cancelled = false;
+    loadRemote().then((r) => {
+      if (cancelled) return;
+      if (r.status === 'ok') { if (r.data) adoptRemote(r.data); else saveRemote(dbRef.current); setSyncStatus('synced'); }
+      else if (r.status === 'unauthorized') setSyncStatus('needkey');
+    });
+    return () => { cancelled = true; };
+  }, [adoptRemote]);
+
+  // Persist on every change: localStorage always; the server (debounced) once synced.
+  useEffect(() => {
+    try { localStorage.setItem(KEY, JSON.stringify(db)); } catch { /* quota */ }
+    if (syncStatus === 'synced') {
+      if (skipNextSave.current) { skipNextSave.current = false; return; }
+      clearTimeout(saveTimer.current);
+      saveTimer.current = setTimeout(() => saveRemote(dbRef.current), 1200);
+    }
+  }, [db, syncStatus]);
+
+  // Flush pending edits if the tab closes before the debounce fires.
+  useEffect(() => {
+    const onLeave = () => { if (syncStatus === 'synced') flushRemote(dbRef.current); };
+    window.addEventListener('beforeunload', onLeave);
+    return () => window.removeEventListener('beforeunload', onLeave);
+  }, [syncStatus]);
+
+  // Gate action — validate the passphrase against the server, then adopt server state.
+  const connectRemote = useCallback(async (key) => {
+    setKey(key);
+    const r = await loadRemote();
+    if (r.status === 'ok') { if (r.data) adoptRemote(r.data); else saveRemote(dbRef.current); setSyncStatus('synced'); return true; }
+    clearKey();
+    return false;
+  }, [adoptRemote]);
+  const useOffline = useCallback(() => { clearKey(); setSyncStatus('local'); }, []);
 
   // ---- Catalogue (Feature 5.1) ----
   // ---- Collection CRUD via factory (aliased to the original names; value/deps unchanged) ----
@@ -755,8 +805,9 @@ export function StoreProvider({ children }) {
     addPr, updatePr, setPrStatus, deletePr,
     stagePrStatus, unstagePr, discardPrStaged, commitPrStaged,
     importData, importEntity,
+    syncStatus, connectRemote, useOffline,
     resetDb,
-  }), [db, currentProjectId, currentPhaseId, addMaterial, updateMaterial, addAlias, removeAlias,
+  }), [db, currentProjectId, currentPhaseId, syncStatus, connectRemote, useOffline, addMaterial, updateMaterial, addAlias, removeAlias,
     addBoqItem, updateBoqItem, patchBoqItem, softDeleteBoqItem, finalizePhase,
     addPhase, updatePhase, reorderPhase, deletePhase, setPhaseStart,
     stageBoqModify, stageBoqAdd, editStagedAdd, stageBoqDelete, unstageBoq, discardBoqStaged, commitBoqStaged, addSupplier, updateSupplier, deleteSupplier, addBrand, updateBrand, deleteBrand, softDeletePr, softDeleteMaterial, softDeleteMaterialType, softDeleteProject, restoreTrash, purgeTrash, addMaterialType, updateMaterialType, addProject, updateProject, completeProject, reopenProject, addProjectType, deleteProjectType, addPrStatus, updatePrStatus, reorderPrStatus, retirePrStatus, restorePrStatus, addMandor, updateMandor, deleteMandor,

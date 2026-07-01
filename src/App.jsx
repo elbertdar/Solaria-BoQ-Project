@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { StoreProvider } from './store/StoreContext.jsx';
 import Sidebar from './components/Sidebar.jsx';
 import RequireProject from './components/RequireProject.jsx';
+import SyncGate from './components/SyncGate.jsx';
 import DashboardPage from './pages/DashboardPage.jsx';
 import ProjectCataloguePage from './pages/ProjectCataloguePage.jsx';
 import AllPurchaseRequestsPage from './pages/AllPurchaseRequestsPage.jsx';
@@ -20,6 +21,7 @@ import TrashPage from './pages/TrashPage.jsx';
 export default function App() {
   return (
     <StoreProvider>
+      <SyncGate>
       <BrowserRouter>
         <div className="app">
           <Sidebar />
@@ -44,6 +46,7 @@ export default function App() {
           </main>
         </div>
       </BrowserRouter>
+      </SyncGate>
     </StoreProvider>
   );
 }

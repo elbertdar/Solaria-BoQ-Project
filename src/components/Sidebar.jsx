@@ -50,7 +50,7 @@ const GROUPS = [
 ];
 
 export default function Sidebar() {
-  const { db, currentProjectId, setCurrentProjectId } = useStore();
+  const { db, currentProjectId, setCurrentProjectId, syncStatus } = useStore();
   const warnCount = projectWarnings(db, currentProjectId).length;
   const sched = scheduleCounts(scheduleForProject(db, currentProjectId).lines);
   const overdueCount = sched.overdueOrder + sched.overdueDeliver;
@@ -104,9 +104,15 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      <div className="sb-pilot">
-        <b>Pilot version.</b> Your data is saved only in this browser on this device. Don’t enter anything you can’t afford to re-enter.
-      </div>
+      {syncStatus === 'synced' ? (
+        <div className="sb-pilot synced">
+          <b>Synced.</b> Your data is saved on the server — reachable from any device with your passphrase.
+        </div>
+      ) : (
+        <div className="sb-pilot">
+          <b>Pilot version.</b> Your data is saved only in this browser on this device. Don’t enter anything you can’t afford to re-enter.
+        </div>
+      )}
 
       <div className="sb-user">
         <div className="avatar">{initials(db.currentUser?.name)}</div>
