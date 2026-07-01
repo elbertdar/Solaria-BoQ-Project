@@ -1,12 +1,13 @@
-import { useState } from 'react';
-import { TriangleAlert } from 'lucide-react';
+import { useState, Fragment } from 'react';
+import { TriangleAlert, ChevronDown, ChevronRight } from 'lucide-react';
 import { useStore } from '../store/StoreContext.jsx';
 import { suggestMaterials } from '../engine/match.js';
-import { idr } from '../engine/format.js';
+import { materialPurchaseHistory } from '../engine/reconcile.js';
+import { idr, num, fmtDate } from '../engine/format.js';
 import Modal from '../components/Modal.jsx';
 import NumberInput from '../components/NumberInput.jsx';
 import ComboBox from '../components/ComboBox.jsx';
-import { FilterBar, FilterSearch, FilterSelect, DeleteConfirm } from '../components/ui.jsx';
+import { FilterBar, FilterSearch, FilterSelect, DeleteConfirm, StatusPill } from '../components/ui.jsx';
 import DataToolbar from '../components/DataToolbar.jsx';
 
 export default function CataloguePage() {
@@ -18,6 +19,7 @@ export default function CataloguePage() {
   const [delFor, setDelFor] = useState(null);
   const [q, setQ] = useState('');
   const [typeFilter, setTypeFilter] = useState([]);
+  const [openMat, setOpenMat] = useState(null);
 
   const typeName = (id) => db.materialTypes.find((t) => t.id === id)?.name || id;
 
@@ -53,11 +55,13 @@ export default function CataloguePage() {
         <div className="card-body flush">
           <table className="table">
             <thead>
-              <tr><th>Canonical name</th><th>Type</th><th>Brands</th><th>Default unit</th><th className="num">Est. unit cost</th><th className="num">Lead time</th><th>Aliases</th><th></th></tr>
+              <tr><th style={{ width: 28 }}></th><th>Canonical name</th><th>Type</th><th>Brands</th><th>Default unit</th><th className="num">Est. unit cost</th><th className="num">Lead time</th><th>Aliases</th><th></th></tr>
             </thead>
             <tbody>
-              {filtered.map((m) => (
-                <tr key={m.id}>
+              {filtered.map((m) => { const isOpen = openMat === m.id; return (
+                <Fragment key={m.id}>
+                <tr>
+                  <td className="num clickable" style={{ cursor: 'pointer', color: 'var(--muted, #94A3B8)' }} onClick={() => setOpenMat(isOpen ? null : m.id)} title="Purchase history across projects">{isOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}</td>
                   <td><b>{m.canonicalName}</b></td>
                   <td className="muted">{typeName(m.materialTypeId)}</td>
                   <td>
@@ -94,9 +98,15 @@ export default function CataloguePage() {
                     <button className="btn sm ghost" style={{ color: 'var(--risk)' }} onClick={() => setDelFor(m)}>Delete</button>
                   </td>
                 </tr>
-              ))}
+                {isOpen && (
+                  <tr className="drill"><td colSpan={9}>
+                    <div className="drill-inner"><PurchaseHistory db={db} material={m} /></div>
+                  </td></tr>
+                )}
+                </Fragment>
+              ); })}
               {filtered.length === 0 && (
-                <tr><td colSpan={8}><div className="empty">{db.materials.length === 0 ? 'No materials yet.' : 'No materials match these filters.'}</div></td></tr>
+                <tr><td colSpan={9}><div className="empty">{db.materials.length === 0 ? 'No materials yet.' : 'No materials match these filters.'}</div></td></tr>
               )}
             </tbody>
           </table>
@@ -114,6 +124,53 @@ export default function CataloguePage() {
       {delFor && <DeleteMaterial material={delFor} db={db} onClose={() => setDelFor(null)}
         onConfirm={() => { softDeleteMaterial(delFor.id); setDelFor(null); }} />}
     </>
+  );
+}
+
+// Cross-project purchase history for one material — price paid, store, project, date.
+function PurchaseHistory({ db, material }) {
+  const h = materialPurchaseHistory(db, material.id);
+  if (h.count === 0) {
+    return <p className="help" style={{ paddingLeft: 0, marginTop: 0 }}>Not bought yet — this material hasn’t been ordered on any project.</p>;
+  }
+  const spread = h.minCost !== h.maxCost;
+  return (
+    <>
+      <h4 style={{ marginTop: 0 }}>Purchase history <span className="muted" style={{ fontWeight: 400, fontSize: 12 }}>(committed orders across all projects)</span></h4>
+      <div style={{ display: 'flex', gap: 22, flexWrap: 'wrap', margin: '2px 0 12px' }}>
+        <Stat label="Bought" value={`${h.count}× · ${num(h.totalQty)} ${material.defaultUnit}`} />
+        <Stat label="Price paid" value={spread ? `${idr(h.minCost)} – ${idr(h.maxCost)}` : idr(h.avgCost)}
+          sub={`avg ${idr(Math.round(h.avgCost))}${material.estUnitCost != null ? ` · est. ${idr(material.estUnitCost)}` : ''}`} />
+        <Stat label="Total spent" value={idr(h.totalSpent)} />
+        <Stat label={`Store${h.stores.length === 1 ? '' : 's'}`} value={h.stores.length ? h.stores.join(', ') : '—'} />
+      </div>
+      <table className="table">
+        <thead><tr><th>Project</th><th>Store</th><th>Date</th><th className="num">Qty</th><th className="num">Unit price</th><th className="num">Total</th><th>Status</th></tr></thead>
+        <tbody>
+          {h.purchases.map((p) => (
+            <tr key={p.prId}>
+              <td>{p.projectName}{p.projectCode && <span className="muted"> · {p.projectCode}</span>}</td>
+              <td>{p.supplierName || <span className="muted">—</span>}</td>
+              <td style={{ whiteSpace: 'nowrap' }}>{p.date ? fmtDate(p.date) : <span className="muted">—</span>}</td>
+              <td className="num">{num(p.qty)} {p.unit}</td>
+              <td className="num">{idr(p.unitCost)}</td>
+              <td className="num">{idr(p.lineTotal)}</td>
+              <td><StatusPill status={p.status} /></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </>
+  );
+}
+
+function Stat({ label, value, sub }) {
+  return (
+    <div>
+      <div className="lbl" style={{ marginBottom: 2 }}>{label}</div>
+      <b>{value}</b>
+      {sub && <div className="muted" style={{ fontSize: 11.5 }}>{sub}</div>}
+    </div>
   );
 }
 

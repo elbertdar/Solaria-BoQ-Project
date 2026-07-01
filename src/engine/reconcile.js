@@ -38,6 +38,38 @@ export function brandBreakdown(db, prs) {
   return [...by.values()].sort((a, b) => b.qty - a.qty);
 }
 
+// Cross-project purchase history for one material — every committed buy (ordered/received),
+// with the price paid, the store (supplier), the project, and the date. Powers the Catalogue
+// drill-down: "gypsum was bought at 50k in project A, 100k in project B".
+export function materialPurchaseHistory(db, materialId) {
+  const purchases = db.prs
+    .filter((p) => p.materialId === materialId && isCommitted(db, p.status))
+    .map((p) => {
+      const proj = db.projects.find((x) => x.id === p.projectId);
+      return {
+        prId: p.id,
+        projectName: proj?.name || '—', projectCode: proj?.code || '',
+        supplierName: db.suppliers.find((s) => s.id === p.supplierPrimaryId)?.name || '',
+        date: p.orderDate || p.receiptDate || null,
+        qty: p.quantity || 0, unit: p.unit || '',
+        unitCost: p.unitCost || 0, lineTotal: (p.quantity || 0) * (p.unitCost || 0),
+        status: p.status,
+      };
+    })
+    .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+  const costs = purchases.map((x) => x.unitCost).filter((c) => c > 0);
+  const totalQty = purchases.reduce((t, x) => t + x.qty, 0);
+  const totalSpent = purchases.reduce((t, x) => t + x.lineTotal, 0);
+  const stores = [...new Set(purchases.map((x) => x.supplierName).filter(Boolean))];
+  return {
+    purchases, stores,
+    count: purchases.length, totalQty, totalSpent,
+    minCost: costs.length ? Math.min(...costs) : null,
+    maxCost: costs.length ? Math.max(...costs) : null,
+    avgCost: totalQty > 0 ? totalSpent / totalQty : null, // qty-weighted average price paid
+  };
+}
+
 // Phase scope: phaseId null / '__all' = whole project; a specific id narrows to that phase.
 const allPhases = (phaseId) => !phaseId || phaseId === '__all';
 export function boqForProject(db, projectId, phaseId = null) {
