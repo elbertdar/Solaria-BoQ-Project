@@ -11,7 +11,6 @@ import ReconciliationPage from './pages/ReconciliationPage.jsx';
 import BoqPage from './pages/BoqPage.jsx';
 import SchedulePage from './pages/SchedulePage.jsx';
 import PurchaseRequestsPage from './pages/PurchaseRequestsPage.jsx';
-import BulkPrPage from './pages/BulkPrPage.jsx';
 import SuppliersPage from './pages/SuppliersPage.jsx';
 import CataloguePage from './pages/CataloguePage.jsx';
 import MaterialTypesPage from './pages/MaterialTypesPage.jsx';
@@ -36,7 +35,6 @@ export default function App() {
               <Route path="/schedule" element={<RequireProject><SchedulePage /></RequireProject>} />
               <Route path="/boq" element={<RequireProject><BoqPage /></RequireProject>} />
               <Route path="/purchase-requests" element={<RequireProject><PurchaseRequestsPage /></RequireProject>} />
-              <Route path="/bulk-pr" element={<RequireProject><BulkPrPage /></RequireProject>} />
               <Route path="/suppliers" element={<SuppliersPage />} />
               <Route path="/catalogue" element={<CataloguePage />} />
               <Route path="/material-types" element={<MaterialTypesPage />} />

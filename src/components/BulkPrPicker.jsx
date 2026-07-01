@@ -1,0 +1,91 @@
+import { useMemo, useState } from 'react';
+import Modal from './Modal.jsx';
+import { useStore } from '../store/StoreContext.jsx';
+import { boqForProject, materialName, remainingQty, boqLineStatus } from '../engine/reconcile.js';
+import { idr, num } from '../engine/format.js';
+
+// Step 1 of bulk ordering from the PR page: pick which orderable (working-phase) BoQ lines
+// you're buying. Hands the selected ids to BulkPrModal, where the store + quantities are set.
+export default function BulkPrPicker({ projectId, onClose, onNext }) {
+  const { db } = useStore();
+  const phases = (db.phases || []).filter((p) => p.projectId === projectId);
+  const workingPhases = phases.filter((ph) => ph.boqStatus === 'working');
+
+  const lines = useMemo(() => {
+    const out = [];
+    for (const ph of workingPhases) for (const b of boqForProject(db, projectId, ph.id)) out.push({ b, phase: ph });
+    return out;
+  }, [db, projectId, workingPhases]);
+
+  const [q, setQ] = useState('');
+  const [selected, setSelected] = useState(() => new Set());
+
+  const norm = q.trim().toLowerCase();
+  const shown = lines.filter(({ b }) => !norm || (materialName(db, b.materialId) + ' ' + (b.description || '')).toLowerCase().includes(norm));
+  const shownIds = shown.map(({ b }) => b.id);
+  const allSel = shownIds.length > 0 && shownIds.every((id) => selected.has(id));
+  const someSel = shownIds.some((id) => selected.has(id));
+
+  const toggle = (id) => setSelected((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const toggleAll = () => setSelected((s) => { const n = new Set(s); if (allSel) shownIds.forEach((id) => n.delete(id)); else shownIds.forEach((id) => n.add(id)); return n; });
+
+  return (
+    <Modal
+      title="Bulk order — pick the items"
+      onClose={onClose}
+      wide
+      footer={
+        <>
+          <span className="muted" style={{ marginRight: 'auto', fontSize: 13 }}>{selected.size} selected</span>
+          <button className="btn ghost" onClick={onClose}>Cancel</button>
+          <button className="btn primary" disabled={selected.size === 0} onClick={() => onNext([...selected])}>Continue</button>
+        </>
+      }
+    >
+      <p className="help" style={{ marginTop: 0 }}>Tick everything you're buying this run — next you'll pick the store and confirm quantities.</p>
+      <div style={{ marginBottom: 10 }}>
+        <input className="input" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search material or description…" style={{ width: '100%', boxSizing: 'border-box' }} />
+      </div>
+
+      {workingPhases.length === 0 ? (
+        <div className="empty">No working phases yet. Finalize a BoQ phase to start ordering against its lines.</div>
+      ) : (
+        <div className="card-body flush" style={{ maxHeight: 360, overflow: 'auto', border: '1px solid #E5E7EB', borderRadius: 9 }}>
+          <table className="table">
+            <thead>
+              <tr>
+                <th style={{ width: 34 }}><input type="checkbox" checked={allSel} ref={(el) => { if (el) el.indeterminate = someSel && !allSel; }} onChange={toggleAll} title="Select all shown" /></th>
+                <th>Material</th><th>Description</th><th>Phase</th>
+                <th className="num">Budget qty</th><th className="num">Remaining</th>
+                <th className="num">Exp. unit cost</th><th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {shown.map(({ b, phase }) => {
+                const allow = b.budgetBasis === 'allowance';
+                const rem = remainingQty(db, b.id);
+                const ls = boqLineStatus(db, b.id);
+                const sel = selected.has(b.id);
+                return (
+                  <tr key={b.id} className="clickable" onClick={() => toggle(b.id)} style={sel ? { background: '#EFF6FF' } : undefined}>
+                    <td onClick={(e) => e.stopPropagation()}><input type="checkbox" checked={sel} onChange={() => toggle(b.id)} /></td>
+                    <td className="mat-link"><b>{materialName(db, b.materialId)}</b>{allow && <span className="pill info" style={{ marginLeft: 6, fontSize: 11 }}>Allowance</span>}</td>
+                    <td>{b.description}</td>
+                    <td className="muted" style={{ fontSize: 12.5 }}>{phase.name}</td>
+                    <td className="num">{allow ? <span className="muted">—</span> : num(b.quantity)} {!allow && <span className="muted" style={{ fontSize: 11 }}>{b.unit}</span>}</td>
+                    <td className="num">{allow ? <span className="muted">—</span> : num(rem)}</td>
+                    <td className="num">{idr(b.expectedUnitCost)}</td>
+                    <td>{ls === 'complete'
+                      ? <span className="pill" style={{ background: '#F0FDF4', color: '#15803D', border: '1px solid #D1FAE5' }}>Complete</span>
+                      : ls === 'ordered' ? <span className="pill info">Ordered</span> : <span className="pill gray">Not ordered</span>}</td>
+                  </tr>
+                );
+              })}
+              {shown.length === 0 && <tr><td colSpan={8}><div className="empty">{lines.length === 0 ? 'No orderable lines yet.' : 'No lines match your search.'}</div></td></tr>}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </Modal>
+  );
+}

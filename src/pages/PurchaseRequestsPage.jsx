@@ -5,6 +5,8 @@ import PhaseTabs from '../components/PhaseTabs.jsx';
 import { prsForProject, materialName, isExtraPr, brandName } from '../engine/reconcile.js';
 import { ProjectBar, StatusPill, FilterBar, FilterSearch, FilterSelect } from '../components/ui.jsx';
 import PrModal from '../components/PrModal.jsx';
+import BulkPrPicker from '../components/BulkPrPicker.jsx';
+import BulkPrModal from '../components/BulkPrModal.jsx';
 import Modal from '../components/Modal.jsx';
 import { idr, fmtDate, num, today } from '../engine/format.js';
 import { nextStatusId, activeStatuses, statusDef, isMajorTransition, groupPrs } from '../engine/status.js';
@@ -22,6 +24,8 @@ export default function PurchaseRequestsPage() {
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
   const [modal, setModal] = useState(undefined); // undefined=closed, null=new, obj=edit
+  const [bulkPick, setBulkPick] = useState(false);   // step 1: pick BoQ lines
+  const [bulkIds, setBulkIds] = useState(null);      // step 2: set store + qty for these ids
   const [receiveFor, setReceiveFor] = useState(null);
   const [q, setQ] = useState('');
   const [statusFilter, setStatusFilter] = useState([]);
@@ -124,6 +128,7 @@ export default function PurchaseRequestsPage() {
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <button className="btn ghost" onClick={() => setManageStatuses(true)}>Manage statuses</button>
+          <button className="btn ghost" disabled={draft} onClick={() => setBulkPick(true)} title="Order several items from one store at once">Bulk order</button>
           <button className="btn primary" disabled={draft} onClick={() => setModal(null)}>+ New PR</button>
         </div>
       </div>
@@ -201,6 +206,9 @@ export default function PurchaseRequestsPage() {
       </div>
 
       {modal !== undefined && <PrModal pr={modal} onClose={() => setModal(undefined)} />}
+      {bulkPick && <BulkPrPicker projectId={currentProjectId} onClose={() => setBulkPick(false)}
+        onNext={(ids) => { setBulkPick(false); setBulkIds(ids); }} />}
+      {bulkIds && <BulkPrModal boqItemIds={bulkIds} projectId={currentProjectId} onClose={() => setBulkIds(null)} />}
       {manageStatuses && <ManageStatusesModal onClose={() => setManageStatuses(false)} />}
       {receiveFor && (
         <ReceiveModal pr={receiveFor} onClose={() => setReceiveFor(null)}
