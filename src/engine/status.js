@@ -77,3 +77,21 @@ export const nextStatusId = (db, currentId) => {
 };
 
 export const defaultStatusId = (db) => flowStatuses(db)[0]?.id || 'ordered';
+
+// Group a list of PRs for the table view. mode: 'status' | 'supplier'. Returns ordered
+// [{ key, label, count, rows }] — status groups in pipeline order; supplier groups A→Z with
+// "No supplier" last, so each supplier group maps to that store's receipt (nota toko).
+export function groupPrs(db, items, mode, prOf = (x) => x) {
+  const m = new Map();
+  if (mode === 'status') {
+    const order = activeStatuses(db).map((s) => s.id);
+    for (const it of items) { const k = prOf(it).status; if (!m.has(k)) m.set(k, []); m.get(k).push(it); }
+    return [...m.entries()]
+      .sort((a, b) => order.indexOf(a[0]) - order.indexOf(b[0]))
+      .map(([k, rows]) => ({ key: k, label: statusDef(db, k).label, count: rows.length, rows }));
+  }
+  for (const it of items) { const k = prOf(it).supplierPrimaryId || '__none'; if (!m.has(k)) m.set(k, []); m.get(k).push(it); }
+  return [...m.entries()]
+    .map(([k, rows]) => ({ key: k, label: k === '__none' ? 'No supplier' : (db.suppliers.find((s) => s.id === k)?.name || '—'), count: rows.length, rows }))
+    .sort((a, b) => (a.key === '__none' ? 1 : b.key === '__none' ? -1 : a.label.localeCompare(b.label)));
+}

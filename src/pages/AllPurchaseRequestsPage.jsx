@@ -6,7 +6,7 @@ import { StatusPill, FilterBar, FilterSearch, FilterSelect } from '../components
 import PrModal from '../components/PrModal.jsx';
 import ReceiveModal from '../components/ReceiveModal.jsx';
 import { idr, fmtDate, num } from '../engine/format.js';
-import { nextStatusId, activeStatuses, statusDef, isCommitted, isReceived, isMajorTransition } from '../engine/status.js';
+import { nextStatusId, activeStatuses, statusDef, isCommitted, isReceived, isMajorTransition, groupPrs } from '../engine/status.js';
 import PrCommitModal from '../components/PrCommitModal.jsx';
 
 // Portfolio-wide PR view: every purchase request across every project in one table,
@@ -20,6 +20,7 @@ export default function AllPurchaseRequestsPage() {
   const [modal, setModal] = useState(undefined);     // undefined=closed, obj=edit
   const [receiveFor, setReceiveFor] = useState(null);
   const [open, setOpen] = useState(null);
+  const [groupBy, setGroupBy] = useState('none'); // none | status | supplier
   const [committing, setCommitting] = useState(false);
   const [discardArmed, setDiscardArmed] = useState(false);
 
@@ -123,6 +124,65 @@ export default function AllPurchaseRequestsPage() {
     stagePrStatus(p.id, next);                                // major → stage for review & commit
   }
 
+  const renderRow = ({ p, mandorId }) => {
+    const isOpen = open === p.id;
+    const hist = p.statusHistory || [];
+    const next = nextStatusId(db, p.status);
+    const stg = stagedFor(p.id);
+    return (
+      <Fragment key={p.id}>
+        <tr>
+          <td className="num clickable" style={{ cursor: 'pointer', color: 'var(--muted, #94A3B8)' }} onClick={() => setOpen(isOpen ? null : p.id)} title="Status history">{isOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}</td>
+          <td style={{ fontWeight: 600, whiteSpace: 'nowrap', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis' }} title={projName(p.projectId)}>{projName(p.projectId)}</td>
+          <td className="mat-link">{materialName(db, p.materialId)}{isExtraPr(db, p) && <span className="pill warn" style={{ marginLeft: 6 }}>Extra</span>}{p.brandId && <div className="muted" style={{ fontSize: 11 }}>{brandName(db, p.brandId)}</div>}</td>
+          <td>
+            <StatusPill status={p.status} />
+            {stg && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginLeft: 4 }}>
+              <ArrowRight size={12} className="muted" /><StatusPill status={stg.to} /><span className="muted" style={{ fontSize: 11 }}>pending</span>
+            </span>}
+          </td>
+          <td className="num">{num(p.quantity)} <span className="muted" style={{ fontSize: 11 }}>{p.unit}</span></td>
+          <td className="num">{idr(p.unitCost)}</td>
+          <td className="num">{idr(p.quantity * (p.unitCost || 0))}</td>
+          <td style={{ whiteSpace: 'nowrap' }}>{mandorId ? mandorName(mandorId) : <span className="muted">—</span>}</td>
+          <td style={{ whiteSpace: 'nowrap' }}>{picName(p.picId)}</td>
+          <td>{supplierName(p.supplierPrimaryId)}{p.supplierSecondaryId && <div className="muted" style={{ fontSize: 11 }}>{supplierName(p.supplierSecondaryId)}</div>}</td>
+          <td style={{ whiteSpace: 'nowrap' }}>{fmtDate(p.orderDate)}</td>
+          <td style={{ whiteSpace: 'nowrap' }}>{fmtDate(p.receiptDate)}</td>
+          <td className="num" style={{ whiteSpace: 'nowrap' }}>
+            <button className="btn sm ghost" onClick={() => editPr(p)}>Edit</button>{' '}
+            {stg ? (
+              <button className="btn sm ghost" onClick={() => unstagePr(p.id)} title="Cancel the pending status change">Undo pending</button>
+            ) : next && <button className="btn sm" onClick={() => advance(p)} title={`→ ${statusDef(db, next).label}`}>Advance</button>}
+          </td>
+        </tr>
+        {isOpen && (
+          <tr><td colSpan={13} style={{ background: '#F8FAFC' }}>
+            <div style={{ padding: '8px 10px 10px' }}>
+              <div className="lbl" style={{ marginBottom: 6 }}>Status history{p.comment ? ' · note' : ''}</div>
+              {p.comment && <div style={{ fontSize: 13, marginBottom: 8, color: 'var(--ink-soft)' }}>“{p.comment}”</div>}
+              {hist.length ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {[...hist].reverse().map((h, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, flexWrap: 'wrap' }}>
+                      <span className="muted" style={{ minWidth: 152, whiteSpace: 'nowrap' }}>
+                        {fmtDate(h.at)} · {new Date(h.at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                      {h.from ? <><StatusPill status={h.from} /><ArrowRight size={13} className="muted" /></> : <span className="muted">created as</span>}
+                      <StatusPill status={h.to} />
+                      <span className="muted">· by {h.by?.name || '—'}</span>
+                      {h.note && <span className="muted" style={{ fontStyle: 'italic' }}>· “{h.note}”</span>}
+                    </div>
+                  ))}
+                </div>
+              ) : <div className="muted" style={{ fontSize: 13 }}>No status changes recorded yet.</div>}
+            </div>
+          </td></tr>
+        )}
+      </Fragment>
+    );
+  };
+
   return (
     <>
       <div className="page-head">
@@ -182,6 +242,13 @@ export default function AllPurchaseRequestsPage() {
         <FilterSelect value={picFilter} onChange={setPicFilter} allLabel="All PICs" width={170} options={picOptions} />
         <FilterSelect value={mandorFilter} onChange={setMandorFilter} allLabel="All mandors" width={170} options={mandorOptions} />
         <FilterSelect value={supplierFilter} onChange={setSupplierFilter} allLabel="All suppliers" width={180} options={supplierOptions} />
+        <label className="field-inline" style={{ fontSize: 13 }}>Group
+          <select className="input" value={groupBy} onChange={(e) => setGroupBy(e.target.value)} style={{ width: 'auto', padding: '7px 8px' }}>
+            <option value="none">None</option>
+            <option value="status">Status</option>
+            <option value="supplier">Supplier (store)</option>
+          </select>
+        </label>
       </FilterBar>
 
       <div className="card">
@@ -196,64 +263,14 @@ export default function AllPurchaseRequestsPage() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map(({ p, mandorId }) => {
-                const isOpen = open === p.id;
-                const hist = p.statusHistory || [];
-                const next = nextStatusId(db, p.status);
-                const stg = stagedFor(p.id);
-                return (
-                  <Fragment key={p.id}>
-                    <tr>
-                      <td className="num clickable" style={{ cursor: 'pointer', color: 'var(--muted, #94A3B8)' }} onClick={() => setOpen(isOpen ? null : p.id)} title="Status history">{isOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}</td>
-                      <td style={{ fontWeight: 600, whiteSpace: 'nowrap', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis' }} title={projName(p.projectId)}>{projName(p.projectId)}</td>
-                      <td className="mat-link">{materialName(db, p.materialId)}{isExtraPr(db, p) && <span className="pill warn" style={{ marginLeft: 6 }}>Extra</span>}{p.brandId && <div className="muted" style={{ fontSize: 11 }}>{brandName(db, p.brandId)}</div>}</td>
-                      <td>
-                        <StatusPill status={p.status} />
-                        {stg && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginLeft: 4 }}>
-                          <ArrowRight size={12} className="muted" /><StatusPill status={stg.to} /><span className="muted" style={{ fontSize: 11 }}>pending</span>
-                        </span>}
-                      </td>
-                      <td className="num">{num(p.quantity)} <span className="muted" style={{ fontSize: 11 }}>{p.unit}</span></td>
-                      <td className="num">{idr(p.unitCost)}</td>
-                      <td className="num">{idr(p.quantity * (p.unitCost || 0))}</td>
-                      <td style={{ whiteSpace: 'nowrap' }}>{mandorId ? mandorName(mandorId) : <span className="muted">—</span>}</td>
-                      <td style={{ whiteSpace: 'nowrap' }}>{picName(p.picId)}</td>
-                      <td>{supplierName(p.supplierPrimaryId)}{p.supplierSecondaryId && <div className="muted" style={{ fontSize: 11 }}>{supplierName(p.supplierSecondaryId)}</div>}</td>
-                      <td style={{ whiteSpace: 'nowrap' }}>{fmtDate(p.orderDate)}</td>
-                      <td style={{ whiteSpace: 'nowrap' }}>{fmtDate(p.receiptDate)}</td>
-                      <td className="num" style={{ whiteSpace: 'nowrap' }}>
-                        <button className="btn sm ghost" onClick={() => editPr(p)}>Edit</button>{' '}
-                        {stg ? (
-                          <button className="btn sm ghost" onClick={() => unstagePr(p.id)} title="Cancel the pending status change">Undo pending</button>
-                        ) : next && <button className="btn sm" onClick={() => advance(p)} title={`→ ${statusDef(db, next).label}`}>Advance</button>}
-                      </td>
-                    </tr>
-                    {isOpen && (
-                      <tr><td colSpan={13} style={{ background: '#F8FAFC' }}>
-                        <div style={{ padding: '8px 10px 10px' }}>
-                          <div className="lbl" style={{ marginBottom: 6 }}>Status history{p.comment ? ' · note' : ''}</div>
-                          {p.comment && <div style={{ fontSize: 13, marginBottom: 8, color: 'var(--ink-soft)' }}>“{p.comment}”</div>}
-                          {hist.length ? (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                              {[...hist].reverse().map((h, i) => (
-                                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, flexWrap: 'wrap' }}>
-                                  <span className="muted" style={{ minWidth: 152, whiteSpace: 'nowrap' }}>
-                                    {fmtDate(h.at)} · {new Date(h.at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
-                                  </span>
-                                  {h.from ? <><StatusPill status={h.from} /><ArrowRight size={13} className="muted" /></> : <span className="muted">created as</span>}
-                                  <StatusPill status={h.to} />
-                                  <span className="muted">· by {h.by?.name || '—'}</span>
-                                  {h.note && <span className="muted" style={{ fontStyle: 'italic' }}>· “{h.note}”</span>}
-                                </div>
-                              ))}
-                            </div>
-                          ) : <div className="muted" style={{ fontSize: 13 }}>No status changes recorded yet.</div>}
-                        </div>
-                      </td></tr>
-                    )}
-                  </Fragment>
-                );
-              })}
+              {groupBy === 'none'
+                ? filtered.map(renderRow)
+                : groupPrs(db, filtered, groupBy, (it) => it.p).map((g) => (
+                    <Fragment key={'grp-' + g.key}>
+                      <tr className="group-row"><td colSpan={13}>{g.label} <span className="muted" style={{ fontWeight: 400 }}>· {g.count}</span></td></tr>
+                      {g.rows.map(renderRow)}
+                    </Fragment>
+                  ))}
               {filtered.length === 0 && (
                 <tr><td colSpan={13}><div className="empty">{rows.length === 0 ? 'No purchase requests anywhere yet. Raise one from a project’s BoQ.' : 'No PRs match these filters.'}</div></td></tr>
               )}
