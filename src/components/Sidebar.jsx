@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   CalendarDays, Building2, ClipboardList, LayoutDashboard, CalendarClock,
@@ -51,11 +52,17 @@ const GROUPS = [
 
 export default function Sidebar() {
   const { db, currentProjectId, setCurrentProjectId, syncStatus } = useStore();
-  const warnCount = projectWarnings(db, currentProjectId).length;
-  const sched = scheduleCounts(scheduleForProject(db, currentProjectId).lines);
-  const overdueCount = sched.overdueOrder + sched.overdueDeliver;
-  const wl = portfolioWorklist(db);
-  const portfolioCount = wl.counts.overdueToOrder + wl.counts.lateDelivery;
+  // These are full portfolio scans (O(boqItems × prs)) — memoize so the sidebar doesn't
+  // recompute them on every render, only when the data actually changes.
+  const { warnCount, overdueCount, portfolioCount } = useMemo(() => {
+    const sched = scheduleCounts(scheduleForProject(db, currentProjectId).lines);
+    const wl = portfolioWorklist(db);
+    return {
+      warnCount: projectWarnings(db, currentProjectId).length,
+      overdueCount: sched.overdueOrder + sched.overdueDeliver,
+      portfolioCount: wl.counts.overdueToOrder + wl.counts.lateDelivery,
+    };
+  }, [db, currentProjectId]);
   const trashCount = (db.trash || []).length;
 
   const project = db.projects.find((p) => p.id === currentProjectId) || db.projects[0];

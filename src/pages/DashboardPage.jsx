@@ -15,7 +15,7 @@ import PortfolioGantt from '../components/PortfolioGantt.jsx';
 const BORDER = '#E5E7EB';
 
 export default function DashboardPage() {
-  const { db, setCurrentProjectId, addPr, deletePr, setPrStatus, updateBoqItem, addProject } = useStore();
+  const { db, setCurrentProjectId, addPr, deletePr, stagePrStatus, updateBoqItem, addProject } = useStore();
   const nav = useNavigate();
   const today = useMemo(() => todayLocal(), []);
   const wl = useMemo(() => portfolioWorklist(db, today), [db, today]);
@@ -30,10 +30,20 @@ export default function DashboardPage() {
 
   const openProject = (projectId, route = '/boq') => { setCurrentProjectId(projectId); nav(route); };
 
-  // KPI link targets: jump to a project that actually has the thing.
-  const overBudgetLine = db.boqItems.map((b) => computeLine(db, b, today)).find((l) => l.overBudget);
-  const openPo = db.prs.find((p) => isCommitted(db, p.status) && !isReceived(db, p.status));
-  const openPoProjectId = openPo ? db.boqItems.find((b) => b.id === openPo.boqItemId)?.projectId : null;
+  // KPI link targets: jump to a project that actually has the thing. Memoized — computeLine
+  // over every BoQ item is a full portfolio scan, not something to redo on each render.
+  const { overBudgetLine, openPoProjectId } = useMemo(() => {
+    let over = null;
+    for (const b of db.boqItems) {
+      const l = computeLine(db, b, today);
+      if (l.overBudget) { over = l; break; }
+    }
+    const openPo = db.prs.find((p) => isCommitted(db, p.status) && !isReceived(db, p.status));
+    return {
+      overBudgetLine: over,
+      openPoProjectId: openPo ? db.boqItems.find((b) => b.id === openPo.boqItemId)?.projectId : null,
+    };
+  }, [db, today]);
 
   function markOrdered(line, bucket) {
     const prId = addPr({ boqItemId: line.boqItem.id, quantity: line.budget, status: 'ordered', orderDate: todayISO() });
@@ -174,7 +184,7 @@ export default function DashboardPage() {
 
       {receiveFor && (
         <ReceiveModal title={`Mark received · ${receiveFor.materialName}`} onClose={() => setReceiveFor(null)}
-          onConfirm={(date) => { const pr = orderedPrFor(receiveFor); if (pr) setPrStatus(pr.id, 'received', date); setReceiveFor(null); }} />
+          onConfirm={(date) => { const pr = orderedPrFor(receiveFor); if (pr) stagePrStatus(pr.id, 'received', date); setReceiveFor(null); }} />
       )}
       {pushFor && (
         <PushDateModal line={pushFor} onClose={() => setPushFor(null)}

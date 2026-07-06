@@ -283,7 +283,7 @@ export default function PrModal({ pr = null, boqItem = null, onClose }) {
         </div>
 
         <div>
-          <label className="lbl">Order date {status === 'ordered' || status === 'received' ? '' : ''}</label>
+          <label className="lbl">Order date</label>
           <input type="date" value={orderDate || ''} onChange={(e) => setOrderDate(e.target.value)} />
         </div>
         {status === 'received' && (

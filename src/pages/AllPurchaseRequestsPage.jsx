@@ -37,31 +37,37 @@ export default function AllPurchaseRequestsPage() {
   const supplierName = (id) => db.suppliers.find((s) => s.id === id)?.name || '—';
   const picName = (id) => db.users.find((u) => u.id === id)?.name || '—';
   const mandorName = (id) => db.mandors.find((m) => m.id === id)?.name || 'Unassigned';
-  const boqOf = (p) => (p.boqItemId ? db.boqItems.find((b) => b.id === p.boqItemId) : null);
-  const mandorOf = (p) => boqOf(p)?.mandorId || '';
 
   // Rows: all live PRs (trash is a separate collection), newest first, with resolved context.
-  const rows = useMemo(() => db.prs
-    .map((p) => ({ p, mandorId: mandorOf(p) }))
-    .sort((a, b) => new Date(b.p.createdAt) - new Date(a.p.createdAt)),
-    [db.prs, db.boqItems]);
+  // BoQ lines are looked up via a Map — a .find per PR is O(prs × boqItems) portfolio-wide.
+  const rows = useMemo(() => {
+    const boqById = new Map(db.boqItems.map((b) => [b.id, b]));
+    return db.prs
+      .map((p) => ({ p, mandorId: (p.boqItemId && boqById.get(p.boqItemId)?.mandorId) || '' }))
+      .sort((a, b) => new Date(b.p.createdAt) - new Date(a.p.createdAt));
+  }, [db.prs, db.boqItems]);
 
   // Everything except the supplier filter — reused so the supplier preset cards can show
-  // PR counts/value within the current (non-supplier) context.
-  const passBase = ({ p, mandorId }) => {
-    if (projectFilter.length && !projectFilter.includes(p.projectId)) return false;
-    if (statusFilter.length && !statusFilter.includes(p.status)) return false;
-    if (picFilter.length && !picFilter.includes(p.picId || '')) return false;
-    if (mandorFilter.length && !mandorFilter.includes(mandorId)) return false;
-    if (q) {
-      const hay = `${materialName(db, p.materialId)} ${projName(p.projectId)} ${p.comment || ''}`.toLowerCase();
-      if (!hay.includes(q.toLowerCase())) return false;
-    }
-    return true;
-  };
-  const matchesSupplier = (p) => !(supplierFilter.length && !supplierFilter.includes(p.supplierPrimaryId) && !supplierFilter.includes(p.supplierSecondaryId));
-  const baseRows = rows.filter(passBase);
-  const filtered = baseRows.filter(({ p }) => matchesSupplier(p));
+  // PR counts/value within the current (non-supplier) context. Memoized so downstream
+  // memos (tally) key off a stable reference instead of a fresh array every render.
+  const baseRows = useMemo(() => {
+    const ql = q.toLowerCase();
+    return rows.filter(({ p, mandorId }) => {
+      if (projectFilter.length && !projectFilter.includes(p.projectId)) return false;
+      if (statusFilter.length && !statusFilter.includes(p.status)) return false;
+      if (picFilter.length && !picFilter.includes(p.picId || '')) return false;
+      if (mandorFilter.length && !mandorFilter.includes(mandorId)) return false;
+      if (q) {
+        const proj = db.projects.find((x) => x.id === p.projectId)?.name || '';
+        const hay = `${materialName(db, p.materialId)} ${proj} ${p.comment || ''}`.toLowerCase();
+        if (!hay.includes(ql)) return false;
+      }
+      return true;
+    });
+  }, [rows, projectFilter, statusFilter, picFilter, mandorFilter, q, db]);
+  const filtered = useMemo(() => (supplierFilter.length
+    ? baseRows.filter(({ p }) => supplierFilter.includes(p.supplierPrimaryId) || supplierFilter.includes(p.supplierSecondaryId))
+    : baseRows), [baseRows, supplierFilter]);
 
   // Filter option lists. PIC / mandor are built from what's actually present (incl. an
   // "Unassigned" bucket when relevant) so the lists stay relevant, not cluttered.
@@ -83,7 +89,7 @@ export default function AllPurchaseRequestsPage() {
 
   // Supplier preset cards — aggregate over the non-supplier-filtered set, sorted by spend.
   // A PR with both primary + secondary counts toward both suppliers (both are "involved").
-  const supplierStats = (() => {
+  const supplierStats = useMemo(() => {
     const m = new Map();
     for (const { p } of baseRows) {
       for (const sid of [p.supplierPrimaryId, p.supplierSecondaryId]) {
@@ -94,7 +100,7 @@ export default function AllPurchaseRequestsPage() {
       }
     }
     return [...m.values()].sort((a, b) => b.value - a.value);
-  })();
+  }, [baseRows]);
   const toggleSupplier = (sid) => setSupplierFilter(supplierFilter.includes(sid) ? supplierFilter.filter((x) => x !== sid) : [...supplierFilter, sid]);
 
   // Status presets behind the KPI tiles. "Open commitments" = committed-not-received phase;

@@ -25,7 +25,11 @@ export function num(n) {
 
 export function fmtDate(d) {
   if (!d) return '—';
-  const date = typeof d === 'string' ? new Date(d) : d;
+  // Plain 'YYYY-MM-DD' must be built from local components — new Date(str) parses it as
+  // UTC midnight, which prints the PREVIOUS day in UTC-negative timezones. Full ISO
+  // timestamps are real instants and parse correctly.
+  const m = typeof d === 'string' && /^(\d{4})-(\d{2})-(\d{2})$/.exec(d);
+  const date = m ? new Date(+m[1], +m[2] - 1, +m[3]) : (typeof d === 'string' ? new Date(d) : d);
   if (isNaN(date)) return '—';
   return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 }

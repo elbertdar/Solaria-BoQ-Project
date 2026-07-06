@@ -181,7 +181,7 @@ export default function BulkPrModal({ boqItemIds, projectId, onClose }) {
           <tbody>
             {lines.map((b) => {
               const st = rows[b.id];
-              if (st.drop) return null;
+              if (!st || st.drop) return null;
               const allow = b.budgetBasis === 'allowance';
               const lineTotal = (Number(st.qty) || 0) * (Number(st.unitCost) || 0);
               const over = overIds.has(b.id);

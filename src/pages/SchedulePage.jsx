@@ -29,7 +29,7 @@ const BUCKETS = [
 const dayLabel = (o) => (o == null ? '—' : `Day ${o}`);
 
 export default function SchedulePage() {
-  const { db, currentProjectId, currentPhaseId, setPrStatus, updateProject } = useStore();
+  const { db, currentProjectId, currentPhaseId, stagePrStatus, updateProject } = useStore();
   const project = useProject();
   const today = useMemo(() => todayLocal(), []);
   const { lines, start, curOff, dayAxis } = useMemo(() => scheduleForProject(db, currentProjectId, today, currentPhaseId), [db, currentProjectId, currentPhaseId, today]);
@@ -110,7 +110,7 @@ export default function SchedulePage() {
       {editPr && <PrModal pr={editPr} onClose={() => setEditPr(null)} />}
       {receiveFor && (
         <ReceiveModal title={`Mark received · ${receiveFor.line.materialName}`} onClose={() => setReceiveFor(null)}
-          onConfirm={(date) => { setPrStatus(receiveFor.pr.id, 'received', date); setReceiveFor(null); }} />
+          onConfirm={(date) => { stagePrStatus(receiveFor.pr.id, 'received', date); setReceiveFor(null); }} />
       )}
     </>
   );

@@ -37,6 +37,7 @@ export function downloadCsv(filename, csv) {
 // yyyy-mm-dd (sortable in spreadsheets); passes through unknown strings unchanged.
 export function csvDate(v) {
   if (!v) return '';
+  if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) return v; // already the target shape — avoid a UTC-midnight round-trip
   const d = v instanceof Date ? v : new Date(v);
   if (isNaN(d.getTime())) return String(v);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;

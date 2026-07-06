@@ -95,7 +95,7 @@ const makeCrud = (setDb, key, prefix, defaults) => ({
 
 export function StoreProvider({ children }) {
   const [db, setDb] = useState(load);
-  const [currentProjectId, setCurrentProjectIdRaw] = useState(() => load().projects[0]?.id);
+  const [currentProjectId, setCurrentProjectIdRaw] = useState(() => db.projects[0]?.id); // derive from the load above — don't parse storage twice
   const [currentPhaseId, setCurrentPhaseId] = useState('__all');   // '__all' = whole project
   const setCurrentProjectId = useCallback((id) => { setCurrentProjectIdRaw(id); setCurrentPhaseId('__all'); }, []);
 
@@ -761,21 +761,6 @@ export function StoreProvider({ children }) {
     });
   }, []);
 
-  // Import seam — replace any of the top-level collections from an external source
-  // (manual paste/upload, or a backend fetch later). Shape mirrors `seed`:
-  //   { materials?, materialTypes?, suppliers?, projects?, mandors?, boqItems?, prs? }
-  // Pages never read storage directly, so swapping the source touches only this layer.
-  const importData = useCallback((payload, { merge = false } = {}) => {
-    setDb((d) => {
-      if (!merge) return { ...d, ...payload };
-      const next = { ...d };
-      for (const k of Object.keys(payload)) {
-        next[k] = Array.isArray(d[k]) ? [...d[k], ...payload[k]] : payload[k];
-      }
-      return next;
-    });
-  }, []);
-
   // Bulk CSV import (materials / suppliers / projects / boq). The pure engine resolves and
   // creates foreign keys and returns the next db; we just commit it with real ids. `parsed`
   // is { headers, rows } from parseCsv; `context` carries e.g. the current project for BoQ.
@@ -784,10 +769,10 @@ export function StoreProvider({ children }) {
   }, []);
 
   const resetDb = useCallback(() => {
-    const fresh = structuredClone(seed);
+    const fresh = normalize(structuredClone(seed)); // same normalization as every other adoption path
     setDb(fresh);
     setCurrentProjectId(fresh.projects[0]?.id);
-  }, []);
+  }, [setCurrentProjectId]);
 
   const value = useMemo(() => ({
     db, currentProjectId, setCurrentProjectId, currentPhaseId, setCurrentPhaseId,
@@ -804,7 +789,7 @@ export function StoreProvider({ children }) {
     addUser, updateUser, deleteUser,
     addPr, updatePr, setPrStatus, deletePr,
     stagePrStatus, unstagePr, discardPrStaged, commitPrStaged,
-    importData, importEntity,
+    importEntity,
     syncStatus, connectRemote, useOffline,
     resetDb,
   }), [db, currentProjectId, currentPhaseId, syncStatus, connectRemote, useOffline, addMaterial, updateMaterial, addAlias, removeAlias,
@@ -813,7 +798,7 @@ export function StoreProvider({ children }) {
     stageBoqModify, stageBoqAdd, editStagedAdd, stageBoqDelete, unstageBoq, discardBoqStaged, commitBoqStaged, addSupplier, updateSupplier, deleteSupplier, addBrand, updateBrand, deleteBrand, softDeletePr, softDeleteMaterial, softDeleteMaterialType, softDeleteProject, restoreTrash, purgeTrash, addMaterialType, updateMaterialType, addProject, updateProject, completeProject, reopenProject, addProjectType, deleteProjectType, addPrStatus, updatePrStatus, reorderPrStatus, retirePrStatus, restorePrStatus, addMandor, updateMandor, deleteMandor,
     addUser, updateUser, deleteUser,
     addPr, updatePr, setPrStatus, deletePr,
-    stagePrStatus, unstagePr, discardPrStaged, commitPrStaged, importData, importEntity, resetDb]);
+    stagePrStatus, unstagePr, discardPrStaged, commitPrStaged, importEntity, resetDb]);
 
   return <StoreCtx.Provider value={value}>{children}</StoreCtx.Provider>;
 }

@@ -19,6 +19,8 @@
   --ink:        #0F172A;   /* near-black, slightly cool */
   --ink-soft:   #64748B;   /* medium gray */
   --ink-faint:  #94A3B8;
+  --muted:      var(--ink-faint);   /* alias — widely referenced in inline styles */
+  --page:       var(--bg);          /* alias — page background behind cards */
 
   /* Semantic — used ONLY where meaning is attached */
   --risk:       #E11D48;   /* warm red: over-budget, alerts */

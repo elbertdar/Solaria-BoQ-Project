@@ -169,18 +169,28 @@ export function summarizeProject(db, projectId, phaseId = null) {
     };
   };
 
+  // Group both collections by material in one pass each (instead of a .filter per material,
+  // which is O(materials × rows) and shows up in every Balance / warnings / snapshot call).
+  const groupBy = (rows, keyOf) => {
+    const m = new Map();
+    for (const r of rows) { const k = keyOf(r); if (!m.has(k)) m.set(k, []); m.get(k).push(r); }
+    return m;
+  };
+  const boqByMat = groupBy(boq, (b) => b.materialId);
+  const prsByMat = groupBy(all, (p) => p.materialId);
+
   // Plan rows: one per BoQ material, counting ALL its PRs — including extra (unlinked) PRs for a
   // material that IS budgeted, so the unplanned spend reconciles against that material's budget.
   // Such rows carry hasExtra and still show the "Extra" indicator.
   const planRows = [...boqMaterials].map((mid) => {
-    const bItems = boq.filter((b) => b.materialId === mid);
+    const bItems = boqByMat.get(mid) || [];
     const kind = bItems.some((b) => b.budgetBasis === 'allowance') ? 'allowance' : 'quantity';
-    return mkRow(mid, kind, bItems, all.filter((p) => p.materialId === mid));
+    return mkRow(mid, kind, bItems, prsByMat.get(mid) || []);
   });
   // Extra rows: only materials with NO BoQ line at all (nothing budgeted to fold into).
   const orphanExtra = extra.filter((p) => !boqMaterials.has(p.materialId));
-  const extraRows = [...new Set(orphanExtra.map((p) => p.materialId))].map((mid) =>
-    mkRow(mid, 'extra', [], orphanExtra.filter((p) => p.materialId === mid)));
+  const orphanByMat = groupBy(orphanExtra, (p) => p.materialId);
+  const extraRows = [...orphanByMat.entries()].map(([mid, pItems]) => mkRow(mid, 'extra', [], pItems));
 
   planRows.sort((a, b) => Number(b.isOverCommitted) - Number(a.isOverCommitted) || b.budgetCost - a.budgetCost);
   extraRows.sort((a, b) => b.actualCost - a.actualCost);
