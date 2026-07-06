@@ -2,7 +2,7 @@ import { useState, Fragment } from 'react';
 import { TriangleAlert, ChevronDown, ChevronRight } from 'lucide-react';
 import { useStore } from '../store/StoreContext.jsx';
 import { suggestMaterials } from '../engine/match.js';
-import { materialPurchaseHistory } from '../engine/reconcile.js';
+import { materialPurchaseHistory, typeName as typeNameOf } from '../engine/reconcile.js';
 import { idr, num, fmtDate } from '../engine/format.js';
 import Modal from '../components/Modal.jsx';
 import NumberInput from '../components/NumberInput.jsx';
@@ -21,7 +21,7 @@ export default function CataloguePage() {
   const [typeFilter, setTypeFilter] = useState([]);
   const [openMat, setOpenMat] = useState(null);
 
-  const typeName = (id) => db.materialTypes.find((t) => t.id === id)?.name || id;
+  const typeName = (id) => typeNameOf(db, id);
 
   const filtered = db.materials.filter((m) => {
     if (typeFilter.length && !typeFilter.includes(m.materialTypeId)) return false;

@@ -11,8 +11,9 @@ import {
   scheduleForProject, scheduleCounts, matchesFilter, agendaBuckets, dayColOf, todayLocal,
 } from '../engine/schedule.js';
 import { fmtDate, num } from '../engine/format.js';
+import { supplierName as supplierNameOf, mandorName as mandorNameOf } from '../engine/reconcile.js';
 
-const BORDER = '#E5E7EB';
+const BORDER = 'var(--border)';
 const WEEKEND = 'rgba(100,116,139,0.07)';
 const TODAYBG = 'rgba(245,158,11,0.14)';
 
@@ -41,7 +42,7 @@ export default function SchedulePage() {
   const [editPr, setEditPr] = useState(null);
   const [receiveFor, setReceiveFor] = useState(null);
 
-  const supplierName = (id) => db.suppliers.find((s) => s.id === id)?.name || null;
+  const supplierName = (id) => supplierNameOf(db, id, null);
   const MiniStatus = ({ status }) => {
     const s = statusDef(db, status);
     return <span className={'pill ' + (s.pill || 'gray')} style={{ fontSize: 10, padding: '1px 6px', whiteSpace: 'nowrap' }}>{s.label}</span>;
@@ -134,7 +135,7 @@ function Chip({ n, label, extra, active, onClick }) {
 function Timeline({ dayAxis, lines, db, ActionButton, batch }) {
   const N = dayAxis.span;
   const cols = `200px repeat(${N}, minmax(22px, 1fr))`;
-  const mandorName = (id) => db.mandors.find((m) => m.id === id)?.name || 'Unassigned';
+  const mandorName = (id) => mandorNameOf(db, id);
   const weekendCols = dayAxis.columns.filter((c) => c.isWeekend).map((c) => c.index);
   const mondayCols = dayAxis.columns.filter((c) => c.isMonday).map((c) => c.index);
   const todayCol = dayAxis.columns.findIndex((c) => c.isToday);
@@ -349,7 +350,7 @@ function LineTags({ l }) {
 // ---------- Agenda ----------
 function Agenda({ lines, today, db, ActionButton, batch }) {
   const buckets = agendaBuckets(lines, today);
-  const mandorName = (id) => db.mandors.find((m) => m.id === id)?.name || 'Unassigned';
+  const mandorName = (id) => mandorNameOf(db, id);
   const [openIds, setOpenIds] = useState(() => new Set());
   const toggle = (id) => setOpenIds((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   return (

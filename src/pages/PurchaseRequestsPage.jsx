@@ -2,14 +2,15 @@ import { useState, Fragment, useEffect, useRef } from 'react';
 import { ChevronDown, ChevronRight, ArrowRight } from 'lucide-react';
 import { useStore, useProject, useCurrentPhase } from '../store/StoreContext.jsx';
 import PhaseTabs from '../components/PhaseTabs.jsx';
-import { prsForProject, materialName, isExtraPr, brandName } from '../engine/reconcile.js';
+import { prsForProject, materialName, isExtraPr, brandName, supplierName, picName } from '../engine/reconcile.js';
 import { ProjectBar, StatusPill, FilterBar, FilterSearch, FilterSelect } from '../components/ui.jsx';
+import { StatusHistory, StagedChangesBanner } from '../components/prShared.jsx';
 import PrModal from '../components/PrModal.jsx';
 import BulkPrPicker from '../components/BulkPrPicker.jsx';
 import BulkPrModal from '../components/BulkPrModal.jsx';
-import Modal from '../components/Modal.jsx';
-import { idr, fmtDate, num, today } from '../engine/format.js';
-import { nextStatusId, activeStatuses, statusDef, isMajorTransition, groupPrs } from '../engine/status.js';
+import ReceiveModal from '../components/ReceiveModal.jsx';
+import { idr, fmtDate, num } from '../engine/format.js';
+import { nextStatusId, activeStatuses, statusDef, advancePr, groupPrs } from '../engine/status.js';
 import ManageStatusesModal from '../components/ManageStatusesModal.jsx';
 import PrCommitModal from '../components/PrCommitModal.jsx';
 
@@ -34,13 +35,9 @@ export default function PurchaseRequestsPage() {
   const [groupBy, setGroupBy] = useState('none'); // none | status | supplier
   const [manageStatuses, setManageStatuses] = useState(false);
   const [committing, setCommitting] = useState(false);
-  const [discardArmed, setDiscardArmed] = useState(false);
 
   const pending = (db.prStaged || []).filter((s) => s.projectId === currentProjectId);
   const stagedFor = (id) => pending.find((s) => s.prId === id);
-
-  const supplierName = (id) => db.suppliers.find((s) => s.id === id)?.name || '—';
-  const picName = (id) => db.users.find((u) => u.id === id)?.name || '—';
 
   const filtered = prs.filter((p) => {
     if (statusFilter.length && !statusFilter.includes(p.status)) return false;
@@ -49,19 +46,12 @@ export default function PurchaseRequestsPage() {
     return true;
   });
 
-  function advance(p) {
-    const next = nextStatusId(db, p.status);
-    if (!next) return;
-    if (!isMajorTransition(db, p.status, next)) { setPrStatus(p.id, next); return; } // routine bump → instant
-    if (next === 'received') { setReceiveFor(p); return; }   // collect receipt date, then stage
-    stagePrStatus(p.id, next);                                // major → stage for review & commit
-  }
+  const advance = (p) => advancePr(db, p, { setPrStatus, stagePrStatus, onReceive: setReceiveFor });
 
   const statusOptions = activeStatuses(db).map((s) => ({ value: s.id, label: s.label }));
 
   const renderRow = (p) => {
     const isOpen = open === p.id;
-    const hist = p.statusHistory || [];
     const stg = stagedFor(p.id);
     return (
       <Fragment key={p.id}>
@@ -78,9 +68,9 @@ export default function PurchaseRequestsPage() {
           <td>{p.unit}</td>
           <td className="num">{idr(p.unitCost)}</td>
           <td className="num">{idr(p.quantity * (p.unitCost || 0))}</td>
-          <td>{supplierName(p.supplierPrimaryId)}</td>
-          <td>{p.supplierSecondaryId ? supplierName(p.supplierSecondaryId) : <span className="muted">—</span>}</td>
-          <td>{picName(p.picId)}</td>
+          <td>{supplierName(db, p.supplierPrimaryId)}</td>
+          <td>{p.supplierSecondaryId ? supplierName(db, p.supplierSecondaryId) : <span className="muted">—</span>}</td>
+          <td>{picName(db, p.picId)}</td>
           <td>{fmtDate(p.orderDate)}</td>
           <td>{fmtDate(p.receiptDate)}</td>
           <td><CommentCell value={p.comment || ''} onSave={(c) => updatePr(p.id, { comment: c })} /></td>
@@ -97,21 +87,7 @@ export default function PurchaseRequestsPage() {
           <tr><td colSpan={14} style={{ background: '#F8FAFC' }}>
             <div style={{ padding: '8px 10px 10px' }}>
               <div className="lbl" style={{ marginBottom: 6 }}>Status history</div>
-              {hist.length ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {[...hist].reverse().map((h, i) => (
-                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, flexWrap: 'wrap' }}>
-                      <span className="muted" style={{ minWidth: 152, whiteSpace: 'nowrap' }}>
-                        {fmtDate(h.at)} · {new Date(h.at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
-                      </span>
-                      {h.from ? <><StatusPill status={h.from} /><ArrowRight size={13} className="muted" /></> : <span className="muted">created as</span>}
-                      <StatusPill status={h.to} />
-                      <span className="muted">· by {h.by?.name || '—'}</span>
-                      {h.note && <span className="muted" style={{ fontStyle: 'italic' }}>· “{h.note}”</span>}
-                    </div>
-                  ))}
-                </div>
-              ) : <div className="muted" style={{ fontSize: 13 }}>No status changes recorded yet.</div>}
+              <StatusHistory pr={p} />
             </div>
           </td></tr>
         )}
@@ -156,26 +132,8 @@ export default function PurchaseRequestsPage() {
         </div>
       )}
 
-      {pending.length > 0 && (
-        <div className="banner" style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', color: '#1E40AF', borderRadius: 10, padding: '9px 14px', marginBottom: 14, fontSize: 13.3, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-          <b>{pending.length} pending status change{pending.length > 1 ? 's' : ''}</b>
-          <span style={{ opacity: 0.85 }}>— major changes staged, not yet committed.</span>
-          <span style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
-            {discardArmed ? (
-              <>
-                <span style={{ color: 'var(--risk)' }}>Discard all?</span>
-                <button className="btn sm danger" onClick={() => { discardPrStaged(currentProjectId); setDiscardArmed(false); }}>Confirm discard</button>
-                <button className="btn sm ghost" onClick={() => setDiscardArmed(false)}>Keep</button>
-              </>
-            ) : (
-              <>
-                <button className="btn sm ghost" onClick={() => setDiscardArmed(true)}>Discard</button>
-                <button className="btn sm primary" onClick={() => setCommitting(true)}>Review &amp; commit</button>
-              </>
-            )}
-          </span>
-        </div>
-      )}
+      <StagedChangesBanner count={pending.length} detail="major changes staged, not yet committed."
+        onDiscard={() => discardPrStaged(currentProjectId)} onCommit={() => setCommitting(true)} />
 
       <div className="card">
         <div className="card-body flush">
@@ -211,7 +169,7 @@ export default function PurchaseRequestsPage() {
       {bulkIds && <BulkPrModal boqItemIds={bulkIds} projectId={currentProjectId} onClose={() => setBulkIds(null)} />}
       {manageStatuses && <ManageStatusesModal onClose={() => setManageStatuses(false)} />}
       {receiveFor && (
-        <ReceiveModal pr={receiveFor} onClose={() => setReceiveFor(null)}
+        <ReceiveModal title={`Mark received · ${materialName(db, receiveFor.materialId)}`} onClose={() => setReceiveFor(null)}
           onConfirm={(date) => { stagePrStatus(receiveFor.id, 'received', date); setReceiveFor(null); }} />
       )}
       {committing && pending.length > 0 && (
@@ -250,20 +208,4 @@ function CommentCell({ value, onSave }) {
   return value
     ? <div onClick={start} title="Click to edit" style={{ cursor: 'text', whiteSpace: 'normal', wordBreak: 'break-word', maxWidth: 180, fontSize: 12.5, lineHeight: 1.4 }}>{value}</div>
     : <button className="btn sm ghost" onClick={start} style={{ fontSize: 11, padding: '2px 6px', color: 'var(--muted, #94A3B8)' }}>+ note</button>;
-}
-
-function ReceiveModal({ pr, onClose, onConfirm }) {
-  const { db } = useStore();
-  const [date, setDate] = useState(today());
-  return (
-    <Modal title={`Mark received · ${materialName(db, pr.materialId)}`} onClose={onClose}
-      footer={<>
-        <button className="btn ghost" onClick={onClose}>Cancel</button>
-        <button className="btn primary" onClick={() => date && onConfirm(date)} disabled={!date}>Stage receipt</button>
-      </>}>
-      <p className="help" style={{ marginTop: 0 }}>A PR can’t be marked received without a receipt date (BR-4). Marking received is a major change — it’s staged for review &amp; commit.</p>
-      <label className="lbl">Receipt date <span className="req">*</span></label>
-      <input type="date" value={date} max={today()} onChange={(e) => setDate(e.target.value)} />
-    </Modal>
-  );
 }

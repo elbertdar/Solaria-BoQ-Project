@@ -2,8 +2,9 @@ import { useMemo, useState } from 'react';
 import { TriangleAlert, X } from 'lucide-react';
 import Modal from './Modal.jsx';
 import { useStore } from '../store/StoreContext.jsx';
-import { materialName, remainingQty, checkProspectivePr } from '../engine/reconcile.js';
-import { activeStatuses, statusDef, defaultStatusId, isCommitted } from '../engine/status.js';
+import { materialName, remainingQty, checkProspectivePr, newSupplier } from '../engine/reconcile.js';
+import { activeStatuses, defaultStatusId, isCommitted } from '../engine/status.js';
+import { StatusSelect } from './prShared.jsx';
 import { idr, today } from '../engine/format.js';
 import NumberInput from './NumberInput.jsx';
 import ComboBox from './ComboBox.jsx';
@@ -122,7 +123,7 @@ export default function BulkPrModal({ boqItemIds, projectId, onClose }) {
         <div className="full">
           <label className="lbl">Store</label>
           <ComboBox value={supplierPrimaryId} onPick={setSup1} options={supplierOptions}
-            onCreate={(q) => addSupplier({ name: q.trim(), location: '', materialTypeIds: [], contact: { phone: '', email: '', address: '' } })}
+            onCreate={(q) => addSupplier(newSupplier(q))}
             createLabel={(q) => `Add store “${q}”`} noneLabel="No store" placeholder="Which store is this order from?" />
         </div>
         <div>
@@ -133,21 +134,7 @@ export default function BulkPrModal({ boqItemIds, projectId, onClose }) {
         </div>
         <div>
           <label className="lbl">Status</label>
-          <select className="input" value={status} onChange={(e) => { const v = e.target.value; setStatus(v); if (v === 'received' && !receiptDate) setReceiptDate(today()); }}>
-            {(() => {
-              const act = activeStatuses(db);
-              const flow = act.filter((s) => s.phase !== 'void');
-              const closed = act.filter((s) => s.phase === 'void');
-              const cur = statusDef(db, status);
-              return (
-                <>
-                  {flow.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
-                  {closed.length > 0 && <optgroup label="Closed">{closed.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}</optgroup>}
-                  {(cur.retired || cur.missing) && <option value={cur.id}>{cur.label} (retired)</option>}
-                </>
-              );
-            })()}
-          </select>
+          <StatusSelect value={status} onChange={(v) => { setStatus(v); if (v === 'received' && !receiptDate) setReceiptDate(today()); }} />
         </div>
         <div>
           <label className="lbl">Order date</label>
@@ -161,13 +148,12 @@ export default function BulkPrModal({ boqItemIds, projectId, onClose }) {
         )}
         <div className="full">
           <label className="lbl">Comment <span className="muted">(optional — added to each PR)</span></label>
-          <textarea value={comment} onChange={(e) => setComment(e.target.value)} rows={2} placeholder="Note applied to every PR in this batch…"
-            style={{ width: '100%', boxSizing: 'border-box', font: 'inherit', fontSize: 13.5, lineHeight: 1.4, padding: '8px 12px', border: '1px solid #E5E7EB', borderRadius: 9, resize: 'vertical' }} />
+          <textarea value={comment} onChange={(e) => setComment(e.target.value)} rows={2} placeholder="Note applied to every PR in this batch…" />
         </div>
       </div>
 
       <div className="lbl" style={{ margin: '14px 0 6px' }}>Lines ({active.length})</div>
-      <div className="card-body flush" style={{ maxHeight: 320, overflow: 'auto', border: '1px solid #E5E7EB', borderRadius: 9 }}>
+      <div className="card-body flush" style={{ maxHeight: 320, overflow: 'auto', border: '1px solid var(--border)', borderRadius: 9 }}>
         <table className="table">
           <thead>
             <tr>
@@ -189,9 +175,9 @@ export default function BulkPrModal({ boqItemIds, projectId, onClose }) {
                 <tr key={b.id}>
                   <td className="mat-link"><b>{materialName(db, b.materialId)}</b>{allow && <span className="pill info" style={{ marginLeft: 6, fontSize: 11 }}>Allowance</span>}{over && <TriangleAlert size={13} style={{ color: 'var(--risk)', marginLeft: 6, verticalAlign: '-2px' }} title="Over the BoQ budget for this material" />}</td>
                   <td>{b.description}</td>
-                  <td className="num"><NumberInput allowDecimal style={{ width: 84, textAlign: 'right', padding: '5px 8px', border: '1px solid #E5E7EB', borderRadius: 7, font: 'inherit', fontSize: 13 }} value={st.qty} onChange={(v) => { setRow(b.id, { qty: v }); setAckOver(false); }} /></td>
+                  <td className="num"><NumberInput allowDecimal className="cell-input" style={{ width: 84 }} value={st.qty} onChange={(v) => { setRow(b.id, { qty: v }); setAckOver(false); }} /></td>
                   <td>{b.unit}</td>
-                  <td className="num"><NumberInput style={{ width: 118, textAlign: 'right', padding: '5px 8px', border: '1px solid #E5E7EB', borderRadius: 7, font: 'inherit', fontSize: 13 }} value={st.unitCost} onChange={(v) => setRow(b.id, { unitCost: v })} /></td>
+                  <td className="num"><NumberInput className="cell-input" style={{ width: 118 }} value={st.unitCost} onChange={(v) => setRow(b.id, { unitCost: v })} /></td>
                   <td className="num">{idr(lineTotal)}</td>
                   <td className="num"><button className="btn sm ghost" title="Remove from batch" style={{ color: 'var(--risk)' }} onClick={() => setRow(b.id, { drop: true })}><X size={14} /></button></td>
                 </tr>

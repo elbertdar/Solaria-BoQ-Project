@@ -10,9 +10,10 @@ import ReceiveModal from '../components/ReceiveModal.jsx';
 import NewProjectModal from '../components/NewProjectModal.jsx';
 import { portfolioWorklist, todayLocal, addDays, toISO, computeLine, portfolioGantt } from '../engine/schedule.js';
 import { fmtDate, today as todayISO } from '../engine/format.js';
+import { supplierName as supplierNameOf, mandorName as mandorNameOf } from '../engine/reconcile.js';
 import PortfolioGantt from '../components/PortfolioGantt.jsx';
 
-const BORDER = '#E5E7EB';
+const BORDER = 'var(--border)';
 
 export default function DashboardPage() {
   const { db, setCurrentProjectId, addPr, deletePr, stagePrStatus, updateBoqItem, addProject } = useStore();
@@ -52,7 +53,7 @@ export default function DashboardPage() {
   function undo(entry) { deletePr(entry.prId); setDone((d) => d.filter((x) => x !== entry)); }
 
   const orderedPrFor = (line) => db.prs.find((p) => p.boqItemId === line.boqItem.id && isCommitted(db, p.status) && !isReceived(db, p.status));
-  const supplierName = (id) => db.suppliers.find((s) => s.id === id)?.name;
+  const supplierName = (id) => supplierNameOf(db, id, null);
   const doneFor = (bucket) => done.filter((d) => d.bucket === bucket);
 
   // First run: nothing in the app yet. Show a welcoming onboarding state instead of a
@@ -201,7 +202,7 @@ export default function DashboardPage() {
 }
 
 function Bucket({ title, subtitle, tone = 'neutral', rows, doneRows = [], empty, renderWhen, action, onOpen, onUndo, muted, db }) {
-  const mandorName = (id) => db.mandors.find((m) => m.id === id)?.name || '';
+  const mandorName = (id) => mandorNameOf(db, id, '');
   const hasContent = rows.length > 0 || doneRows.length > 0;
   return (
     <div className="card">

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useStore } from '../store/StoreContext.jsx';
+import { typeName as typeNameOf } from '../engine/reconcile.js';
 import Modal from '../components/Modal.jsx';
 import ComboBox from '../components/ComboBox.jsx';
 import { FilterBar, FilterSearch, FilterSelect, DeleteConfirm } from '../components/ui.jsx';
@@ -14,7 +15,7 @@ export default function SuppliersPage() {
   const [editing, setEditing] = useState(undefined); // undefined = closed, null = new, object = edit
   const [delFor, setDelFor] = useState(null);
 
-  const typeName = (id) => db.materialTypes.find((t) => t.id === id)?.name || id;
+  const typeName = (id) => typeNameOf(db, id);
   const locations = useMemo(() => [...new Set(db.suppliers.map((s) => s.location).filter(Boolean))].sort(), [db.suppliers]);
 
   const rows = useMemo(() => db.suppliers.filter((s) => {
@@ -129,7 +130,7 @@ function SupplierModal({ supplier, onClose, onSave }) {
   const [typeIds, setTypeIds] = useState(() => [...(supplier?.materialTypeIds ?? [])]);
   const [error, setError] = useState('');
 
-  const typeName = (id) => db.materialTypes.find((t) => t.id === id)?.name || id;
+  const typeName = (id) => typeNameOf(db, id);
   // Only offer not-yet-added types in the dropdown; resolveId checks ALL types so typing an
   // existing name never offers a duplicate "create" row.
   const available = db.materialTypes.filter((t) => !typeIds.includes(t.id)).map((t) => ({ id: t.id, label: t.name }));

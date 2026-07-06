@@ -14,7 +14,7 @@
 // Snoozed late deliveries are hidden until their snooze expires.
 
 import { isCommitted, isReceived, isVoid } from './status.js';
-import { prsForBoqItem, materialName } from './reconcile.js';
+import { prsForBoqItem, materialName, sum } from './reconcile.js';
 import { isoDate } from './format.js';
 
 // ---- date helpers ----
@@ -67,8 +67,6 @@ export function phaseStart(db, phaseId) {
   const ph = (db.phases || []).find((x) => x.id === phaseId);
   return ph && ph.startDate ? parseDate(ph.startDate) : null;
 }
-const sum = (arr, f) => arr.reduce((t, x) => t + (f(x) || 0), 0);
-
 // ---- the heart: one self-contained line per BoQ item ----
 export function computeLine(db, b, today = todayLocal()) {
   const prs = prsForBoqItem(db, b.id);

@@ -6,7 +6,7 @@
 
 import { isCommitted, isReceived, isVoid, statusDef } from './status.js';
 
-const sum = (arr, f) => arr.reduce((t, x) => t + (f(x) || 0), 0);
+export const sum = (arr, f) => arr.reduce((t, x) => t + (f(x) || 0), 0);
 
 export function materialName(db, materialId) {
   const m = db.materials.find((x) => x.id === materialId);
@@ -16,6 +16,23 @@ export function materialUnit(db, materialId) {
   const m = db.materials.find((x) => x.id === materialId);
   return m ? m.defaultUnit : '';
 }
+
+// ---- entity-name lookups ----
+// One definition each, instead of a `db.X.find(...)?.name || fallback` one-liner
+// re-typed per page (which is how the fallbacks drifted: '—' vs null vs '').
+export const supplierName = (db, id, fallback = '—') => db.suppliers.find((s) => s.id === id)?.name || fallback;
+export const picName = (db, id, fallback = '—') => db.users.find((u) => u.id === id)?.name || fallback;
+export const mandorName = (db, id, fallback = 'Unassigned') => db.mandors.find((m) => m.id === id)?.name || fallback;
+export const typeName = (db, id) => db.materialTypes.find((t) => t.id === id)?.name || id;
+export const projName = (db, id, fallback = '— no project —') => db.projects.find((p) => p.id === id)?.name || fallback;
+
+// Payload for a supplier created inline from a ComboBox (PR modals). Tagging it with the
+// material's category makes it show under ★ Recommended for that material next time.
+export const newSupplier = (name, materialTypeId = null) => ({
+  name: name.trim(), location: '',
+  materialTypeIds: materialTypeId ? [materialTypeId] : [],
+  contact: { phone: '', email: '', address: '' },
+});
 
 export function brandsForMaterial(db, materialId) {
   return (db.brands || []).filter((b) => b.materialId === materialId);

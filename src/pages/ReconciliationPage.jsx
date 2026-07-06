@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { useStore, useProject } from '../store/StoreContext.jsx';
-import { summarizeProject, brandName, brandBreakdown, isExtraPr } from '../engine/reconcile.js';
+import { summarizeProject, brandName, brandBreakdown, isExtraPr, supplierName } from '../engine/reconcile.js';
 import { ProjectBar, AlertBanner, StatusPill, FilterBar, FilterSearch, FilterSelect } from '../components/ui.jsx';
 import { idr, num, fmtDate } from '../engine/format.js';
 import { isCommitted } from '../engine/status.js';
@@ -177,7 +177,7 @@ function RowGroup({ r, isOpen, onToggle, db }) {
                         <td>{p.unit}</td>
                         <td>{p.brandId ? brandName(db, p.brandId) : <span className="muted">—</span>}</td>
                         <td className="num">{idr(p.unitCost)}</td>
-                        <td>{db.suppliers.find((s) => s.id === p.supplierPrimaryId)?.name || '—'}</td>
+                        <td>{supplierName(db, p.supplierPrimaryId)}</td>
                         <td>{fmtDate(p.receiptDate)}</td>
                       </tr>
                     ))}

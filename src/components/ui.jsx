@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Inbox, ChevronDown, Check, ArrowRight, LayoutGrid, X } from 'lucide-react';
 import { useStore } from '../store/StoreContext.jsx';
 import Modal from './Modal.jsx';
-import { statusDef } from '../engine/status.js';
+import { statusDef, PILL_DOT } from '../engine/status.js';
 import { computeLine, todayLocal } from '../engine/schedule.js';
 
 export function KpiCard({ label, value, tone = '', sub, subTone = '', onClick }) {
@@ -73,12 +73,27 @@ export function DeleteConfirm({ title, blocked, blockedMsg, confirmMsg, confirmL
 }
 
 function pdot(pill) {
-  const map = { gray: '#94A3B8', info: '#0891B2', teal: '#0D9488', amber: '#F59E0B', purple: '#8B5CF6', ok: '#16A34A', risk: '#E11D48' };
-  return { background: map[pill] || '#94A3B8' };
+  return { background: PILL_DOT[pill] || PILL_DOT.gray };
+}
+
+// Fulfilment pill for a BoQ line ('complete' | 'ordered' | 'none') — was an inline
+// ternary with a magic green hex triple in three different tables.
+export function BoqLineStatusPill({ status }) {
+  if (status === 'complete') return <span className="pill ok" style={{ border: '1px solid #D1FAE5' }}>Complete</span>;
+  if (status === 'ordered') return <span className="pill info">Ordered</span>;
+  return <span className="pill gray">Not ordered</span>;
+}
+
+// Select-all checkbox with the DOM-only indeterminate state wired up.
+export function TriStateCheckbox({ checked, indeterminate, onChange, title }) {
+  return (
+    <input type="checkbox" checked={checked} title={title} onChange={onChange}
+      ref={(el) => { if (el) el.indeterminate = !!indeterminate && !checked; }} />
+  );
 }
 
 const PB = {
-  ink: '#0F172A', muted: '#64748B', faint: '#94A3B8', border: '#E5E7EB',
+  ink: '#0F172A', muted: '#64748B', faint: '#94A3B8', border: 'var(--border)',
   risk: '#E11D48', riskBg: '#FEF2F4', ok: '#16A34A', hover: '#F7F8FA', sel: '#F1F5F9',
 };
 
@@ -247,7 +262,7 @@ export function FilterBar({ children, shown, total, unit = 'rows' }) {
 export function FilterSearch({ value, onChange, placeholder = 'Search…', width = 260 }) {
   return (
     <input type="text" value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
-      style={{ width, maxWidth: '100%', boxSizing: 'border-box', padding: '8px 12px', border: '1px solid #E5E7EB', borderRadius: 9, font: 'inherit', fontSize: 13.5 }} />
+      style={{ width, maxWidth: '100%', boxSizing: 'border-box', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 9, font: 'inherit', fontSize: 13.5 }} />
   );
 }
 

@@ -28,6 +28,9 @@ export const PHASE_LABEL = {
 
 // Pill colour palette (keys map to .pill.* classes in index.css).
 export const STATUS_PILLS = ['gray', 'info', 'teal', 'amber', 'purple', 'ok', 'risk'];
+// Dot colour per pill key — single source for the little status dots (StatusPill,
+// ManageStatusesModal swatches). Was duplicated as two identical literals.
+export const PILL_DOT = { gray: '#94A3B8', info: '#0891B2', teal: '#0D9488', amber: '#F59E0B', purple: '#8B5CF6', ok: '#16A34A', risk: '#E11D48' };
 
 export const DEFAULT_PR_STATUSES = [
   { id: 'draft',     label: 'Draft',     pill: 'gray',  phase: 'pre' },
@@ -77,6 +80,17 @@ export const nextStatusId = (db, currentId) => {
 };
 
 export const defaultStatusId = (db) => flowStatuses(db)[0]?.id || 'ordered';
+
+// One "Advance" policy for every PR table: routine pre-order bumps apply instantly; major
+// (commitment-crossing) transitions stage for review & commit; entering Received first
+// collects a receipt date via the page's modal (onReceive).
+export function advancePr(db, p, { setPrStatus, stagePrStatus, onReceive }) {
+  const next = nextStatusId(db, p.status);
+  if (!next) return;
+  if (!isMajorTransition(db, p.status, next)) { setPrStatus(p.id, next); return; }
+  if (next === 'received') { onReceive(p); return; }
+  stagePrStatus(p.id, next);
+}
 
 // Group a list of PRs for the table view. mode: 'status' | 'supplier'. Returns ordered
 // [{ key, label, count, rows }] — status groups in pipeline order; supplier groups A→Z with

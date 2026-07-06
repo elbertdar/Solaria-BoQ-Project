@@ -119,8 +119,7 @@ function TypeModal({ type, existing, onClose, onSave }) {
 
       <label className="lbl" style={{ marginTop: 14 }}>Description</label>
       <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3}
-        placeholder="What materials fall under this category?"
-        style={{ width: '100%', boxSizing: 'border-box', font: 'inherit', fontSize: 13.5, padding: '8px 12px', border: '1px solid #E5E7EB', borderRadius: 9, resize: 'vertical' }} />
+        placeholder="What materials fall under this category?" />
       <p className="help" style={{ marginBottom: 0 }}>Used by materials, suppliers, and the type filters across the app.</p>
     </Modal>
   );

@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { X, ChevronDown, ChevronRight } from 'lucide-react';
 import { useStore, useProject, useProjectPhases } from '../store/StoreContext.jsx';
-import { boqForProject, boqLineStatus, materialName, boqDisplayRows, stagedForProject } from '../engine/reconcile.js';
+import { boqForProject, boqLineStatus, materialName, boqDisplayRows, stagedForProject, mandorName as mandorNameOf } from '../engine/reconcile.js';
 import { groupIdentical } from '../components/boqShared.jsx';
 import { leadTimeFor, projectStart, phaseStart, addDays, addBusinessDays } from '../engine/schedule.js';
-import { FilterBar, FilterSearch, FilterSelect, ProjectBar } from '../components/ui.jsx';
+import { FilterBar, FilterSearch, FilterSelect, ProjectBar, BoqLineStatusPill, TriStateCheckbox } from '../components/ui.jsx';
+import { StagedChangesBanner } from '../components/prShared.jsx';
 import Modal from '../components/Modal.jsx';
 import PrModal from '../components/PrModal.jsx';
 import BulkPrModal from '../components/BulkPrModal.jsx';
@@ -29,7 +30,7 @@ export default function BoqPage() {
   const project = useProject();
   const phases = useProjectPhases();
   const start = projectStart(db, currentProjectId);
-  const mandorName = (id) => db.mandors.find((m) => m.id === id)?.name || 'Unassigned';
+  const mandorName = (id) => mandorNameOf(db, id);
 
   const [q, setQ] = useState('');
   const [mandorFilter, setMandorFilter] = useState([]);
@@ -137,7 +138,6 @@ export default function BoqPage() {
 function PhaseBlock({ phase, db, start, isFirst, onSetStart, matchF, grouped, mandorName, selected, onToggleSel, onToggleMany, onPatch, onAddItem, onDeleteItem, onEdit, onAdd, onRaisePr, onUndo, onDiscard, onCommit, onFinalize }) {
   const draft = phase.boqStatus !== 'working';
   const [showHistory, setShowHistory] = useState(false);
-  const [discardArmed, setDiscardArmed] = useState(false);
   const [highlightIds, setHighlightIds] = useState(null); // rows changed by the selected edit-history entry
   const pid = phase.projectId;
   const anchor = phaseStart(db, phase.id) || start;   // day-0 for this phase's items (phase start if set)
@@ -212,26 +212,8 @@ function PhaseBlock({ phase, db, start, isFirst, onSetStart, matchF, grouped, ma
   return (
     <div className="card" style={{ marginBottom: 16 }}>
       {head}
-      {staged.length > 0 && (
-        <div className="banner" style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', color: '#1E40AF', borderRadius: 10, padding: '9px 14px', margin: '0 14px 12px', fontSize: 13.3, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-          <b>{staged.length} uncommitted change{staged.length > 1 ? 's' : ''}</b>
-          <span style={{ opacity: 0.85 }}>— staged, not yet committed.</span>
-          <span style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
-            {discardArmed ? (
-              <>
-                <span style={{ color: 'var(--risk)' }}>Discard all?</span>
-                <button className="btn sm danger" onClick={() => { onDiscard(); setDiscardArmed(false); }}>Confirm discard</button>
-                <button className="btn sm ghost" onClick={() => setDiscardArmed(false)}>Keep</button>
-              </>
-            ) : (
-              <>
-                <button className="btn sm ghost" onClick={() => setDiscardArmed(true)}>Discard</button>
-                <button className="btn sm primary" onClick={onCommit}>Review &amp; commit</button>
-              </>
-            )}
-          </span>
-        </div>
-      )}
+      <StagedChangesBanner count={staged.length} noun="uncommitted change" detail="staged, not yet committed."
+        onDiscard={onDiscard} onCommit={onCommit} style={{ margin: '0 14px 12px' }} />
       <div className="card-body flush">
         <table className="table">
           <thead>
@@ -308,7 +290,7 @@ function WorkingGroup({ rows, db, start, highlightIds, selected, onToggleSel, on
   return (
     <>
       <tr className="clickable" onClick={() => setOpen((o) => !o)} style={containsHighlight ? HILITE : { background: '#F1F5F9' }} title="Identical lines — expand to edit each">
-        <td className="num" onClick={(e) => e.stopPropagation()}><input type="checkbox" checked={allSel} ref={(el) => { if (el) el.indeterminate = someSel && !allSel; }} onChange={() => onToggleMany(childIds, !allSel)} title="Select all identical lines" /></td>
+        <td className="num" onClick={(e) => e.stopPropagation()}><TriStateCheckbox checked={allSel} indeterminate={someSel} onChange={() => onToggleMany(childIds, !allSel)} title="Select all identical lines" /></td>
         <td className="mat-link"><b>{materialName(db, f.materialId)}</b> <span className="pill gray" style={{ fontSize: 11, marginLeft: 6 }}>{rows.length} entries</span>{allow && <span className="pill info" style={{ marginLeft: 6, fontSize: 11 }}>Allowance</span>}</td>
         <td>{f.description}</td>
         <td className="num">{allow ? dash : num(totalQty)}</td>
@@ -316,9 +298,7 @@ function WorkingGroup({ rows, db, start, highlightIds, selected, onToggleSel, on
         <td className="num">{allow ? idr(totalAllow) : idr(f.expectedUnitCost)}</td>
         <td className="num">{allow ? dash : (f.neededDayOffset != null ? `Day ${f.neededDayOffset}` : dash)}</td>
         <td className="num">{allow ? dash : orderDate ? fmtDate(orderDate) : dash}</td>
-        <td>{rollup === 'complete'
-          ? <span className="pill" style={{ background: '#F0FDF4', color: '#15803D', border: '1px solid #D1FAE5' }}>Complete</span>
-          : rollup === 'ordered' ? <span className="pill info">Ordered</span> : <span className="pill gray">Not ordered</span>}</td>
+        <td><BoqLineStatusPill status={rollup} /></td>
         <td className="num muted">{isOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}</td>
       </tr>
       {isOpen && rows.map((r) => <Row key={r.key} r={r} db={db} start={start} highlighted={!!highlightIds?.includes(r.id)} selected={selected} onToggleSel={onToggleSel} onEdit={onEdit} onRaisePr={onRaisePr} onUndo={onUndo} grouped />)}
@@ -408,11 +388,7 @@ function Row({ r, db, start, selected, onToggleSel, onEdit, onRaisePr, onUndo, g
       <td>
         {(r.status === 'added' || deleted)
           ? <span className="muted" style={{ fontSize: 12 }}>—</span>
-          : boqLineStatus(db, r.id) === 'complete'
-            ? <span className="pill" style={{ background: '#F0FDF4', color: '#15803D', border: '1px solid #D1FAE5' }}>Complete</span>
-            : boqLineStatus(db, r.id) === 'ordered'
-              ? <span className="pill info">Ordered</span>
-              : <span className="pill gray">Not ordered</span>}
+          : <BoqLineStatusPill status={boqLineStatus(db, r.id)} />}
       </td>
       <td className="num" style={{ whiteSpace: 'nowrap' }}>
         {deleted ? (
@@ -434,7 +410,7 @@ function Row({ r, db, start, selected, onToggleSel, onEdit, onRaisePr, onUndo, g
 }
 
 
-const CELL = { width: '100%', boxSizing: 'border-box', padding: '5px 8px', border: '1px solid #E5E7EB', borderRadius: 7, font: 'inherit', fontSize: 13 };
+const CELL = { width: '100%', boxSizing: 'border-box', padding: '5px 8px', border: '1px solid var(--border)', borderRadius: 7, font: 'inherit', fontSize: 13 };
 
 function DraftRow({ b, db, start, onPatch, onDelete, grouped }) {
   const { addMaterial, addMandor } = useStore();

@@ -348,6 +348,13 @@ input[type="text"], input[type="number"], input[type="date"], select.input, text
   padding: 7px 10px; background: var(--surface); width: 100%;
 }
 input:focus, select:focus, textarea:focus { outline: 2px solid #BFDBFE; outline-offset: -1px; border-color: #93C5FD; }
+textarea { resize: vertical; line-height: 1.4; box-sizing: border-box; }
+/* Right-aligned numeric input for inline table cells (bulk PR lines). Scoped to the
+   element so it outweighs the base input[type="text"] rule above. */
+input.cell-input {
+  text-align: right; padding: 5px 8px; font: inherit; font-size: 13px;
+  border: 1px solid var(--border); border-radius: 7px; box-sizing: border-box;
+}
 .toggle {
   display: inline-flex; align-items: center; gap: 7px; cursor: pointer; font-size: 13px; color: var(--ink-soft);
   user-select: none;

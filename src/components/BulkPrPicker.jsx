@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import Modal from './Modal.jsx';
 import { useStore } from '../store/StoreContext.jsx';
 import { boqForProject, materialName, remainingQty, boqLineStatus } from '../engine/reconcile.js';
+import { BoqLineStatusPill, TriStateCheckbox } from './ui.jsx';
 import { idr, num } from '../engine/format.js';
 
 // Step 1 of bulk ordering from the PR page: pick which orderable (working-phase) BoQ lines
@@ -50,11 +51,11 @@ export default function BulkPrPicker({ projectId, onClose, onNext }) {
       {workingPhases.length === 0 ? (
         <div className="empty">No working phases yet. Finalize a BoQ phase to start ordering against its lines.</div>
       ) : (
-        <div className="card-body flush" style={{ maxHeight: 360, overflow: 'auto', border: '1px solid #E5E7EB', borderRadius: 9 }}>
+        <div className="card-body flush" style={{ maxHeight: 360, overflow: 'auto', border: '1px solid var(--border)', borderRadius: 9 }}>
           <table className="table">
             <thead>
               <tr>
-                <th style={{ width: 34 }}><input type="checkbox" checked={allSel} ref={(el) => { if (el) el.indeterminate = someSel && !allSel; }} onChange={toggleAll} title="Select all shown" /></th>
+                <th style={{ width: 34 }}><TriStateCheckbox checked={allSel} indeterminate={someSel} onChange={toggleAll} title="Select all shown" /></th>
                 <th>Material</th><th>Description</th><th>Phase</th>
                 <th className="num">Budget qty</th><th className="num">Remaining</th>
                 <th className="num">Exp. unit cost</th><th>Status</th>
@@ -75,9 +76,7 @@ export default function BulkPrPicker({ projectId, onClose, onNext }) {
                     <td className="num">{allow ? <span className="muted">—</span> : num(b.quantity)} {!allow && <span className="muted" style={{ fontSize: 11 }}>{b.unit}</span>}</td>
                     <td className="num">{allow ? <span className="muted">—</span> : num(rem)}</td>
                     <td className="num">{idr(b.expectedUnitCost)}</td>
-                    <td>{ls === 'complete'
-                      ? <span className="pill" style={{ background: '#F0FDF4', color: '#15803D', border: '1px solid #D1FAE5' }}>Complete</span>
-                      : ls === 'ordered' ? <span className="pill info">Ordered</span> : <span className="pill gray">Not ordered</span>}</td>
+                    <td><BoqLineStatusPill status={ls} /></td>
                   </tr>
                 );
               })}

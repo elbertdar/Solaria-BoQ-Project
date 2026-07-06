@@ -2,8 +2,9 @@ import { useMemo, useState } from 'react';
 import { TriangleAlert, Star } from 'lucide-react';
 import Modal from './Modal.jsx';
 import { useStore } from '../store/StoreContext.jsx';
-import { checkProspectivePr, materialName, boqForProject, remainingQty, brandsForMaterial } from '../engine/reconcile.js';
-import { activeStatuses, statusDef, defaultStatusId, isMajorTransition } from '../engine/status.js';
+import { checkProspectivePr, materialName, boqForProject, remainingQty, brandsForMaterial, newSupplier } from '../engine/reconcile.js';
+import { defaultStatusId, isMajorTransition } from '../engine/status.js';
+import { StatusSelect } from './prShared.jsx';
 import { idr, today } from '../engine/format.js';
 import NumberInput from './NumberInput.jsx';
 import ComboBox from './ComboBox.jsx';
@@ -58,11 +59,7 @@ export default function PrModal({ pr = null, boqItem = null, onClose }) {
     ...recommendedSuppliers.map((s) => ({ id: s.id, label: s.name, group: `Recommended${recTypeLabel ? ` · ${recTypeLabel}` : ''}` })),
     ...otherSuppliers.map((s) => ({ id: s.id, label: s.name, group: recommendedSuppliers.length ? 'Other suppliers' : undefined })),
   ];
-  const createSupplier = (q) => addSupplier({
-    name: q.trim(), location: '',
-    materialTypeIds: matTypeId ? [matTypeId] : [],
-    contact: { phone: '', email: '', address: '' },
-  });
+  const createSupplier = (q) => addSupplier(newSupplier(q, matTypeId));
   const picOptions = db.users.filter((u) => u.role === 'Purchasing PIC').map((u) => ({ id: u.id, label: u.name }));
 
   // Live reconciliation check as quantity changes (BR-7 / Feature 5.6).
@@ -231,9 +228,7 @@ export default function PrModal({ pr = null, boqItem = null, onClose }) {
 
         <div>
           <label className="lbl">Comment <span className="muted">(optional)</span></label>
-          <textarea value={comment} onChange={(e) => setComment(e.target.value)} rows={2}
-            placeholder="Note for this PR…"
-            style={{ width: '100%', boxSizing: 'border-box', font: 'inherit', fontSize: 13.5, lineHeight: 1.4, padding: '8px 12px', border: '1px solid #E5E7EB', borderRadius: 9, resize: 'vertical' }} />
+          <textarea value={comment} onChange={(e) => setComment(e.target.value)} rows={2} placeholder="Note for this PR…" />
         </div>
 
         <div>
@@ -260,26 +255,7 @@ export default function PrModal({ pr = null, boqItem = null, onClose }) {
         </div>
         <div>
           <label className="lbl">Status</label>
-          <select className="input" value={status} onChange={(e) => { const v = e.target.value; setStatus(v); if (v === 'received' && !receiptDate) setReceiptDate(today()); }}>
-            {(() => {
-              const act = activeStatuses(db);
-              const flow = act.filter((s) => s.phase !== 'void');
-              const closed = act.filter((s) => s.phase === 'void');
-              const cur = statusDef(db, status);
-              const showRetired = cur.retired || cur.missing;
-              return (
-                <>
-                  {flow.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
-                  {closed.length > 0 && (
-                    <optgroup label="Closed">
-                      {closed.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
-                    </optgroup>
-                  )}
-                  {showRetired && <option value={cur.id}>{cur.label} (retired)</option>}
-                </>
-              );
-            })()}
-          </select>
+          <StatusSelect value={status} onChange={(v) => { setStatus(v); if (v === 'received' && !receiptDate) setReceiptDate(today()); }} />
         </div>
 
         <div>

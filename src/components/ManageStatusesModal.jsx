@@ -2,14 +2,14 @@ import { useState } from 'react';
 import { ChevronUp, ChevronDown, X, Lock } from 'lucide-react';
 import Modal from './Modal.jsx';
 import { useStore } from '../store/StoreContext.jsx';
-import { allStatuses, STATUS_PILLS, PHASE_LABEL } from '../engine/status.js';
+import { allStatuses, STATUS_PILLS, PHASE_LABEL, PILL_DOT } from '../engine/status.js';
 
 // Manage PR statuses — add / rename / recolor / reorder / retire / restore.
 // 'Ordered' and 'Received' are locked (🔒): the engines key budget commitment and
 // receipt semantics off them. Everything else is the user's to shape.
 // Retiring an in-use status requires picking a destination for its PRs — no dead ends.
 
-const DOT = { gray: '#94A3B8', info: '#0891B2', teal: '#0D9488', amber: '#F59E0B', purple: '#8B5CF6', ok: '#16A34A', risk: '#E11D48' };
+const DOT = PILL_DOT;
 
 export default function ManageStatusesModal({ onClose }) {
   const { db, addPrStatus, updatePrStatus, reorderPrStatus, retirePrStatus, restorePrStatus } = useStore();

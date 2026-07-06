@@ -1,12 +1,13 @@
 import { useState, useMemo, Fragment } from 'react';
 import { ChevronDown, ChevronRight, ArrowRight } from 'lucide-react';
 import { useStore } from '../store/StoreContext.jsx';
-import { materialName, isExtraPr, brandName } from '../engine/reconcile.js';
+import { materialName, isExtraPr, brandName, supplierName, picName, mandorName, projName } from '../engine/reconcile.js';
 import { StatusPill, FilterBar, FilterSearch, FilterSelect } from '../components/ui.jsx';
+import { StatusHistory, StagedChangesBanner } from '../components/prShared.jsx';
 import PrModal from '../components/PrModal.jsx';
 import ReceiveModal from '../components/ReceiveModal.jsx';
 import { idr, fmtDate, num } from '../engine/format.js';
-import { nextStatusId, activeStatuses, statusDef, isCommitted, isReceived, isMajorTransition, groupPrs } from '../engine/status.js';
+import { nextStatusId, activeStatuses, statusDef, isCommitted, isReceived, advancePr, groupPrs } from '../engine/status.js';
 import PrCommitModal from '../components/PrCommitModal.jsx';
 
 // Portfolio-wide PR view: every purchase request across every project in one table,
@@ -22,7 +23,6 @@ export default function AllPurchaseRequestsPage() {
   const [open, setOpen] = useState(null);
   const [groupBy, setGroupBy] = useState('none'); // none | status | supplier
   const [committing, setCommitting] = useState(false);
-  const [discardArmed, setDiscardArmed] = useState(false);
 
   const pending = db.prStaged || [];               // portfolio-wide pending status changes
   const stagedFor = (id) => pending.find((s) => s.prId === id);
@@ -32,11 +32,6 @@ export default function AllPurchaseRequestsPage() {
   const [picFilter, setPicFilter] = useState([]);
   const [mandorFilter, setMandorFilter] = useState([]);
   const [supplierFilter, setSupplierFilter] = useState([]);
-
-  const projName = (id) => db.projects.find((p) => p.id === id)?.name || '— no project —';
-  const supplierName = (id) => db.suppliers.find((s) => s.id === id)?.name || '—';
-  const picName = (id) => db.users.find((u) => u.id === id)?.name || '—';
-  const mandorName = (id) => db.mandors.find((m) => m.id === id)?.name || 'Unassigned';
 
   // Rows: all live PRs (trash is a separate collection), newest first, with resolved context.
   // BoQ lines are looked up via a Map — a .find per PR is O(prs × boqItems) portfolio-wide.
@@ -122,24 +117,17 @@ export default function AllPurchaseRequestsPage() {
   }, [filtered, db.prStatuses]);
 
   function editPr(p) { setCurrentProjectId(p.projectId); setModal(p); }
-  function advance(p) {
-    const next = nextStatusId(db, p.status);
-    if (!next) return;
-    if (!isMajorTransition(db, p.status, next)) { setPrStatus(p.id, next); return; } // routine bump → instant
-    if (next === 'received') { setReceiveFor(p); return; }   // collect receipt date, then stage
-    stagePrStatus(p.id, next);                                // major → stage for review & commit
-  }
+  const advance = (p) => advancePr(db, p, { setPrStatus, stagePrStatus, onReceive: setReceiveFor });
 
   const renderRow = ({ p, mandorId }) => {
     const isOpen = open === p.id;
-    const hist = p.statusHistory || [];
     const next = nextStatusId(db, p.status);
     const stg = stagedFor(p.id);
     return (
       <Fragment key={p.id}>
         <tr>
           <td className="num clickable" style={{ cursor: 'pointer', color: 'var(--muted, #94A3B8)' }} onClick={() => setOpen(isOpen ? null : p.id)} title="Status history">{isOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}</td>
-          <td style={{ fontWeight: 600, whiteSpace: 'nowrap', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis' }} title={projName(p.projectId)}>{projName(p.projectId)}</td>
+          <td style={{ fontWeight: 600, whiteSpace: 'nowrap', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis' }} title={projName(db, p.projectId)}>{projName(db, p.projectId)}</td>
           <td className="mat-link">{materialName(db, p.materialId)}{isExtraPr(db, p) && <span className="pill warn" style={{ marginLeft: 6 }}>Extra</span>}{p.brandId && <div className="muted" style={{ fontSize: 11 }}>{brandName(db, p.brandId)}</div>}</td>
           <td>
             <StatusPill status={p.status} />
@@ -150,9 +138,9 @@ export default function AllPurchaseRequestsPage() {
           <td className="num">{num(p.quantity)} <span className="muted" style={{ fontSize: 11 }}>{p.unit}</span></td>
           <td className="num">{idr(p.unitCost)}</td>
           <td className="num">{idr(p.quantity * (p.unitCost || 0))}</td>
-          <td style={{ whiteSpace: 'nowrap' }}>{mandorId ? mandorName(mandorId) : <span className="muted">—</span>}</td>
-          <td style={{ whiteSpace: 'nowrap' }}>{picName(p.picId)}</td>
-          <td>{supplierName(p.supplierPrimaryId)}{p.supplierSecondaryId && <div className="muted" style={{ fontSize: 11 }}>{supplierName(p.supplierSecondaryId)}</div>}</td>
+          <td style={{ whiteSpace: 'nowrap' }}>{mandorId ? mandorName(db, mandorId) : <span className="muted">—</span>}</td>
+          <td style={{ whiteSpace: 'nowrap' }}>{picName(db, p.picId)}</td>
+          <td>{supplierName(db, p.supplierPrimaryId)}{p.supplierSecondaryId && <div className="muted" style={{ fontSize: 11 }}>{supplierName(db, p.supplierSecondaryId)}</div>}</td>
           <td style={{ whiteSpace: 'nowrap' }}>{fmtDate(p.orderDate)}</td>
           <td style={{ whiteSpace: 'nowrap' }}>{fmtDate(p.receiptDate)}</td>
           <td className="num" style={{ whiteSpace: 'nowrap' }}>
@@ -167,21 +155,7 @@ export default function AllPurchaseRequestsPage() {
             <div style={{ padding: '8px 10px 10px' }}>
               <div className="lbl" style={{ marginBottom: 6 }}>Status history{p.comment ? ' · note' : ''}</div>
               {p.comment && <div style={{ fontSize: 13, marginBottom: 8, color: 'var(--ink-soft)' }}>“{p.comment}”</div>}
-              {hist.length ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {[...hist].reverse().map((h, i) => (
-                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, flexWrap: 'wrap' }}>
-                      <span className="muted" style={{ minWidth: 152, whiteSpace: 'nowrap' }}>
-                        {fmtDate(h.at)} · {new Date(h.at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}
-                      </span>
-                      {h.from ? <><StatusPill status={h.from} /><ArrowRight size={13} className="muted" /></> : <span className="muted">created as</span>}
-                      <StatusPill status={h.to} />
-                      <span className="muted">· by {h.by?.name || '—'}</span>
-                      {h.note && <span className="muted" style={{ fontStyle: 'italic' }}>· “{h.note}”</span>}
-                    </div>
-                  ))}
-                </div>
-              ) : <div className="muted" style={{ fontSize: 13 }}>No status changes recorded yet.</div>}
+              <StatusHistory pr={p} />
             </div>
           </td></tr>
         )}
@@ -196,26 +170,8 @@ export default function AllPurchaseRequestsPage() {
         <p className="sub">Every purchase request across all projects · {db.prs.length} total. Raise new PRs from a project’s BoQ.</p>
       </div>
 
-      {pending.length > 0 && (
-        <div className="banner" style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', color: '#1E40AF', borderRadius: 10, padding: '9px 14px', marginBottom: 14, fontSize: 13.3, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-          <b>{pending.length} pending status change{pending.length > 1 ? 's' : ''}</b>
-          <span style={{ opacity: 0.85 }}>— major changes staged across projects, not yet committed.</span>
-          <span style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
-            {discardArmed ? (
-              <>
-                <span style={{ color: 'var(--risk)' }}>Discard all?</span>
-                <button className="btn sm danger" onClick={() => { discardPrStaged(); setDiscardArmed(false); }}>Confirm discard</button>
-                <button className="btn sm ghost" onClick={() => setDiscardArmed(false)}>Keep</button>
-              </>
-            ) : (
-              <>
-                <button className="btn sm ghost" onClick={() => setDiscardArmed(true)}>Discard</button>
-                <button className="btn sm primary" onClick={() => setCommitting(true)}>Review &amp; commit</button>
-              </>
-            )}
-          </span>
-        </div>
-      )}
+      <StagedChangesBanner count={pending.length} detail="major changes staged across projects, not yet committed."
+        onDiscard={() => discardPrStaged()} onCommit={() => setCommitting(true)} />
 
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', margin: '0 0 12px' }}>
         <Kpi label="Open commitments" value={tally.committed} active={isPreset(committedOpenIds)}
@@ -232,7 +188,7 @@ export default function AllPurchaseRequestsPage() {
           <div className="lbl" style={{ marginBottom: 7 }}>Filter by supplier{supplierFilter.length ? ` · ${supplierFilter.length} selected` : ''}</div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
             {supplierStats.slice(0, 8).map((s) => (
-              <SupplierChip key={s.id} name={supplierName(s.id)} count={s.count} value={idr(s.value)}
+              <SupplierChip key={s.id} name={supplierName(db, s.id)} count={s.count} value={idr(s.value)}
                 active={supplierFilter.includes(s.id)} onClick={() => toggleSupplier(s.id)} />
             ))}
             {supplierStats.length > 8 && <span className="muted" style={{ fontSize: 12 }}>+{supplierStats.length - 8} more in the dropdown</span>}

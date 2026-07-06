@@ -11,7 +11,7 @@
 // and — for BoQ — unknown materials) are created on the fly. A row that fails validation is
 // skipped and creates nothing.
 
-import { nowISO } from './format.js';
+import { nowISO, isoDate } from './format.js';
 import { resolveMaterial } from './match.js';
 
 export const IMPORT_SPECS = {
@@ -83,7 +83,7 @@ const toDate = (s) => {
   if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return Number.isNaN(new Date(t + 'T00:00:00').getTime()) ? NaN : t;
   const d = new Date(t);
   if (Number.isNaN(d.getTime())) return NaN;
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  return isoDate(d);
 };
 
 let _seq = 0;
