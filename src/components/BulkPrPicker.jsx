@@ -22,13 +22,17 @@ export default function BulkPrPicker({ projectId, onClose, onNext }) {
   const [selected, setSelected] = useState(() => new Set());
 
   const norm = q.trim().toLowerCase();
-  const shown = lines.filter(({ b }) => !norm || (materialName(db, b.materialId) + ' ' + (b.description || '')).toLowerCase().includes(norm));
-  const shownIds = shown.map(({ b }) => b.id);
-  const allSel = shownIds.length > 0 && shownIds.every((id) => selected.has(id));
-  const someSel = shownIds.some((id) => selected.has(id));
+  const shown = lines
+    .filter(({ b }) => !norm || (materialName(db, b.materialId) + ' ' + (b.description || '')).toLowerCase().includes(norm))
+    .map(({ b, phase }) => ({ b, phase, rem: remainingQty(db, b.id), ls: boqLineStatus(db, b.id) }));
+  // Select-all skips fully-received lines (remaining = 0 would just block the batch) —
+  // they stay visible (dimmed) and individually tickable for a deliberate re-order.
+  const selectableIds = shown.filter((x) => x.ls !== 'complete').map((x) => x.b.id);
+  const allSel = selectableIds.length > 0 && selectableIds.every((id) => selected.has(id));
+  const someSel = selectableIds.some((id) => selected.has(id));
 
   const toggle = (id) => setSelected((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
-  const toggleAll = () => setSelected((s) => { const n = new Set(s); if (allSel) shownIds.forEach((id) => n.delete(id)); else shownIds.forEach((id) => n.add(id)); return n; });
+  const toggleAll = () => setSelected((s) => { const n = new Set(s); if (allSel) selectableIds.forEach((id) => n.delete(id)); else selectableIds.forEach((id) => n.add(id)); return n; });
 
   return (
     <Modal
@@ -62,13 +66,13 @@ export default function BulkPrPicker({ projectId, onClose, onNext }) {
               </tr>
             </thead>
             <tbody>
-              {shown.map(({ b, phase }) => {
+              {shown.map(({ b, phase, rem, ls }) => {
                 const allow = b.budgetBasis === 'allowance';
-                const rem = remainingQty(db, b.id);
-                const ls = boqLineStatus(db, b.id);
                 const sel = selected.has(b.id);
                 return (
-                  <tr key={b.id} className="clickable" onClick={() => toggle(b.id)} style={sel ? { background: '#EFF6FF' } : undefined}>
+                  <tr key={b.id} className="clickable" onClick={() => toggle(b.id)}
+                    title={ls === 'complete' ? 'Fully received — tick only for a deliberate re-order' : undefined}
+                    style={sel ? { background: '#EFF6FF' } : ls === 'complete' ? { opacity: 0.55 } : undefined}>
                     <td onClick={(e) => e.stopPropagation()}><input type="checkbox" checked={sel} onChange={() => toggle(b.id)} /></td>
                     <td className="mat-link"><b>{materialName(db, b.materialId)}</b>{allow && <span className="pill info" style={{ marginLeft: 6, fontSize: 11 }}>Allowance</span>}</td>
                     <td>{b.description}</td>

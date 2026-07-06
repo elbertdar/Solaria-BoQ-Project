@@ -1,4 +1,5 @@
 import { useState, Fragment, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { ChevronDown, ChevronRight, ArrowRight } from 'lucide-react';
 import { useStore, useProject, useCurrentPhase } from '../store/StoreContext.jsx';
 import PhaseTabs from '../components/PhaseTabs.jsx';
@@ -128,7 +129,7 @@ export default function PurchaseRequestsPage() {
 
       {draft && (
         <div className="banner draft">
-          <b>{project.name}’s BoQ is still a draft.</b> Finalize it on the Bill of Quantities page to start raising purchase requests.
+          <b>{project.name}’s BoQ is still a draft.</b> Finalize it on the <Link to="/boq" style={{ color: 'inherit', fontWeight: 600, textDecoration: 'underline' }}>Bill of Quantities page</Link> to start raising purchase requests.
         </div>
       )}
 

@@ -211,7 +211,7 @@ export function ProjectBar({ children, embedded }) {
                         <div style={{ fontSize: 13.5, fontWeight: cur ? 700 : 500, color: PB.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {p.name}{p.code && <span style={{ color: PB.muted, fontWeight: 400 }}> ({p.code})</span>}
                         </div>
-                        <div style={{ fontSize: 11.5, color: PB.faint }}>{health.total} items · {health.open} open</div>
+                        <div style={{ fontSize: 11.5, color: PB.faint }}>{health.total} items · {health.open} open{p.completedAt ? ' · completed' : ''}</div>
                       </div>
                       {health.attention > 0 && (
                         <span style={{ fontSize: 11, fontWeight: 700, color: PB.risk, background: PB.riskBg, borderRadius: 999, padding: '1px 8px' }}>{health.attention}</span>

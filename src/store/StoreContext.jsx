@@ -424,6 +424,14 @@ export function StoreProvider({ children }) {
     });
   }, []);
 
+  // Trash-entry builder (shared by every soft delete below, incl. deletePhase).
+  // Deleted records LEAVE their collection and live in `trash` with a full payload, so every
+  // page and engine keeps seeing only live data. Restore re-inserts; auto-purged at 7 days.
+  const trashEntry = (entity, summary, records) => ({
+    id: uid('trash'), entity, summary, deletedAt: nowISO(), records,
+    count: Object.values(records).reduce((n, arr) => n + arr.length, 0),
+  });
+
   // ---- Phase CRUD ----
   const addPhase = useCallback((projectId, name) => {
     const id = uid('ph');
@@ -469,20 +477,29 @@ export function StoreProvider({ children }) {
       return { ...d, phases: d.phases.map((p) => p.id === a.id ? { ...p, order: b.order ?? 0 } : p.id === b.id ? { ...p, order: a.order ?? 0 } : p) };
     });
   }, []);
-  // Delete a phase: blocked if it's the last one in a project. Cascades its BoQ items,
-  // their PRs, and any staged/committed history (kept simple — hard delete, with UI confirm).
+  // Delete a phase: blocked if it's the last one in a project. Soft-deletes to Trash like
+  // every other destructive action — the phase, its BoQ items, their PRs, and its commit
+  // history travel together so a restore brings the whole phase back intact. Staged
+  // (uncommitted) edits are simply dropped.
   const deletePhase = useCallback((id) => {
     setDb((d) => {
       const ph = d.phases.find((p) => p.id === id);
       if (!ph) return d;
       if (d.phases.filter((p) => p.projectId === ph.projectId).length <= 1) return d; // keep ≥1
-      const itemIds = new Set(d.boqItems.filter((b) => b.phaseId === id).map((b) => b.id));
+      const boqItems = d.boqItems.filter((b) => b.phaseId === id);
+      const itemIds = new Set(boqItems.map((b) => b.id));
+      const prs = d.prs.filter((p) => p.boqItemId && itemIds.has(p.boqItemId));
+      const boqEdits = (d.boqEdits || []).filter((e) => e.phaseId === id);
+      const projName = d.projects.find((p) => p.id === ph.projectId)?.name;
+      const summary = `Phase · ${ph.name}${projName ? ` — ${projName}` : ''}`;
       return {
         ...d,
         phases: d.phases.filter((p) => p.id !== id),
         boqItems: d.boqItems.filter((b) => b.phaseId !== id),
         prs: d.prs.filter((p) => !(p.boqItemId && itemIds.has(p.boqItemId))),
         boqStaged: d.boqStaged.filter((s) => s.phaseId !== id),
+        boqEdits: (d.boqEdits || []).filter((e) => e.phaseId !== id),
+        trash: [trashEntry('phase', summary, { phases: [ph], boqItems, prs, boqEdits }), ...(d.trash || [])],
       };
     });
   }, []);
@@ -498,14 +515,7 @@ export function StoreProvider({ children }) {
     }));
   }, []);
 
-  // ---- Soft delete / trash (move-out, not flag-in-place) ----
-  // Deleted records LEAVE their collection and live in `trash` with a full payload, so every page
-  // and the reconcile/schedule engines keep seeing only live data. Restore re-inserts; auto-purged at 7 days.
-  const trashEntry = (entity, summary, records) => ({
-    id: uid('trash'), entity, summary, deletedAt: nowISO(), records,
-    count: Object.values(records).reduce((n, arr) => n + arr.length, 0),
-  });
-
+  // ---- Soft delete / trash (move-out, not flag-in-place; see trashEntry above) ----
   const softDeletePr = useCallback((id) => {
     setDb((d) => {
       const pr = d.prs.find((p) => p.id === id);

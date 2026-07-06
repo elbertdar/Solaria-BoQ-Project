@@ -11,6 +11,7 @@ import NewProjectModal from '../components/NewProjectModal.jsx';
 import { portfolioWorklist, todayLocal, addDays, toISO, computeLine, portfolioGantt } from '../engine/schedule.js';
 import { fmtDate, today as todayISO } from '../engine/format.js';
 import { supplierName as supplierNameOf, mandorName as mandorNameOf } from '../engine/reconcile.js';
+import { PendingReviewBanner, PendingPill } from '../components/prShared.jsx';
 import PortfolioGantt from '../components/PortfolioGantt.jsx';
 
 const BORDER = 'var(--border)';
@@ -55,6 +56,8 @@ export default function DashboardPage() {
   const orderedPrFor = (line) => db.prs.find((p) => p.boqItemId === line.boqItem.id && isCommitted(db, p.status) && !isReceived(db, p.status));
   const supplierName = (id) => supplierNameOf(db, id, null);
   const doneFor = (bucket) => done.filter((d) => d.bucket === bucket);
+  const pendingAll = db.prStaged || [];
+  const stagedFor = (id) => pendingAll.some((s) => s.prId === id);
 
   // First run: nothing in the app yet. Show a welcoming onboarding state instead of a
   // wall of empty KPIs and worklist buckets.
@@ -122,6 +125,8 @@ export default function DashboardPage() {
         </div>
       )}
 
+      <PendingReviewBanner count={pendingAll.length} to="/all-purchase-requests" />
+
       {view === 'worklist' && (<>
       {/* action lists */}
       <Bucket
@@ -148,8 +153,8 @@ export default function DashboardPage() {
         rows={wl.lateDelivery} onUndo={undo}
         renderWhen={(l) => <span style={{ color: TONE.late, fontWeight: 600 }}>{l.lateDays}d late · expected {fmtDate(l.effectiveArrival)}{supplierName(orderedPrFor(l)?.supplierPrimaryId) ? ` · ${supplierName(orderedPrFor(l).supplierPrimaryId)}` : ''}</span>}
         action={(l) => (
-          <span style={{ display: 'inline-flex', gap: 6 }}>
-            <button className="btn sm" onClick={() => setReceiveFor(l)}>Received</button>
+          <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+            {stagedFor(orderedPrFor(l)?.id) ? <PendingPill /> : <button className="btn sm" onClick={() => setReceiveFor(l)}>Received</button>}
             <button className="btn sm ghost" onClick={() => setPushFor(l)}>Push date</button>
             <button className="btn sm ghost" onClick={() => setSnoozeFor(l)}>Snooze</button>
           </span>
@@ -163,8 +168,8 @@ export default function DashboardPage() {
           rows={wl.lateArrival} onUndo={undo}
           renderWhen={(l) => <span style={{ color: TONE.late, fontWeight: 600 }}>+{l.slipDays}d vs plan · expected {fmtDate(l.effectiveArrival)}{supplierName(orderedPrFor(l)?.supplierPrimaryId) ? ` · ${supplierName(orderedPrFor(l).supplierPrimaryId)}` : ''}</span>}
           action={(l) => (
-            <span style={{ display: 'inline-flex', gap: 6 }}>
-              <button className="btn sm" onClick={() => setReceiveFor(l)}>Received</button>
+            <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+              {stagedFor(orderedPrFor(l)?.id) ? <PendingPill /> : <button className="btn sm" onClick={() => setReceiveFor(l)}>Received</button>}
               <button className="btn sm ghost" onClick={() => setPushFor(l)}>Push date</button>
             </span>
           )}

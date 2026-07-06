@@ -12,6 +12,7 @@ import {
 } from '../engine/schedule.js';
 import { fmtDate, num } from '../engine/format.js';
 import { supplierName as supplierNameOf, mandorName as mandorNameOf } from '../engine/reconcile.js';
+import { PendingReviewBanner, PendingPill } from '../components/prShared.jsx';
 
 const BORDER = 'var(--border)';
 const WEEKEND = 'rgba(100,116,139,0.07)';
@@ -53,10 +54,14 @@ export default function SchedulePage() {
   const toggleFilter = (f) => setFilter((cur) => (cur === f ? null : f));
 
   const orderedPrFor = (line) => db.prs.find((p) => p.boqItemId === line.boqItem.id && isCommitted(db, p.status) && !isReceived(db, p.status));
+  const pendingHere = (db.prStaged || []).filter((s) => s.projectId === currentProjectId);
   function ActionButton({ line }) {
     if (line.state === 'received') return <span className="muted" style={{ fontSize: 12 }}>received</span>;
     const ordered = orderedPrFor(line);
-    if (ordered) return <button className="btn sm" onClick={() => setReceiveFor({ pr: ordered, line })}>Receive</button>;
+    if (ordered) {
+      if (pendingHere.some((s) => s.prId === ordered.id)) return <PendingPill />;
+      return <button className="btn sm" onClick={() => setReceiveFor({ pr: ordered, line })}>Receive</button>;
+    }
     return <button className="btn sm" onClick={() => setPrFor(line.boqItem)}>Raise PR</button>;
   }
 
@@ -69,6 +74,8 @@ export default function SchedulePage() {
 
       <ProjectBar />
       <PhaseTabs />
+
+      <PendingReviewBanner count={pendingHere.length} />
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', margin: '0 0 18px', fontSize: 13, color: '#64748B' }}>
         <span>Project start</span>

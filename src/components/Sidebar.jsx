@@ -88,7 +88,7 @@ export default function Sidebar() {
                   <select className="sb-proj-select" value={project?.id || ''} title={project?.code || ''}
                     onChange={(e) => setCurrentProjectId(e.target.value)}>
                     {db.projects.map((p) => (
-                      <option key={p.id} value={p.id}>{p.name}{p.code ? ` (${p.code})` : ''}</option>
+                      <option key={p.id} value={p.id}>{p.name}{p.code ? ` (${p.code})` : ''}{p.completedAt ? ' · completed' : ''}</option>
                     ))}
                   </select>
                 )}

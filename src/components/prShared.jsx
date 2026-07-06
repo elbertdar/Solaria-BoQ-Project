@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import { useStore } from '../store/StoreContext.jsx';
 import { StatusPill } from './ui.jsx';
@@ -48,6 +49,26 @@ export function StatusSelect({ value, onChange }) {
       {(cur.retired || cur.missing) && <option value={cur.id}>{cur.label} (retired)</option>}
     </select>
   );
+}
+
+// Read-only cousin of StagedChangesBanner for pages that can STAGE changes but not commit
+// them (Schedule, Dashboard) — without this, staging a receipt there looks like nothing
+// happened. Links to the page where the review & commit actually lives.
+export function PendingReviewBanner({ count, to = '/purchase-requests' }) {
+  if (!count) return null;
+  return (
+    <div className="banner" style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', color: '#1E40AF', borderRadius: 10, padding: '9px 14px', marginBottom: 14, fontSize: 13.3, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+      <b>{count} pending status change{count > 1 ? 's' : ''}</b>
+      <span style={{ opacity: 0.85 }}>— staged, waiting for review.</span>
+      <Link to={to} style={{ marginLeft: 'auto', fontWeight: 600, color: '#1E40AF', whiteSpace: 'nowrap' }}>Review &amp; commit →</Link>
+    </div>
+  );
+}
+
+// Inline marker for a PR whose status change is staged — replaces the action button so the
+// user sees their click registered.
+export function PendingPill({ title = 'Staged — review & commit on the Purchase Requests page' }) {
+  return <span className="pill amber" title={title}>Receipt pending</span>;
 }
 
 // The blue "staged, not yet committed" banner with its arm-then-confirm discard flow.

@@ -152,25 +152,25 @@ export default function PrModal({ pr = null, boqItem = null, onClose }) {
           {editing ? (
             <div className="readonly-val">{extra ? 'Extra — no BoQ line' : `${matName} — ${selectedBoq?.description || ''}`}</div>
           ) : (
-            <select className="input" value={boqItemId} onChange={(e) => {
-              const id = e.target.value;
-              setBoqItemId(id);
-              setAckOver(false);
-              setBrandId('');
-              if (raising && id && id !== '__extra') {   // Raise PR auto-fills qty + cost from the line
-                const nb = db.boqItems.find((b) => b.id === id);
-                setQuantity(nb?.budgetBasis === 'allowance' ? '' : String(remainingQty(db, id)));
-                setUnitCost(nb?.budgetBasis === 'allowance' ? '' : (nb?.expectedUnitCost ?? ''));
-              }
-            }}>
-              <option value="">Select a BoQ item…</option>
-              {projectBoq.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {materialName(db, b.materialId)} — {b.description} ({b.quantity} {b.unit})
-                </option>
-              ))}
-              <option value="__extra">— No BoQ line (extra purchase) —</option>
-            </select>
+            <ComboBox value={boqItemId} placeholder="Search BoQ items… (or pick “extra purchase”)"
+              options={[
+                ...projectBoq.map((b) => ({
+                  id: b.id,
+                  label: `${materialName(db, b.materialId)} — ${b.description || ''}`,
+                  sublabel: `${b.quantity} ${b.unit}`,
+                })),
+                { id: '__extra', label: 'No BoQ line (extra purchase)' },
+              ]}
+              onPick={(id) => {
+                setBoqItemId(id);
+                setAckOver(false);
+                setBrandId('');
+                if (raising && id && id !== '__extra') {   // Raise PR auto-fills qty + cost from the line
+                  const nb = db.boqItems.find((b) => b.id === id);
+                  setQuantity(nb?.budgetBasis === 'allowance' ? '' : String(remainingQty(db, id)));
+                  setUnitCost(nb?.budgetBasis === 'allowance' ? '' : (nb?.expectedUnitCost ?? ''));
+                }
+              }} />
           )}
           {extra && <div className="help" style={{ color: '#92660C' }}>Extra purchase — not in the BoQ plan. Shows as “Extra” in the PR list and Balance.</div>}
         </div>

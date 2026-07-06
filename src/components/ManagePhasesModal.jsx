@@ -19,8 +19,8 @@ export default function ManagePhasesModal({ onClose }) {
   const remove = (ph) => {
     const n = itemCount(ph.id);
     const msg = n > 0
-      ? `Delete “${ph.name}”? Its ${n} BoQ item${n === 1 ? '' : 's'} and any linked purchase requests will be permanently removed.`
-      : `Delete “${ph.name}”?`;
+      ? `Delete “${ph.name}”? It moves to Trash with its ${n} BoQ item${n === 1 ? '' : 's'} and any linked purchase requests — restorable for 7 days.`
+      : `Delete “${ph.name}”? It moves to Trash — restorable for 7 days.`;
     if (!window.confirm(msg)) return;
     if (currentPhaseId === ph.id) setCurrentPhaseId('__all');
     deletePhase(ph.id);
