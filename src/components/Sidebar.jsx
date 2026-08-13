@@ -5,6 +5,7 @@ import {
   ListChecks, ShoppingCart, Scale, Truck, Package, Layers, HardHat, Users, Trash2,
 } from 'lucide-react';
 import { useStore } from '../store/StoreContext.jsx';
+import BrandMark from './BrandMark.jsx';
 import { projectWarnings } from '../engine/reconcile.js';
 import { scheduleForProject, scheduleCounts, portfolioWorklist } from '../engine/schedule.js';
 
@@ -72,8 +73,8 @@ export default function Sidebar() {
   return (
     <aside className="sidebar">
       <div className="sb-brand">
-        <div className="mark">S</div>
-        <div className="name">Solaria<small>Procurement · BoQ Control</small></div>
+        <BrandMark size={30} />
+        <div className="name">Solaria Resto<small>Procurement · BoQ Control</small></div>
       </div>
 
       <nav className="sb-nav">

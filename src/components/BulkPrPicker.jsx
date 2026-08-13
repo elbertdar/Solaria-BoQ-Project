@@ -70,9 +70,9 @@ export default function BulkPrPicker({ projectId, onClose, onNext }) {
                 const allow = b.budgetBasis === 'allowance';
                 const sel = selected.has(b.id);
                 return (
-                  <tr key={b.id} className="clickable" onClick={() => toggle(b.id)}
+                  <tr key={b.id} className={sel ? 'clickable row-selected' : 'clickable'} onClick={() => toggle(b.id)}
                     title={ls === 'complete' ? 'Fully received — tick only for a deliberate re-order' : undefined}
-                    style={sel ? { background: '#EFF6FF' } : ls === 'complete' ? { opacity: 0.55 } : undefined}>
+                    style={!sel && ls === 'complete' ? { opacity: 0.55 } : undefined}>
                     <td onClick={(e) => e.stopPropagation()}><input type="checkbox" checked={sel} onChange={() => toggle(b.id)} /></td>
                     <td className="mat-link"><b>{materialName(db, b.materialId)}</b>{allow && <span className="pill info" style={{ marginLeft: 6, fontSize: 11 }}>Allowance</span>}</td>
                     <td>{b.description}</td>

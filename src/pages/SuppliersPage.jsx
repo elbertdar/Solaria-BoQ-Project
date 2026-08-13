@@ -71,7 +71,7 @@ export default function SuppliersPage() {
             </thead>
             <tbody>
               {rows.map((s) => (
-                <tr key={s.id}>
+                <tr key={s.id} className={selected.has(s.id) ? 'row-selected' : undefined}>
                   <td><input type="checkbox" checked={selected.has(s.id)} onChange={() => toggle(s.id)} /></td>
                   <td><b>{s.name}</b></td>
                   <td>{s.materialTypeIds.length === 0

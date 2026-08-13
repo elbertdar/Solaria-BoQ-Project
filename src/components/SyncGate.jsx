@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useStore } from '../store/StoreContext.jsx';
+import BrandMark from './BrandMark.jsx';
 
 // Shown only when the server backend is deployed and needs the access passphrase. Otherwise
 // (local-only, or already synced) it just renders the app. "Use offline" opts out to
@@ -23,7 +24,7 @@ export default function SyncGate({ children }) {
   return (
     <div className="gate">
       <div className="gate-card">
-        <div className="gate-brand"><div className="mark">S</div><span>Solaria<small>Procurement · BoQ Control</small></span></div>
+        <div className="gate-brand"><BrandMark size={34} /><span>Solaria Resto<small>Procurement · BoQ Control</small></span></div>
         <h1>Unlock your workspace</h1>
         <p>Your data is saved on the server. Enter your access passphrase to load and sync it on this device.</p>
         <input type="password" autoFocus value={key} placeholder="Access passphrase"

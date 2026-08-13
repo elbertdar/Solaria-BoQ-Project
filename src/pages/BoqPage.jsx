@@ -349,10 +349,12 @@ function Row({ r, db, start, selected, onToggleSel, onEdit, onRaisePr, onUndo, g
   const needed = f.neededDayOffset;
   const neededDate = (start && needed != null) ? addDays(start, needed) : null;
   const orderDate = (neededDate && lead != null) ? addBusinessDays(neededDate, -lead) : null;
+  const isSel = selectable && !!selected?.has(r.id);
   const rowStyle = {
     ...(r.status === 'added' ? { background: '#F0FDF4' } : deleted ? { opacity: 0.55 } : {}),
     ...(grouped ? { background: '#FBFCFE', boxShadow: 'inset 3px 0 0 #E2E8F0' } : {}),
     ...(highlighted ? HILITE : {}),
+    ...(isSel ? { background: 'var(--brand-bg)', boxShadow: 'inset 3px 0 0 var(--brand)' } : {}),
   };
   const strike = deleted ? { textDecoration: 'line-through' } : undefined;
   const wasNum = (k, prev) => changed(k) && base && (base[k] ?? null) !== (f[k] ?? null)
@@ -364,7 +366,7 @@ function Row({ r, db, start, selected, onToggleSel, onEdit, onRaisePr, onUndo, g
 
   return (
     <tr style={rowStyle}>
-      <td className="num">{selectable ? <input type="checkbox" checked={!!selected?.has(r.id)} onChange={() => onToggleSel(r.id)} /> : null}</td>
+      <td className="num">{selectable ? <input type="checkbox" checked={isSel} onChange={() => onToggleSel(r.id)} /> : null}</td>
       <td className="mat-link"><span style={strike}>{tag}{materialName(db, f.materialId)}{allow && <span className="pill info" style={{ marginLeft: 6, fontSize: 11 }}>Allowance</span>}</span></td>
       <td style={{ ...(changed('description') ? TINT : {}), ...strike }}>{f.description}</td>
       <td className="num" style={changed('quantity') ? TINT : undefined}>{allow ? <span className="muted">—</span> : <><span style={strike}>{num(f.quantity)}</span>{wasNum('quantity', base?.quantity)}</>}</td>
