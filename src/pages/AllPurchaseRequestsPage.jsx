@@ -6,6 +6,7 @@ import { StatusPill, FilterBar, FilterSearch, FilterSelect } from '../components
 import { StatusHistory, StagedChangesBanner } from '../components/prShared.jsx';
 import PrModal from '../components/PrModal.jsx';
 import ReceiveModal from '../components/ReceiveModal.jsx';
+import { toast } from '../components/ToastHost.jsx';
 import { idr, fmtDate, num } from '../engine/format.js';
 import { nextStatusId, activeStatuses, statusDef, isCommitted, isReceived, advancePr, groupPrs } from '../engine/status.js';
 import PrCommitModal from '../components/PrCommitModal.jsx';
@@ -245,11 +246,11 @@ export default function AllPurchaseRequestsPage() {
       {receiveFor && (
         <ReceiveModal title={`Mark received · ${materialName(db, receiveFor.materialId)}`}
           onClose={() => setReceiveFor(null)}
-          onConfirm={(date) => { stagePrStatus(receiveFor.id, 'received', date); setReceiveFor(null); }} />
+          onConfirm={(date) => { stagePrStatus(receiveFor.id, 'received', date); toast.success(`Receipt staged for ${materialName(db, receiveFor.materialId)} — review & commit`); setReceiveFor(null); }} />
       )}
       {committing && pending.length > 0 && (
         <PrCommitModal db={db} staged={pending}
-          onCommit={(ids, msg) => { commitPrStaged(ids, msg); setCommitting(false); }}
+          onCommit={(ids, msg) => { commitPrStaged(ids, msg); toast.success(`${ids.length} status change${ids.length === 1 ? '' : 's'} committed`); setCommitting(false); }}
           onDiscard={(prId) => unstagePr(prId)}
           onClose={() => setCommitting(false)} />
       )}

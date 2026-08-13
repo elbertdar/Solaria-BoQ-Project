@@ -5,6 +5,7 @@ import Modal from '../components/Modal.jsx';
 import ComboBox from '../components/ComboBox.jsx';
 import { FilterBar, FilterSearch, FilterSelect, DeleteConfirm } from '../components/ui.jsx';
 import DataToolbar from '../components/DataToolbar.jsx';
+import { toast } from '../components/ToastHost.jsx';
 
 export default function SuppliersPage() {
   const { db, addSupplier, updateSupplier, deleteSupplier } = useStore();
@@ -97,7 +98,7 @@ export default function SuppliersPage() {
         <SupplierModal
           supplier={editing}
           onClose={() => setEditing(undefined)}
-          onSave={(vals) => { if (editing) updateSupplier(editing.id, vals); else addSupplier(vals); setEditing(undefined); }}
+          onSave={(vals) => { if (editing) { updateSupplier(editing.id, vals); toast.success(`Supplier “${vals.name}” updated`); } else { addSupplier(vals); toast.success(`Supplier “${vals.name}” added`); } setEditing(undefined); }}
         />
       )}
 
@@ -111,7 +112,7 @@ export default function SuppliersPage() {
               ? <>It’s named on <b>{usedOnPrs(delFor.id)} purchase request{usedOnPrs(delFor.id) === 1 ? '' : 's'}</b> — those keep their record but lose this supplier reference.</>
               : 'It isn’t referenced by any purchase requests.'}
           </>}
-          onConfirm={() => { deleteSupplier(delFor.id); setDelFor(null); }}
+          onConfirm={() => { deleteSupplier(delFor.id); toast.success(`Supplier “${delFor.name}” deleted`); setDelFor(null); }}
           onClose={() => setDelFor(null)}
         />
       )}
@@ -139,7 +140,7 @@ function SupplierModal({ supplier, onClose, onSave }) {
   const removeType = (id) => setTypeIds((p) => p.filter((x) => x !== id));
 
   function save() {
-    if (!name.trim()) { setError('Supplier name is required.'); return; }
+    if (!name.trim()) { setError('Supplier name is required.'); toast.error('Supplier name is required.'); return; }
     onSave({
       name: name.trim(), location: location.trim(), materialTypeIds: typeIds,
       contact: { phone: phone.trim(), email: email.trim(), address: address.trim() },

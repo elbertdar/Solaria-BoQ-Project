@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useStore } from '../store/StoreContext.jsx';
 import Modal from '../components/Modal.jsx';
 import { FilterBar, FilterSearch } from '../components/ui.jsx';
+import { toast } from '../components/ToastHost.jsx';
 
 export default function MandorsPage() {
   const { db, addMandor, updateMandor, deleteMandor } = useStore();
@@ -50,8 +51,8 @@ export default function MandorsPage() {
           mandor={editing}
           usage={editing ? usage(editing.id) : 0}
           onClose={() => setEditing(undefined)}
-          onSave={(name) => { if (editing) updateMandor(editing.id, { name }); else addMandor(name); setEditing(undefined); }}
-          onDelete={() => { deleteMandor(editing.id); setEditing(undefined); }}
+          onSave={(name) => { if (editing) { updateMandor(editing.id, { name }); toast.success(`Mandor “${name}” updated`); } else { addMandor(name); toast.success(`Mandor “${name}” added`); } setEditing(undefined); }}
+          onDelete={() => { deleteMandor(editing.id); toast.success(`Mandor “${editing.name}” deleted`); setEditing(undefined); }}
         />
       )}
     </>

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useStore } from '../store/StoreContext.jsx';
 import Modal from '../components/Modal.jsx';
 import { FilterBar, FilterSearch, DeleteConfirm } from '../components/ui.jsx';
+import { toast } from '../components/ToastHost.jsx';
 
 export default function MaterialTypesPage() {
   const { db, addMaterialType, updateMaterialType, softDeleteMaterialType } = useStore();
@@ -67,14 +68,14 @@ export default function MaterialTypesPage() {
           existing={db.materialTypes}
           onClose={() => setEditing(undefined)}
           onSave={(data) => {
-            if (editing) updateMaterialType(editing.id, data);
-            else addMaterialType(data);
+            if (editing) { updateMaterialType(editing.id, data); toast.success(`Material type “${data.name}” updated`); }
+            else { addMaterialType(data); toast.success(`Material type “${data.name}” added`); }
             setEditing(undefined);
           }}
         />
       )}
       {delFor && <DeleteType type={delFor} db={db} onClose={() => setDelFor(null)}
-        onConfirm={() => { softDeleteMaterialType(delFor.id); setDelFor(null); }} />}
+        onConfirm={() => { softDeleteMaterialType(delFor.id); toast.success(`Material type “${delFor.name}” moved to Trash`); setDelFor(null); }} />}
     </>
   );
 }

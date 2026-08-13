@@ -354,6 +354,32 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--brand); }
 /* Row highlight for ticked/selected table rows — brand tint + left brand rail. */
 .table tr.row-selected td, .table tr.row-selected.clickable:hover td { background: var(--brand-bg); }
 .table tr.row-selected td:first-child { box-shadow: inset 3px 0 0 var(--brand); }
+
+/* ---------- Toasts (top-right notifications) ---------- */
+.toast-host {
+  position: fixed; top: 16px; right: 16px; z-index: 300;
+  display: flex; flex-direction: column; align-items: flex-end; gap: 8px;
+  pointer-events: none;
+}
+.toast {
+  pointer-events: auto;
+  display: flex; align-items: center; gap: 8px;
+  min-width: 230px; max-width: 400px; padding: 10px 12px;
+  border-radius: var(--radius-sm); border: 1px solid;
+  font-size: 13px; font-weight: 600; line-height: 1.4;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.10);
+  animation: toast-in 0.16s ease-out;
+}
+.toast.success { background: var(--ok-bg); border-color: #BBE7C8; color: #166534; }
+.toast.error   { background: var(--risk-bg); border-color: #F6C0CD; color: #9F1239; }
+.toast svg { flex-shrink: 0; }
+.toast .toast-msg { flex: 1; }
+.toast .toast-x {
+  border: 0; background: none; padding: 2px; cursor: pointer;
+  color: inherit; opacity: 0.55; display: grid; place-items: center;
+}
+.toast .toast-x:hover { opacity: 1; }
+@keyframes toast-in { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
 textarea { resize: vertical; line-height: 1.4; box-sizing: border-box; }
 /* Right-aligned numeric input for inline table cells (bulk PR lines). Scoped to the
    element so it outweighs the base input[type="text"] rule above. */

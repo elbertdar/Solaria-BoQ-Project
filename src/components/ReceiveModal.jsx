@@ -4,6 +4,7 @@ import { today } from '../engine/format.js';
 
 export default function ReceiveModal({ title, onClose, onConfirm }) {
   const [date, setDate] = useState(today());
+  // Success toast is fired by the caller's onConfirm — it knows what was received.
   return (
     <Modal
       title={title}

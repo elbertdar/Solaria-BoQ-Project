@@ -4,6 +4,7 @@ import Modal from './Modal.jsx';
 import { useStore } from '../store/StoreContext.jsx';
 import { parseCsv, downloadCsv } from '../engine/csv.js';
 import { applyImport, importTemplate, IMPORT_SPECS } from '../engine/dataImport.js';
+import { toast } from './ToastHost.jsx';
 
 // Generic CSV importer for a single entity. Shows the column contract (required vs optional),
 // offers a ready-made template, then live-previews a pasted/uploaded file — how many rows are
@@ -33,6 +34,7 @@ export default function ImportModal({ entity, context = {}, onClose }) {
   const doImport = () => {
     if (!parsed || !preview?.ready) return;
     importEntity(entity, parsed, context);
+    toast.success(`Imported ${preview.ready} ${spec.label.toLowerCase()} row${preview.ready === 1 ? '' : 's'}`);
     onClose();
   };
 

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useStore } from '../store/StoreContext.jsx';
 import Modal from '../components/Modal.jsx';
 import { FilterBar, FilterSearch, FilterSelect } from '../components/ui.jsx';
+import { toast } from '../components/ToastHost.jsx';
 
 const ROLES = ['Estimator', 'Project Manager', 'Purchasing PIC'];
 
@@ -65,8 +66,8 @@ export default function UsersPage() {
           prCount={editing ? prCount(editing.id) : 0}
           isCurrent={!!editing && editing.id === meId}
           onClose={() => setEditing(undefined)}
-          onSave={(data) => { if (editing) updateUser(editing.id, data); else addUser(data); setEditing(undefined); }}
-          onDelete={() => { deleteUser(editing.id); setEditing(undefined); }}
+          onSave={(data) => { if (editing) { updateUser(editing.id, data); toast.success(`${data.name} updated`); } else { addUser(data); toast.success(`${data.name} added to the team`); } setEditing(undefined); }}
+          onDelete={() => { deleteUser(editing.id); toast.success(`${editing.name} removed from the team`); setEditing(undefined); }}
         />
       )}
     </>

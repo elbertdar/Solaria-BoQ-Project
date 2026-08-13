@@ -17,6 +17,7 @@ import CommitModal from '../components/CommitModal.jsx';
 import HistoryView from '../components/HistoryView.jsx';
 import ManagePhasesModal from '../components/ManagePhasesModal.jsx';
 import DataToolbar from '../components/DataToolbar.jsx';
+import { toast } from '../components/ToastHost.jsx';
 
 const plannedOf = (b) => b.budgetBasis === 'allowance' ? (b.allowanceAmount || 0) : (b.quantity || 0) * (b.expectedUnitCost || 0);
 
@@ -45,7 +46,7 @@ export default function BoqPage() {
   const [managePhases, setManagePhases] = useState(false);
   const [newPhaseName, setNewPhaseName] = useState('');
 
-  const addPhaseNow = () => { const n = newPhaseName.trim(); if (!n) return; addPhase(currentProjectId, n); setNewPhaseName(''); };
+  const addPhaseNow = () => { const n = newPhaseName.trim(); if (!n) return; addPhase(currentProjectId, n); toast.success(`Phase “${n}” added`); setNewPhaseName(''); };
 
   const toggleSel = (id) => setSelected((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const toggleMany = (ids, on) => setSelected((s) => { const n = new Set(s); ids.forEach((id) => (on ? n.add(id) : n.delete(id))); return n; });
@@ -117,7 +118,7 @@ export default function BoqPage() {
       {boqModal && <BoqModal item={boqModal.item} phaseId={boqModal.phaseId} onClose={() => setBoqModal(null)} />}
       {prFor && <PrModal boqItem={prFor} onClose={() => setPrFor(null)} />}
       {committingPhase && <CommitModal db={db} staged={committingStaged}
-        onCommit={(msg, keys) => { commitBoqStaged(committingPhase, msg, keys); setCommittingPhase(null); }}
+        onCommit={(msg, keys) => { commitBoqStaged(committingPhase, msg, keys); toast.success('BoQ changes committed'); setCommittingPhase(null); }}
         onClose={() => setCommittingPhase(null)} />}
       {managePhases && <ManagePhasesModal onClose={() => setManagePhases(false)} />}
       {finalizing && (

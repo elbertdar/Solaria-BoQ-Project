@@ -9,6 +9,7 @@ import Modal from './Modal.jsx';
 import NumberInput from './NumberInput.jsx';
 import ComboBox from './ComboBox.jsx';
 import { dnum } from './boqShared.jsx';
+import { toast } from './ToastHost.jsx';
 
 export default function BoqModal({ item, phaseId: phaseIdProp = null, onClose }) {
   const { db, currentProjectId, currentPhaseId, addMaterial, addMandor, stageBoqAdd, stageBoqModify, editStagedAdd, stageBoqDelete, unstageBoq } = useStore();
@@ -64,15 +65,17 @@ export default function BoqModal({ item, phaseId: phaseIdProp = null, onClose })
     return id;
   }
 
+  const fail = (msg) => { setError(msg); toast.error(msg); };
+
   function save() {
     setError('');
     let mid = materialId;
     if (!mid && matQuery.trim()) { const m = resolveMaterial(db.materials, matQuery); if (m) mid = m.id; }
-    if (!mid) { setError('Pick an existing material or create a new canonical entry — BoQ items can’t use free-text names (BR-1).'); return; }
-    if (!unit) { setError('Set a unit.'); return; }
+    if (!mid) { fail('Pick an existing material or create a new canonical entry — BoQ items can’t use free-text names (BR-1).'); return; }
+    if (!unit) { fail('Set a unit.'); return; }
     if (!allowance) {
-      if (quantity === '' || Number(quantity) <= 0) { setError('Enter a quantity.'); return; }
-      if (neededDayOffset === '' || Number(neededDayOffset) < 0) { setError('Enter the needed day (days after project start, 0 or more).'); return; }
+      if (quantity === '' || Number(quantity) <= 0) { fail('Enter a quantity.'); return; }
+      if (neededDayOffset === '' || Number(neededDayOffset) < 0) { fail('Enter the needed day (days after project start, 0 or more).'); return; }
     }
 
     const patch = {
@@ -84,11 +87,14 @@ export default function BoqModal({ item, phaseId: phaseIdProp = null, onClose })
       neededDayOffset: allowance ? null : Number(neededDayOffset),
       leadTimeDays: allowance ? null : (leadOverride === '' ? null : Number(leadOverride)),
     };
+    const matName = db.materials.find((x) => x.id === mid)?.canonicalName ?? 'Line';
     if (editing) {
       if (isAdd) editStagedAdd(phaseId, item.id, patch);
       else stageBoqModify(phaseId, item.id, patch);
+      toast.success(`${matName} updated — staged for commit`);
     } else {
       stageBoqAdd(phaseId, patch);
+      toast.success(`${matName} added to BoQ — staged for commit`);
     }
     onClose();
   }
@@ -109,8 +115,8 @@ export default function BoqModal({ item, phaseId: phaseIdProp = null, onClose })
             </span>
             <button className="btn ghost" onClick={() => setConfirmingDelete(false)}>Keep</button>
             <button className="btn danger" onClick={() => {
-              if (isAdd) unstageBoq(phaseId, { tempId: item.id });
-              else stageBoqDelete(phaseId, item.id, { deletePrs: deleteLinkedPrs });
+              if (isAdd) { unstageBoq(phaseId, { tempId: item.id }); toast.success('New row discarded'); }
+              else { stageBoqDelete(phaseId, item.id, { deletePrs: deleteLinkedPrs }); toast.success('Removal staged — commit to apply'); }
               onClose();
             }}>{isAdd ? 'Discard row' : 'Stage removal'}</button>
           </>

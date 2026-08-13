@@ -8,6 +8,7 @@ import { StatusSelect } from './prShared.jsx';
 import { idr, today } from '../engine/format.js';
 import NumberInput from './NumberInput.jsx';
 import ComboBox from './ComboBox.jsx';
+import { toast } from './ToastHost.jsx';
 
 // Raise many PRs at once against selected BoQ lines. Built for the client's real workflow —
 // "sometimes when I order, I order multiple things from the store at once": pick ONE store,
@@ -74,12 +75,14 @@ export default function BulkPrModal({ boqItemIds, projectId, onClose }) {
 
   const grandTotal = active.reduce((s, b) => s + (Number(rows[b.id]?.qty) || 0) * (Number(rows[b.id]?.unitCost) || 0), 0);
 
+  const fail = (msg) => { setError(msg); toast.error(msg); };
+
   function create() {
     setError('');
-    if (active.length === 0) { setError('No lines selected — nothing to raise.'); return; }
+    if (active.length === 0) { fail('No lines selected — nothing to raise.'); return; }
     const bad = active.filter((b) => { const q = Number(rows[b.id]?.qty); return !q || q <= 0; });
-    if (bad.length) { setError(`${bad.length} line${bad.length > 1 ? 's' : ''} need a quantity greater than 0.`); return; }
-    if (status === 'received' && !receiptDate) { setError('Received PRs need a receipt date.'); return; }
+    if (bad.length) { fail(`${bad.length} line${bad.length > 1 ? 's' : ''} need a quantity greater than 0.`); return; }
+    if (status === 'received' && !receiptDate) { fail('Received PRs need a receipt date.'); return; }
     for (const b of active) {
       addPr({
         boqItemId: b.id,
@@ -96,6 +99,7 @@ export default function BulkPrModal({ boqItemIds, projectId, onClose }) {
         comment: comment.trim(),
       });
     }
+    toast.success(`${active.length} purchase request${active.length === 1 ? '' : 's'} raised`);
     onClose();
   }
 

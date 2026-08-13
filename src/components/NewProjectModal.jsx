@@ -2,6 +2,7 @@ import { useState } from 'react';
 import Modal from './Modal.jsx';
 import ComboBox from './ComboBox.jsx';
 import { useStore } from '../store/StoreContext.jsx';
+import { toast } from './ToastHost.jsx';
 import { today as todayISO } from '../engine/format.js';
 
 // Shared "New project" dialog. onCreate({ name, startDate, code, projectTypeId }) — caller does addProject + nav.
@@ -18,9 +19,11 @@ export default function NewProjectModal({ onClose, onCreate }) {
   const [typeText, setTypeText] = useState('');
   const [error, setError] = useState('');
 
+  const fail = (msg) => { setError(msg); toast.error(msg); };
+
   function save() {
-    if (!name.trim()) { setError('Project name is required.'); return; }
-    if (!startDate) { setError('Start date is required — the schedule counts days from it.'); return; }
+    if (!name.trim()) { fail('Project name is required.'); return; }
+    if (!startDate) { fail('Start date is required — the schedule counts days from it.'); return; }
     let projectTypeId = typeId;
     const qq = typeText.trim();
     if (!projectTypeId && qq) {                                  // typed text, no pick → reuse by name or create

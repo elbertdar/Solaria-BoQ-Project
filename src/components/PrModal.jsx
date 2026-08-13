@@ -8,6 +8,7 @@ import { StatusSelect } from './prShared.jsx';
 import { idr, today } from '../engine/format.js';
 import NumberInput from './NumberInput.jsx';
 import ComboBox from './ComboBox.jsx';
+import { toast } from './ToastHost.jsx';
 
 export default function PrModal({ pr = null, boqItem = null, onClose }) {
   const { db, currentProjectId, currentPhaseId, addPr, updatePr, softDeletePr, stagePrStatus, addBrand, addSupplier, addMaterial, addUser } = useStore();
@@ -76,13 +77,15 @@ export default function PrModal({ pr = null, boqItem = null, onClose }) {
   // Soft warning (Q-3 default): block save only until acknowledged.
   const blocked = wouldExceed && !ackOver;
 
+  const fail = (msg) => { setError(msg); toast.error(msg); };
+
   function save() {
     setError('');
-    if (!extra && !selectedBoq) { setError('Select a BoQ item, or choose “No BoQ line (extra purchase)” for an unplanned order.'); return; }
-    if (extra && !effMatId) { setError('Pick a material for this extra purchase.'); return; }
-    if (extra && !effUnit) { setError('Set a unit.'); return; }
-    if (quantity === '' || Number(quantity) <= 0) { setError('Enter a quantity.'); return; }
-    if (status === 'received' && !receiptDate) { setError('Received PRs need a receipt date (BR-4).'); return; }
+    if (!extra && !selectedBoq) { fail('Select a BoQ item, or choose “No BoQ line (extra purchase)” for an unplanned order.'); return; }
+    if (extra && !effMatId) { fail('Pick a material for this extra purchase.'); return; }
+    if (extra && !effUnit) { fail('Set a unit.'); return; }
+    if (quantity === '' || Number(quantity) <= 0) { fail('Enter a quantity.'); return; }
+    if (status === 'received' && !receiptDate) { fail('Received PRs need a receipt date (BR-4).'); return; }
 
     const payload = {
       boqItemId: extra ? null : boqItemId,
@@ -106,11 +109,14 @@ export default function PrModal({ pr = null, boqItem = null, onClose }) {
         // Apply the field edits now, but route the major status change through review & commit.
         updatePr(pr.id, { ...payload, status: pr.status, receiptDate: pr.receiptDate });
         stagePrStatus(pr.id, status, status === 'received' ? (receiptDate || null) : null);
+        toast.success('PR updated — status change staged for review & commit');
       } else {
         updatePr(pr.id, payload); // minor (or no) status change applies immediately
+        toast.success('Purchase request updated');
       }
     } else {
       addPr(payload);
+      toast.success('Purchase request created');
     }
     onClose();
   }
@@ -127,7 +133,7 @@ export default function PrModal({ pr = null, boqItem = null, onClose }) {
           {editing && (confirmingDelete ? (
             <span style={{ marginRight: 'auto', display: 'inline-flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <span className="muted" style={{ fontSize: 13 }}>Move this PR to Trash? (restorable for 7 days)</span>
-              <button className="btn sm danger" onClick={() => { softDeletePr(pr.id); onClose(); }}>Move to Trash</button>
+              <button className="btn sm danger" onClick={() => { softDeletePr(pr.id); toast.success('Purchase request moved to Trash'); onClose(); }}>Move to Trash</button>
               <button className="btn sm ghost" onClick={() => setConfirmingDelete(false)}>Keep</button>
             </span>
           ) : (

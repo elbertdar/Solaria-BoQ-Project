@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ChevronUp, ChevronDown } from 'lucide-react';
 import Modal from './Modal.jsx';
 import { useStore, useProjectPhases } from '../store/StoreContext.jsx';
+import { toast } from './ToastHost.jsx';
 
 // Add / rename / reorder / delete phases for the current project. A project keeps ≥1 phase;
 // deleting a phase with items warns and cascades its items + linked PRs.
@@ -14,6 +15,7 @@ export default function ManagePhasesModal({ onClose }) {
   const add = () => {
     const n = newName.trim(); if (!n) return;
     addPhase(currentProjectId, n);
+    toast.success(`Phase “${n}” added`);
     setNewName('');
   };
   const remove = (ph) => {
@@ -24,6 +26,7 @@ export default function ManagePhasesModal({ onClose }) {
     if (!window.confirm(msg)) return;
     if (currentPhaseId === ph.id) setCurrentPhaseId('__all');
     deletePhase(ph.id);
+    toast.success(`Phase “${ph.name}” moved to Trash`);
   };
 
   return (

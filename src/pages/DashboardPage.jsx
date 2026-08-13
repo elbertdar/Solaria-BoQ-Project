@@ -8,6 +8,7 @@ import { KpiCard, EmptyState } from '../components/ui.jsx';
 import Modal from '../components/Modal.jsx';
 import ReceiveModal from '../components/ReceiveModal.jsx';
 import NewProjectModal from '../components/NewProjectModal.jsx';
+import { toast } from '../components/ToastHost.jsx';
 import { portfolioWorklist, todayLocal, addDays, toISO, computeLine, portfolioGantt } from '../engine/schedule.js';
 import { fmtDate, today as todayISO } from '../engine/format.js';
 import { supplierName as supplierNameOf, mandorName as mandorNameOf } from '../engine/reconcile.js';
@@ -75,7 +76,7 @@ export default function DashboardPage() {
           action={<button className="btn primary" onClick={() => setNewProject(true)}>+ New project</button>}
         />
         {newProject && <NewProjectModal onClose={() => setNewProject(false)}
-          onCreate={(vals) => { const id = addProject(vals); setNewProject(false); setCurrentProjectId(id); nav('/boq'); }} />}
+          onCreate={(vals) => { const id = addProject(vals); setNewProject(false); setCurrentProjectId(id); toast.success(`Project “${vals.name}” created`); nav('/boq'); }} />}
       </>
     );
   }
@@ -190,7 +191,7 @@ export default function DashboardPage() {
 
       {receiveFor && (
         <ReceiveModal title={`Mark received · ${receiveFor.materialName}`} onClose={() => setReceiveFor(null)}
-          onConfirm={(date) => { const pr = orderedPrFor(receiveFor); if (pr) stagePrStatus(pr.id, 'received', date); setReceiveFor(null); }} />
+          onConfirm={(date) => { const pr = orderedPrFor(receiveFor); if (pr) { stagePrStatus(pr.id, 'received', date); toast.success(`Receipt staged for ${receiveFor.materialName} — review & commit`); } setReceiveFor(null); }} />
       )}
       {pushFor && (
         <PushDateModal line={pushFor} onClose={() => setPushFor(null)}
@@ -201,7 +202,7 @@ export default function DashboardPage() {
           onConfirm={(days) => { updateBoqItem(snoozeFor.boqItem.id, { snoozedUntil: toISO(addDays(today, days)) }, `snoozed ${days}d`); setSnoozeFor(null); }} />
       )}
       {newProject && <NewProjectModal onClose={() => setNewProject(false)}
-        onCreate={(vals) => { const id = addProject(vals); setNewProject(false); setCurrentProjectId(id); nav('/boq'); }} />}
+        onCreate={(vals) => { const id = addProject(vals); setNewProject(false); setCurrentProjectId(id); toast.success(`Project “${vals.name}” created`); nav('/boq'); }} />}
     </>
   );
 }

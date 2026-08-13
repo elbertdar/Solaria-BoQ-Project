@@ -7,6 +7,7 @@ import PhaseTabs from '../components/PhaseTabs.jsx';
 import { ProjectBar } from '../components/ui.jsx';
 import PrModal from '../components/PrModal.jsx';
 import ReceiveModal from '../components/ReceiveModal.jsx';
+import { toast } from '../components/ToastHost.jsx';
 import {
   scheduleForProject, scheduleCounts, matchesFilter, agendaBuckets, dayColOf, todayLocal,
 } from '../engine/schedule.js';
@@ -118,7 +119,7 @@ export default function SchedulePage() {
       {editPr && <PrModal pr={editPr} onClose={() => setEditPr(null)} />}
       {receiveFor && (
         <ReceiveModal title={`Mark received · ${receiveFor.line.materialName}`} onClose={() => setReceiveFor(null)}
-          onConfirm={(date) => { stagePrStatus(receiveFor.pr.id, 'received', date); setReceiveFor(null); }} />
+          onConfirm={(date) => { stagePrStatus(receiveFor.pr.id, 'received', date); toast.success(`Receipt staged for ${receiveFor.line.materialName} — review & commit`); setReceiveFor(null); }} />
       )}
     </>
   );

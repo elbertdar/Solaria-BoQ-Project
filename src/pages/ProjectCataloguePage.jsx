@@ -8,6 +8,7 @@ import { toCsv, downloadCsv } from '../engine/csv.js';
 import { scheduleForProject, todayLocal } from '../engine/schedule.js';
 import { idr, fmtDate, num } from '../engine/format.js';
 import NewProjectModal from '../components/NewProjectModal.jsx';
+import { toast } from '../components/ToastHost.jsx';
 import DataToolbar from '../components/DataToolbar.jsx';
 import Modal from '../components/Modal.jsx';
 import { FilterBar, FilterSearch, FilterSelect, Pill } from '../components/ui.jsx';
@@ -126,7 +127,7 @@ export default function ProjectCataloguePage() {
       )}
 
       {newProject && <NewProjectModal onClose={() => setNewProject(false)}
-        onCreate={(vals) => { const id = addProject(vals); setNewProject(false); setCurrentProjectId(id); nav('/boq'); }} />}
+        onCreate={(vals) => { const id = addProject(vals); setNewProject(false); setCurrentProjectId(id); toast.success(`Project “${vals.name}” created`); nav('/boq'); }} />}
 
       {manageTypes && <ManageTypes db={db} onClose={() => setManageTypes(false)} onDelete={deleteProjectType} />}
 
@@ -135,11 +136,12 @@ export default function ProjectCataloguePage() {
           const id = delFor.id;
           if (currentProjectId === id) setCurrentProjectId(db.projects.find((p) => p.id !== id)?.id);
           softDeleteProject(id);
+          toast.success(`Project “${delFor.name}” moved to Trash`);
           setDelFor(null);
         }} />}
 
       {completeFor && <CompleteProject project={completeFor} db={db} onClose={() => setCompleteFor(null)}
-        onConfirm={() => { completeProject(completeFor.id); setCompleteFor(null); }} />}
+        onConfirm={() => { completeProject(completeFor.id); toast.success(`Project “${completeFor.name}” marked completed`); setCompleteFor(null); }} />}
     </>
   );
 }

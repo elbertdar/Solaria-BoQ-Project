@@ -9,6 +9,7 @@ import NumberInput from '../components/NumberInput.jsx';
 import ComboBox from '../components/ComboBox.jsx';
 import { FilterBar, FilterSearch, FilterSelect, DeleteConfirm, StatusPill } from '../components/ui.jsx';
 import DataToolbar from '../components/DataToolbar.jsx';
+import { toast } from '../components/ToastHost.jsx';
 
 export default function CataloguePage() {
   const { db, addMaterial, updateMaterial, addAlias, removeAlias, addBrand, deleteBrand, softDeleteMaterial } = useStore();
@@ -114,15 +115,15 @@ export default function CataloguePage() {
       </div>
 
       {adding && <MaterialModal title="Add canonical material" onClose={() => setAdding(false)}
-        onSave={(vals) => { addMaterial(vals); setAdding(false); }} types={db.materialTypes} materials={db.materials} />}
+        onSave={(vals) => { addMaterial(vals); toast.success(`${vals.canonicalName} added to Material Catalogue`); setAdding(false); }} types={db.materialTypes} materials={db.materials} />}
       {editMat && <MaterialModal title={`Edit ${editMat.canonicalName}`} material={editMat} onClose={() => setEditMat(null)}
-        onSave={(vals) => { updateMaterial(editMat.id, vals); setEditMat(null); }} types={db.materialTypes} materials={db.materials} />}
+        onSave={(vals) => { updateMaterial(editMat.id, vals); toast.success(`${vals.canonicalName} updated`); setEditMat(null); }} types={db.materialTypes} materials={db.materials} />}
       {aliasFor && <AddAlias material={aliasFor} onClose={() => setAliasFor(null)}
-        onAdd={(a) => { addAlias(aliasFor.id, a); setAliasFor(null); }} />}
+        onAdd={(a) => { addAlias(aliasFor.id, a); toast.success(`Alias “${a}” added to ${aliasFor.canonicalName}`); setAliasFor(null); }} />}
       {brandFor && <ManageBrands material={brandFor} brands={db.brands.filter((b) => b.materialId === brandFor.id)}
-        onClose={() => setBrandFor(null)} onAdd={(name) => addBrand({ materialId: brandFor.id, name })} onDelete={deleteBrand} />}
+        onClose={() => setBrandFor(null)} onAdd={(name) => { addBrand({ materialId: brandFor.id, name }); toast.success(`Brand “${name}” added to ${brandFor.canonicalName}`); }} onDelete={deleteBrand} />}
       {delFor && <DeleteMaterial material={delFor} db={db} onClose={() => setDelFor(null)}
-        onConfirm={() => { softDeleteMaterial(delFor.id); setDelFor(null); }} />}
+        onConfirm={() => { softDeleteMaterial(delFor.id); toast.success(`${delFor.canonicalName} moved to Trash`); setDelFor(null); }} />}
     </>
   );
 }
@@ -230,9 +231,11 @@ function MaterialModal({ title, material, onClose, onSave, types, materials }) {
 
   const dupes = (!editing && name.trim().length >= 2) ? suggestMaterials(materials, name, 3, 0.5) : [];
 
+  const fail = (msg) => { setError(msg); toast.error(msg); };
+
   function save() {
-    if (!name.trim()) { setError('Canonical name is required.'); return; }
-    if (!unit.trim()) { setError('Default unit is required.'); return; }
+    if (!name.trim()) { fail('Canonical name is required.'); return; }
+    if (!unit.trim()) { fail('Default unit is required.'); return; }
     const vals = {
       canonicalName: name.trim(), defaultUnit: unit.trim(), materialTypeId: typeId,
       estUnitCost: estCost === '' ? null : Number(estCost),

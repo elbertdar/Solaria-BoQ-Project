@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useStore } from '../store/StoreContext.jsx';
 import { fmtDate } from '../engine/format.js';
 import { FilterBar, FilterSearch, FilterSelect, Pill } from '../components/ui.jsx';
+import { toast } from '../components/ToastHost.jsx';
 
 const ENTITY = {
   pr: { label: 'Purchase request', color: ['#0369A1', '#EFF6FF'] },
@@ -64,12 +65,12 @@ export default function TrashPage() {
                       {confirmPurge === e.id ? (
                         <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
                           <span className="muted" style={{ fontSize: 12 }}>Delete forever?</span>
-                          <button className="btn sm danger" onClick={() => { purgeTrash(e.id); setConfirmPurge(null); }}>Yes</button>
+                          <button className="btn sm danger" onClick={() => { purgeTrash(e.id); toast.success(`“${e.summary}” permanently deleted`); setConfirmPurge(null); }}>Yes</button>
                           <button className="btn sm ghost" onClick={() => setConfirmPurge(null)}>No</button>
                         </span>
                       ) : (
                         <span style={{ display: 'inline-flex', gap: 6 }}>
-                          <button className="btn sm" onClick={() => restoreTrash(e.id)}>Restore</button>
+                          <button className="btn sm" onClick={() => { restoreTrash(e.id); toast.success(`“${e.summary}” restored`); }}>Restore</button>
                           <button className="btn sm ghost" style={{ color: 'var(--risk)' }} onClick={() => setConfirmPurge(e.id)}>Delete forever</button>
                         </span>
                       )}
